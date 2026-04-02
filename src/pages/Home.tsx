@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Package,
   MessageCircle,
+  Receipt,
   ArrowRight,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -58,6 +59,16 @@ const tools: Tool[] = [
     path: '/line-crm',
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-950/50',
+    status: 'active',
+  },
+  {
+    id: 'accounting',
+    name: '会計書類管理',
+    description: 'Gmail・Webから請求書・領収書を自動収集。AI解析で仕訳・整理を自動化。',
+    icon: <Receipt size={28} />,
+    path: '/accounting',
+    color: 'text-violet-600 dark:text-violet-400',
+    bgColor: 'bg-violet-50 dark:bg-violet-950/50',
     status: 'active',
   },
 ]
