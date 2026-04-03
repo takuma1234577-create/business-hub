@@ -18,6 +18,8 @@ import {
   Bot,
   Package,
   MessageCircle,
+  ShoppingBag,
+  Store,
 } from 'lucide-react'
 import axios from 'axios'
 
@@ -38,6 +40,19 @@ interface AmazonAccount {
   seller_id: string
   marketplace_id: string
   is_active: boolean
+  last_synced_at: string | null
+  created_at: string
+}
+
+interface ChannelStore {
+  id: string
+  channel: string
+  store_name: string
+  shop_domain: string | null
+  shop_id: string | null
+  is_active: boolean
+  auto_fulfill: boolean
+  inventory_sync_enabled: boolean
   last_synced_at: string | null
   created_at: string
 }
@@ -108,6 +123,11 @@ export default function ApiSettings() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
   const [amazonAccounts, setAmazonAccounts] = useState<AmazonAccount[]>([])
+  const [channelStores, setChannelStores] = useState<ChannelStore[]>([])
+  const [showChannelForm, setShowChannelForm] = useState(false)
+  const [channelForm, setChannelForm] = useState({ channel: 'shopify' as 'shopify' | 'tiktok', store_name: '', shop_domain: '', access_token: '', app_key: '', app_secret: '', shop_id: '', tiktok_access_token: '' })
+  const [channelSaving, setChannelSaving] = useState(false)
+  const [channelTesting, setChannelTesting] = useState<string | null>(null)
   const [showAmazonForm, setShowAmazonForm] = useState(false)
   const [amazonForm, setAmazonForm] = useState({ account_name: '', seller_id: '', marketplace_id: 'A1VC38T7YXB528', refresh_token: '', client_id: '', client_secret: '' })
   const [amazonSaving, setAmazonSaving] = useState(false)
@@ -118,13 +138,15 @@ export default function ApiSettings() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [connRes, amazonRes] = await Promise.all([
+      const [connRes, amazonRes, channelRes] = await Promise.all([
         api.get('/connections'),
         api.get('/amazon/accounts'),
+        api.get('/channels'),
       ])
       setConnections(connRes.data.connections)
       setEnvStatus(connRes.data.envStatus)
       setAmazonAccounts(amazonRes.data.accounts || [])
+      setChannelStores(channelRes.data.stores || [])
     } catch {
       setMessage({ type: 'error', text: 'API設定の取得に失敗しました' })
     }
@@ -164,6 +186,55 @@ export default function ApiSettings() {
       setMessage({ type: 'error', text: `更新失敗: ${err.response?.data?.error || err.message}` })
     }
     setRefreshing(null)
+  }
+
+  const handleChannelSave = async () => {
+    if (!channelForm.store_name) {
+      setMessage({ type: 'error', text: 'ストア名を入力してください' })
+      return
+    }
+    if (channelForm.channel === 'shopify' && (!channelForm.shop_domain || !channelForm.access_token)) {
+      setMessage({ type: 'error', text: 'Shopifyドメインとアクセストークンを入力してください' })
+      return
+    }
+    if (channelForm.channel === 'tiktok' && (!channelForm.app_key || !channelForm.app_secret)) {
+      setMessage({ type: 'error', text: 'App KeyとApp Secretを入力してください' })
+      return
+    }
+    setChannelSaving(true)
+    try {
+      await api.post('/channels', channelForm)
+      setMessage({ type: 'success', text: `${channelForm.channel === 'shopify' ? 'Shopify' : 'TikTokショップ'}を連携しました` })
+      setShowChannelForm(false)
+      setChannelForm({ channel: 'shopify', store_name: '', shop_domain: '', access_token: '', app_key: '', app_secret: '', shop_id: '', tiktok_access_token: '' })
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || '連携に失敗しました' })
+    }
+    setChannelSaving(false)
+  }
+
+  const handleChannelTest = async (id: string) => {
+    setChannelTesting(id)
+    try {
+      await api.post(`/channels/${id}/test`)
+      setMessage({ type: 'success', text: '接続テスト成功' })
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'テスト失敗' })
+    }
+    setChannelTesting(null)
+  }
+
+  const handleChannelDelete = async (id: string) => {
+    if (!confirm('このチャネルの接続を解除しますか？')) return
+    try {
+      await api.delete(`/channels/${id}`)
+      setMessage({ type: 'success', text: 'チャネルを削除しました' })
+      fetchData()
+    } catch {
+      setMessage({ type: 'error', text: '削除に失敗しました' })
+    }
   }
 
   const handleAmazonSave = async () => {
@@ -434,6 +505,140 @@ export default function ApiSettings() {
               <Package size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
               <p className="text-sm text-slate-500 dark:text-slate-400">Amazon SP-APIアカウントが未連携です</p>
               <button onClick={() => setShowAmazonForm(true)} className="mt-2 text-sm font-medium text-[#FF9900] hover:underline">アカウントを追加する</button>
+            </div>
+          )}
+        </section>
+
+        {/* Shopify / TikTok Shop Channels */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">販売チャネル連携</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Shopify・TikTokショップを接続。Amazon自動出荷で使用。</p>
+            </div>
+            <button
+              onClick={() => setShowChannelForm(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition"
+            >
+              <Store size={16} />
+              チャネル追加
+            </button>
+          </div>
+
+          {/* Add form */}
+          {showChannelForm && (
+            <div className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 space-y-4">
+              {/* Platform selector */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setChannelForm({ ...channelForm, channel: 'shopify' })}
+                  className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition ${channelForm.channel === 'shopify' ? 'border-[#96BF48] bg-[#96BF48]/5 text-[#96BF48]' : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'}`}
+                >
+                  <ShoppingBag size={18} />
+                  Shopify
+                </button>
+                <button
+                  onClick={() => setChannelForm({ ...channelForm, channel: 'tiktok' })}
+                  className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition ${channelForm.channel === 'tiktok' ? 'border-slate-900 dark:border-white bg-slate-900/5 dark:bg-white/5 text-slate-900 dark:text-white' : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'}`}
+                >
+                  <Store size={18} />
+                  TikTokショップ
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">ストア名 *</label>
+                <input type="text" value={channelForm.store_name} onChange={e => setChannelForm({ ...channelForm, store_name: e.target.value })} placeholder="マイストア" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+              </div>
+
+              {channelForm.channel === 'shopify' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Shopifyドメイン *</label>
+                    <input type="text" value={channelForm.shop_domain} onChange={e => setChannelForm({ ...channelForm, shop_domain: e.target.value })} placeholder="mystore.myshopify.com" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">アクセストークン *</label>
+                    <input type="password" value={channelForm.access_token} onChange={e => setChannelForm({ ...channelForm, access_token: e.target.value })} placeholder="shpat_xxxxx" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                    <p className="mt-1 text-xs text-slate-400">Shopify管理画面 → 設定 → アプリと販売チャネル → アプリを開発 で取得</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">App Key *</label>
+                      <input type="text" value={channelForm.app_key} onChange={e => setChannelForm({ ...channelForm, app_key: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">App Secret *</label>
+                      <input type="password" value={channelForm.app_secret} onChange={e => setChannelForm({ ...channelForm, app_secret: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Shop ID</label>
+                      <input type="text" value={channelForm.shop_id} onChange={e => setChannelForm({ ...channelForm, shop_id: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">アクセストークン</label>
+                      <input type="password" value={channelForm.tiktok_access_token} onChange={e => setChannelForm({ ...channelForm, tiktok_access_token: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400">TikTok Shop Partner Center → アプリ管理 で取得</p>
+                </>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleChannelSave} disabled={channelSaving} className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition disabled:opacity-50">
+                  {channelSaving ? '接続確認中...' : '連携する'}
+                </button>
+                <button onClick={() => setShowChannelForm(false)} className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-950 transition">
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Channel list */}
+          {channelStores.length > 0 ? (
+            <div className="space-y-3">
+              {channelStores.map(store => (
+                <div key={store.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                  <div className={`p-2.5 rounded-lg ${store.channel === 'shopify' ? 'bg-[#96BF48]/10 text-[#96BF48]' : 'bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white'}`}>
+                    {store.channel === 'shopify' ? <ShoppingBag size={20} /> : <Store size={20} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-slate-900 dark:text-white">{store.store_name}</h3>
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${store.channel === 'shopify' ? 'text-[#96BF48] bg-[#96BF48]/10' : 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}>
+                        {store.channel === 'shopify' ? 'Shopify' : 'TikTok'}
+                      </span>
+                      {store.is_active && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={12} /> 接続中
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {store.shop_domain || store.shop_id || '-'}
+                      {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                    </p>
+                  </div>
+                  <button onClick={() => handleChannelTest(store.id)} disabled={channelTesting === store.id} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50 transition disabled:opacity-50" title="接続テスト">
+                    <RefreshCw size={16} className={channelTesting === store.id ? 'animate-spin' : ''} />
+                  </button>
+                  <button onClick={() => handleChannelDelete(store.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/50 transition" title="削除">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : !showChannelForm && (
+            <div className="p-8 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center">
+              <ShoppingBag size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">販売チャネルが未連携です</p>
+              <button onClick={() => setShowChannelForm(true)} className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">チャネルを追加する</button>
             </div>
           )}
         </section>

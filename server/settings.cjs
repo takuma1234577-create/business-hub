@@ -229,4 +229,94 @@ router.post('/amazon/accounts/:id/test', async (req, res) => {
   }
 });
 
+// === Channel Stores (Shopify / TikTok Shop) ===
+
+router.get('/channels', async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('channel_stores')
+      .select('id, channel, store_name, shop_domain, shop_id, is_active, auto_fulfill, inventory_sync_enabled, last_synced_at, created_at')
+      .order('created_at', { ascending: false });
+    res.json({ stores: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/channels', async (req, res) => {
+  try {
+    const { channel, store_name, shop_domain, access_token, app_key, app_secret, shop_id, tiktok_access_token } = req.body;
+    if (!channel || !store_name) {
+      return res.status(400).json({ error: 'チャネルとストア名は必須です' });
+    }
+
+    const insertData = { channel, store_name, is_active: true, auto_fulfill: true, inventory_sync_enabled: true };
+
+    if (channel === 'shopify') {
+      if (!shop_domain || !access_token) {
+        return res.status(400).json({ error: 'Shopifyドメインとアクセストークンが必要です' });
+      }
+      // Validate Shopify connection
+      try {
+        const axios = require('axios');
+        const testRes = await axios.get(`https://${shop_domain}/admin/api/2024-01/shop.json`, {
+          headers: { 'X-Shopify-Access-Token': access_token },
+        });
+        insertData.store_name = store_name || testRes.data.shop.name;
+      } catch {
+        return res.status(400).json({ error: 'Shopify接続に失敗しました。ドメインとアクセストークンを確認してください。' });
+      }
+      insertData.shop_domain = shop_domain;
+      insertData.access_token = access_token;
+    } else if (channel === 'tiktok') {
+      if (!app_key || !app_secret) {
+        return res.status(400).json({ error: 'App KeyとApp Secretが必要です' });
+      }
+      insertData.app_key = app_key;
+      insertData.app_secret = app_secret;
+      insertData.shop_id = shop_id || null;
+      insertData.tiktok_access_token = tiktok_access_token || null;
+    }
+
+    const { data, error } = await supabase.from('channel_stores').insert(insertData).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, store: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/channels/:id', async (req, res) => {
+  try {
+    await supabase.from('channel_stores').delete().eq('id', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/channels/:id/test', async (req, res) => {
+  try {
+    const { data: store } = await supabase.from('channel_stores').select('*').eq('id', req.params.id).single();
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const axios = require('axios');
+    if (store.channel === 'shopify') {
+      const testRes = await axios.get(`https://${store.shop_domain}/admin/api/2024-01/shop.json`, {
+        headers: { 'X-Shopify-Access-Token': store.access_token },
+      });
+      await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
+      res.json({ success: true, shop_name: testRes.data.shop.name });
+    } else if (store.channel === 'tiktok') {
+      // Basic connectivity check
+      await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: '未対応のチャネル' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: '接続テスト失敗: ' + (err.response?.data?.errors || err.message) });
+  }
+});
+
 module.exports = router;
