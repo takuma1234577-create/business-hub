@@ -229,6 +229,70 @@ router.post('/amazon/accounts/:id/test', async (req, res) => {
   }
 });
 
+// === Shopify OAuth Flow ===
+
+const SHOPIFY_SCOPES = 'read_products,write_products,read_orders,write_orders,read_inventory,write_inventory,read_fulfillments,write_fulfillments';
+
+router.get('/shopify/login', (req, res) => {
+  const { shop } = req.query;
+  if (!shop) return res.status(400).json({ error: 'shopドメインを入力してください' });
+
+  const clientId = process.env.SHOPIFY_CLIENT_ID;
+  if (!clientId) return res.status(400).json({ error: 'SHOPIFY_CLIENT_ID が未設定です' });
+
+  const redirectUri = `${req.protocol}://${req.get('host')}/api/settings/shopify/callback`;
+  const nonce = Date.now().toString(36);
+  const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+
+  const url = `https://${shopDomain}/admin/oauth/authorize?client_id=${clientId}&scope=${SHOPIFY_SCOPES}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${nonce}`;
+  res.json({ url, shopDomain });
+});
+
+router.get('/shopify/callback', async (req, res) => {
+  const { code, shop, state } = req.query;
+  if (!code || !shop) return res.status(400).send('認証パラメータが不足しています');
+
+  const clientId = process.env.SHOPIFY_CLIENT_ID;
+  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return res.status(400).send('Shopify OAuth未設定');
+
+  try {
+    const axios = require('axios');
+    // Exchange code for permanent access token
+    const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+    });
+
+    const accessToken = tokenRes.data.access_token;
+
+    // Get shop info
+    const shopRes = await axios.get(`https://${shop}/admin/api/2024-01/shop.json`, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
+    });
+    const shopName = shopRes.data.shop.name;
+
+    // Save to channel_stores
+    await supabase.from('channel_stores').upsert({
+      id: `shopify_${shop}`,
+      channel: 'shopify',
+      store_name: shopName,
+      shop_domain: shop,
+      access_token: accessToken,
+      is_active: true,
+      auto_fulfill: true,
+      inventory_sync_enabled: true,
+      last_synced_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    res.send(`<html><body><script>window.opener && window.opener.postMessage({type:'shopify_connected',shop:'${shopName}'},'*');window.close();</script><p>${shopName} の連携が完了しました！このウィンドウを閉じてください。</p></body></html>`);
+  } catch (err) {
+    console.error('Shopify OAuth error:', err.response?.data || err.message);
+    res.status(500).send('Shopify認証エラー: ' + (err.response?.data?.error_description || err.message));
+  }
+});
+
 // === Channel Stores (Shopify / TikTok Shop) ===
 
 router.get('/channels', async (req, res) => {

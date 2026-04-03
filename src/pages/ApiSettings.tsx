@@ -162,6 +162,10 @@ export default function ApiSettings() {
         fetchData()
         setMessage({ type: 'success', text: `${e.data.service} の認証が完了しました` })
       }
+      if (e.data?.type === 'shopify_connected') {
+        fetchData()
+        setMessage({ type: 'success', text: `Shopify「${e.data.shop}」を連携しました` })
+      }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
@@ -186,6 +190,17 @@ export default function ApiSettings() {
       setMessage({ type: 'error', text: `更新失敗: ${err.response?.data?.error || err.message}` })
     }
     setRefreshing(null)
+  }
+
+  const handleShopifyOAuth = async () => {
+    const shop = prompt('Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com')
+    if (!shop) return
+    try {
+      const { data } = await api.get(`/shopify/login?shop=${encodeURIComponent(shop)}`)
+      window.open(data.url, '_blank', 'width=600,height=700')
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Shopify認証URLの取得に失敗しました' })
+    }
   }
 
   const handleChannelSave = async () => {
@@ -516,13 +531,22 @@ export default function ApiSettings() {
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">販売チャネル連携</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">Shopify・TikTokショップを接続。Amazon自動出荷で使用。</p>
             </div>
-            <button
-              onClick={() => setShowChannelForm(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition"
-            >
-              <Store size={16} />
-              チャネル追加
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleShopifyOAuth}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#96BF48] text-white text-sm font-medium hover:bg-[#7ea33d] transition"
+              >
+                <ShoppingBag size={16} />
+                Shopify連携
+              </button>
+              <button
+                onClick={() => { setChannelForm({ ...channelForm, channel: 'tiktok' }); setShowChannelForm(true) }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition"
+              >
+                <Store size={16} />
+                TikTok連携
+              </button>
+            </div>
           </div>
 
           {/* Add form */}
