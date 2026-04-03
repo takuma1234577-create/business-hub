@@ -287,7 +287,7 @@ router.get('/shopify/callback', async (req, res) => {
     // Save to channel_stores
     const { error: dbError } = await supabase.from('channel_stores').upsert({
       id: `shopify_${shop}`,
-      channel: 'shopify',
+      channel: 'SHOPIFY',
       store_name: shopName,
       shop_domain: shop,
       access_token: accessToken,
@@ -332,7 +332,8 @@ router.post('/channels', async (req, res) => {
       return res.status(400).json({ error: 'チャネルとストア名は必須です' });
     }
 
-    const insertData = { channel, store_name, is_active: true, auto_fulfill: true, inventory_sync_enabled: true };
+    const dbChannel = channel.toUpperCase();
+    const insertData = { channel: dbChannel, store_name, is_active: true, auto_fulfill: true, inventory_sync_enabled: true };
 
     if (channel === 'shopify') {
       if (!shop_domain || !access_token) {
