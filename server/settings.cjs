@@ -249,15 +249,24 @@ router.get('/shopify/login', (req, res) => {
 });
 
 router.get('/shopify/callback', async (req, res) => {
-  const { code, shop, state } = req.query;
-  if (!code || !shop) return res.status(400).send('認証パラメータが不足しています');
+  const { code, shop, state, hmac } = req.query;
+
+  console.log('[shopify callback] params:', { code: code ? 'yes' : 'no', shop, state });
+
+  if (!code || !shop) {
+    return res.send(`<html><body><h2>Shopify認証エラー</h2><p>認証パラメータが不足しています</p><p>code: ${code ? 'あり' : 'なし'}, shop: ${shop || 'なし'}</p><p>URL params: ${JSON.stringify(req.query)}</p></body></html>`);
+  }
 
   const clientId = process.env.SHOPIFY_CLIENT_ID;
   const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return res.status(400).send('Shopify OAuth未設定');
+  if (!clientId || !clientSecret) {
+    return res.send('<html><body><h2>エラー</h2><p>SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET が未設定です</p></body></html>');
+  }
 
   try {
     const axios = require('axios');
+    console.log('[shopify callback] exchanging code for token...');
+
     // Exchange code for permanent access token
     const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
       client_id: clientId,
@@ -266,15 +275,17 @@ router.get('/shopify/callback', async (req, res) => {
     });
 
     const accessToken = tokenRes.data.access_token;
+    console.log('[shopify callback] got access token');
 
     // Get shop info
     const shopRes = await axios.get(`https://${shop}/admin/api/2024-01/shop.json`, {
       headers: { 'X-Shopify-Access-Token': accessToken },
     });
     const shopName = shopRes.data.shop.name;
+    console.log('[shopify callback] shop name:', shopName);
 
     // Save to channel_stores
-    await supabase.from('channel_stores').upsert({
+    const { error: dbError } = await supabase.from('channel_stores').upsert({
       id: `shopify_${shop}`,
       channel: 'shopify',
       store_name: shopName,
@@ -286,10 +297,17 @@ router.get('/shopify/callback', async (req, res) => {
       last_synced_at: new Date().toISOString(),
     }, { onConflict: 'id' });
 
-    res.send(`<html><body><script>window.opener && window.opener.postMessage({type:'shopify_connected',shop:'${shopName}'},'*');window.close();</script><p>${shopName} の連携が完了しました！このウィンドウを閉じてください。</p></body></html>`);
+    if (dbError) {
+      console.error('[shopify callback] DB error:', dbError);
+      return res.send(`<html><body><h2>DB保存エラー</h2><p>${dbError.message}</p></body></html>`);
+    }
+
+    console.log('[shopify callback] saved to DB');
+    res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2 style="color:#96BF48">連携完了！</h2><p>${shopName} とShopifyの連携が完了しました。</p><p>このウィンドウを閉じてください。</p><script>window.opener && window.opener.postMessage({type:'shopify_connected',shop:'${shopName}'},'*');setTimeout(()=>window.close(),2000);</script></body></html>`);
   } catch (err) {
-    console.error('Shopify OAuth error:', err.response?.data || err.message);
-    res.status(500).send('Shopify認証エラー: ' + (err.response?.data?.error_description || err.message));
+    console.error('[shopify callback] error:', err.response?.data || err.message);
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">Shopify認証エラー</h2><p>${detail}</p><p>このウィンドウを閉じて、もう一度お試しください。</p></body></html>`);
   }
 });
 
