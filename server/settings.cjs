@@ -58,7 +58,8 @@ const GOOGLE_SCOPES = {
   ],
 };
 
-const getCallbackUrl = (req) => `${req.protocol}://${req.get('host')}/api/settings/google/callback`;
+// Reuse the invoice callback URL that's already registered in Google Cloud Console
+const getCallbackUrl = (req) => `${req.protocol}://${req.get('host')}/api/invoice/auth/callback`;
 
 router.get('/google/login', (req, res) => {
   const serviceId = req.query.service || 'gmail';

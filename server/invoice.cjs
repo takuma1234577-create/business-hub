@@ -101,14 +101,15 @@ router.get('/auth/login', (req, res) => {
 });
 
 router.get('/auth/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
+  const serviceId = state || 'gmail';
   const callbackUrl = getCallbackUrl(req);
   const oauth2Client = getOAuth2Client(callbackUrl);
   if (!oauth2Client) return res.status(400).send('Google OAuth未設定');
   try {
     const { tokens } = await oauth2Client.getToken(code);
     await supabase.from('oauth_tokens').upsert({
-      id: 'gmail',
+      id: serviceId,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       scope: tokens.scope,
@@ -116,7 +117,7 @@ router.get('/auth/callback', async (req, res) => {
       expiry_date: tokens.expiry_date,
       updated_at: new Date().toISOString(),
     });
-    res.send('<html><body><script>window.close();</script><p>認証成功！このウィンドウを閉じてください。</p></body></html>');
+    res.send(`<html><body><script>window.opener && window.opener.postMessage({type:'oauth_complete',service:'${serviceId}'},'*');window.close();</script><p>認証成功！ このウィンドウを閉じてください。</p></body></html>`);
   } catch (err) {
     res.status(500).send('認証エラー: ' + err.message);
   }
