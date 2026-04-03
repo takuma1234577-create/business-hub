@@ -5,11 +5,13 @@ import TaskManager from './pages/TaskManager'
 import AmazonAutoShip from './pages/AmazonAutoShip'
 import LineCrm from './pages/LineCrm'
 import AccountingTool from './pages/AccountingTool'
+import ApiSettings from './pages/ApiSettings'
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/settings" element={<ApiSettings />} />
       <Route path="/invoice/*" element={<InvoiceTool />} />
       <Route path="/tasks/*" element={<TaskManager />} />
       <Route path="/amazon/*" element={<AmazonAutoShip />} />

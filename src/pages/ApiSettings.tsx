@@ -1,0 +1,322 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft,
+  RefreshCw,
+  Trash2,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Shield,
+  Mail,
+  Calendar,
+  FileSpreadsheet,
+  HardDrive,
+  Database,
+  MessageSquare,
+  Bot,
+  Package,
+  MessageCircle,
+} from 'lucide-react'
+import axios from 'axios'
+
+const api = axios.create({ baseURL: '/api/settings' })
+
+interface Connection {
+  id: string
+  scope: string
+  tokenType: string
+  expiryDate: number | null
+  updatedAt: string
+  isExpired: boolean
+}
+
+interface EnvStatus {
+  google: boolean
+  supabase: boolean
+  chatwork: boolean
+  anthropic: boolean
+  amazonSupabase: boolean
+  linecrmSupabase: boolean
+}
+
+interface GoogleService {
+  id: string
+  name: string
+  description: string
+  icon: React.ReactNode
+  scopes: string[]
+  usedBy: string[]
+}
+
+const googleServices: GoogleService[] = [
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'メール送信・下書き作成・メール取得',
+    icon: <Mail size={20} />,
+    scopes: ['gmail.compose', 'gmail.send', 'gmail.readonly'],
+    usedBy: ['請求書ツール', '会計書類管理', 'AI秘書'],
+  },
+  {
+    id: 'calendar',
+    name: 'Google Calendar',
+    description: '予定の取得・作成・管理',
+    icon: <Calendar size={20} />,
+    scopes: ['calendar', 'calendar.events'],
+    usedBy: ['AI秘書'],
+  },
+  {
+    id: 'sheets',
+    name: 'Google Sheets',
+    description: 'スプレッドシートの読み書き',
+    icon: <FileSpreadsheet size={20} />,
+    scopes: ['spreadsheets'],
+    usedBy: ['請求書ツール', '会計書類管理'],
+  },
+  {
+    id: 'drive',
+    name: 'Google Drive',
+    description: 'ファイルの読み取り・管理',
+    icon: <HardDrive size={20} />,
+    scopes: ['drive.readonly'],
+    usedBy: ['会計書類管理'],
+  },
+]
+
+const envServices = [
+  { key: 'supabase', name: 'Supabase (メイン)', icon: <Database size={20} />, usedBy: '全ツール共通' },
+  { key: 'chatwork', name: 'Chatwork', icon: <MessageSquare size={20} />, usedBy: 'AI秘書' },
+  { key: 'anthropic', name: 'Claude AI', icon: <Bot size={20} />, usedBy: 'AI秘書 / 会計書類管理' },
+  { key: 'amazonSupabase', name: 'Supabase (Amazon)', icon: <Package size={20} />, usedBy: 'Amazon自動出荷' },
+  { key: 'linecrmSupabase', name: 'Supabase (LINE CRM)', icon: <MessageCircle size={20} />, usedBy: 'LINE CRM' },
+]
+
+export default function ApiSettings() {
+  const navigate = useNavigate()
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { data } = await api.get('/connections')
+      setConnections(data.connections)
+      setEnvStatus(data.envStatus)
+    } catch {
+      setMessage({ type: 'error', text: 'API設定の取得に失敗しました' })
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+
+    // Listen for OAuth callback messages
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'oauth_complete') {
+        fetchData()
+        setMessage({ type: 'success', text: `${e.data.service} の認証が完了しました` })
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [fetchData])
+
+  const handleGoogleLogin = async (serviceId: string) => {
+    try {
+      const { data } = await api.get(`/google/login?service=${serviceId}`)
+      window.open(data.url, '_blank', 'width=600,height=700')
+    } catch {
+      setMessage({ type: 'error', text: '認証URLの取得に失敗しました' })
+    }
+  }
+
+  const handleRefresh = async (id: string) => {
+    setRefreshing(id)
+    try {
+      await api.post(`/connections/${id}/refresh`)
+      setMessage({ type: 'success', text: `${id} のトークンを更新しました` })
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `更新失敗: ${err.response?.data?.error || err.message}` })
+    }
+    setRefreshing(null)
+  }
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm(`${id} の接続を解除しますか？`)) return
+    try {
+      await api.delete(`/connections/${id}`)
+      setMessage({ type: 'success', text: `${id} の接続を解除しました` })
+      fetchData()
+    } catch {
+      setMessage({ type: 'error', text: '接続解除に失敗しました' })
+    }
+  }
+
+  const getConnection = (id: string) => connections.find(c => c.id === id)
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      {/* Header */}
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <div className="max-w-4xl mx-auto px-6 py-6">
+          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 mb-4">
+            <ArrowLeft size={16} />
+            ツール一覧
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+              <Shield size={24} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">API設定</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">全ツール共通のAPI接続を管理</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+        {/* Message */}
+        {message && (
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800' : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800'}`}>
+            {message.type === 'success' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+            {message.text}
+            <button onClick={() => setMessage(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">閉じる</button>
+          </div>
+        )}
+
+        {/* Google API Connections */}
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Google API連携</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">OAuth認証で各Googleサービスと連携します。全ツールで共有されます。</p>
+
+          <div className="space-y-3">
+            {googleServices.map(service => {
+              const conn = getConnection(service.id)
+              const isConnected = !!conn
+              const isExpired = conn?.isExpired
+
+              return (
+                <div key={service.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                  {/* Icon */}
+                  <div className={`p-2.5 rounded-lg ${isConnected && !isExpired ? 'bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400' : isExpired ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-950/50 dark:text-yellow-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                    {service.icon}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-slate-900 dark:text-white">{service.name}</h3>
+                      {isConnected && !isExpired && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={12} /> 接続済み
+                        </span>
+                      )}
+                      {isExpired && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/50 px-2 py-0.5 rounded-full">
+                          <AlertTriangle size={12} /> 期限切れ
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{service.description}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      使用: {service.usedBy.join(', ')}
+                      {conn?.updatedAt && <span className="ml-2">· 最終更新: {formatDate(conn.updatedAt)}</span>}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    {isConnected && (
+                      <>
+                        <button
+                          onClick={() => handleRefresh(service.id)}
+                          disabled={refreshing === service.id}
+                          className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50 transition disabled:opacity-50"
+                          title="トークン更新"
+                        >
+                          <RefreshCw size={16} className={refreshing === service.id ? 'animate-spin' : ''} />
+                        </button>
+                        <button
+                          onClick={() => handleDisconnect(service.id)}
+                          className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/50 transition"
+                          title="接続解除"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => handleGoogleLogin(service.id)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        isConnected
+                          ? 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      <ExternalLink size={14} />
+                      {isConnected ? '再認証' : '連携する'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* Environment Variables (server-side) */}
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">サーバー設定</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Vercel環境変数で設定されたAPI接続の状態です。</p>
+
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
+            {envServices.map(service => {
+              const isActive = envStatus?.[service.key as keyof EnvStatus]
+              return (
+                <div key={service.key} className="flex items-center gap-4 px-4 py-3.5">
+                  <div className={`p-2 rounded-lg ${isActive ? 'bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                    {service.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-white">{service.name}</h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">使用: {service.usedBy}</p>
+                  </div>
+                  {isActive ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400">
+                      <CheckCircle2 size={14} /> 設定済み
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 dark:text-slate-500">
+                      <XCircle size={14} /> 未設定
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
+            ※ サーバー設定はVercelダッシュボードの環境変数から変更できます
+          </p>
+        </section>
+      </main>
+    </div>
+  )
+}

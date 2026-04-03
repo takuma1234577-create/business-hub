@@ -6,6 +6,7 @@ import {
   MessageCircle,
   Receipt,
   ArrowRight,
+  Settings,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -80,13 +81,22 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            業務ツール
-          </h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400">
-            業務効率化・自動化ツール一覧
-          </p>
+        <div className="max-w-5xl mx-auto px-6 py-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              業務ツール
+            </h1>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
+              業務効率化・自動化ツール一覧
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/settings')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition text-sm font-medium"
+          >
+            <Settings size={16} />
+            API設定
+          </button>
         </div>
       </header>
 
