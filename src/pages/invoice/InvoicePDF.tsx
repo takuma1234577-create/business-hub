@@ -56,16 +56,16 @@ const tieredBreakdown = (item: InvoiceItem): string[] => {
   return lines;
 };
 
-// Register fonts directly from CDN using TTF format (react-pdf does not support woff/woff2)
+// Register fonts using TTF from Google Fonts (react-pdf does not support woff/woff2)
 Font.register({
   family: 'NotoSansJP',
   fonts: [
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.1/files/noto-sans-jp-japanese-400-normal.ttf',
+      src: 'https://fonts.gstatic.com/s/notosansjp/v56/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEj75s.ttf',
       fontWeight: 'normal',
     },
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.1/files/noto-sans-jp-japanese-700-normal.ttf',
+      src: 'https://fonts.gstatic.com/s/notosansjp/v56/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFPYk75s.ttf',
       fontWeight: 'bold',
     },
   ],
