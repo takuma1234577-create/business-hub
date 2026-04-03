@@ -31,6 +31,8 @@ router.get('/connections', async (req, res) => {
       anthropic: !!process.env.ANTHROPIC_API_KEY,
       amazonSupabase: !!(process.env.AMAZON_SUPABASE_URL && process.env.AMAZON_SUPABASE_KEY),
       linecrmSupabase: !!(process.env.LINECRM_SUPABASE_URL && process.env.LINECRM_SUPABASE_KEY),
+      shopify: !!(process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET),
+      tiktok: !!(process.env.TIKTOK_APP_KEY && process.env.TIKTOK_APP_SECRET),
     };
 
     res.json({ connections, envStatus });
@@ -308,6 +310,88 @@ router.get('/shopify/callback', async (req, res) => {
     console.error('[shopify callback] error:', err.response?.data || err.message);
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">Shopify認証エラー</h2><p>${detail}</p><p>このウィンドウを閉じて、もう一度お試しください。</p></body></html>`);
+  }
+});
+
+// === TikTok Shop OAuth Flow ===
+
+router.get('/tiktok/login', (req, res) => {
+  const appKey = process.env.TIKTOK_APP_KEY;
+  if (!appKey) return res.status(400).json({ error: 'TIKTOK_APP_KEY が未設定です。API設定のサーバー設定を確認してください。' });
+
+  const state = Date.now().toString(36);
+  const url = `https://auth.tiktok-shops.com/oauth/authorize?app_key=${appKey}&state=${state}`;
+  res.json({ url });
+});
+
+router.get('/tiktok/callback', async (req, res) => {
+  const { code, state } = req.query;
+  console.log('[tiktok callback] params:', { code: code ? 'yes' : 'no', state });
+
+  if (!code) {
+    return res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">TikTok認証エラー</h2><p>認証コードが取得できませんでした</p><p>params: ${JSON.stringify(req.query)}</p></body></html>`);
+  }
+
+  const appKey = process.env.TIKTOK_APP_KEY;
+  const appSecret = process.env.TIKTOK_APP_SECRET;
+  if (!appKey || !appSecret) {
+    return res.send('<html><body><h2>エラー</h2><p>TIKTOK_APP_KEY / TIKTOK_APP_SECRET が未設定です</p></body></html>');
+  }
+
+  try {
+    const axios = require('axios');
+
+    // Exchange auth code for access token
+    const tokenRes = await axios.get('https://auth.tiktok-shops.com/api/v2/token/get', {
+      params: {
+        app_key: appKey,
+        app_secret: appSecret,
+        auth_code: code,
+        grant_type: 'authorized_code',
+      },
+    });
+
+    console.log('[tiktok callback] token response:', JSON.stringify(tokenRes.data));
+
+    const tokenData = tokenRes.data.data;
+    if (!tokenData || !tokenData.access_token) {
+      return res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">TikTokトークン取得エラー</h2><p>${JSON.stringify(tokenRes.data)}</p></body></html>`);
+    }
+
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token;
+    const shopList = tokenData.seller_base_region_list || [];
+    const shopName = shopList.length > 0 ? `TikTok Shop (${shopList.map(s => s.region).join(', ')})` : 'TikTok Shop';
+    const shopId = shopList.length > 0 ? shopList[0].seller_id : '';
+
+    // Save to channel_stores
+    const storeId = `tiktok_${shopId || Date.now()}`;
+    const { error: dbError } = await supabase.from('channel_stores').upsert({
+      id: storeId,
+      channel: 'TIKTOK',
+      store_name: shopName,
+      app_key: appKey,
+      app_secret: appSecret,
+      shop_id: shopId,
+      tiktok_access_token: accessToken,
+      tiktok_refresh_token: refreshToken,
+      is_active: true,
+      auto_fulfill: true,
+      inventory_sync_enabled: true,
+      last_synced_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    if (dbError) {
+      console.error('[tiktok callback] DB error:', dbError);
+      return res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">DB保存エラー</h2><p>${dbError.message}</p></body></html>`);
+    }
+
+    console.log('[tiktok callback] saved to DB');
+    res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2 style="color:#000">連携完了！</h2><p>${shopName} の連携が完了しました。</p><p>このウィンドウを閉じてください。</p><script>window.opener && window.opener.postMessage({type:'tiktok_connected',shop:'${shopName}'},'*');setTimeout(()=>window.close(),2000);</script></body></html>`);
+  } catch (err) {
+    console.error('[tiktok callback] error:', err.response?.data || err.message);
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    res.send(`<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:red">TikTok認証エラー</h2><p>${detail}</p><p>このウィンドウを閉じて、もう一度お試しください。</p></body></html>`);
   }
 });
 

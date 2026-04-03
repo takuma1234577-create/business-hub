@@ -166,6 +166,10 @@ export default function ApiSettings() {
         fetchData()
         setMessage({ type: 'success', text: `Shopify「${e.data.shop}」を連携しました` })
       }
+      if (e.data?.type === 'tiktok_connected') {
+        fetchData()
+        setMessage({ type: 'success', text: `TikTokショップ「${e.data.shop}」を連携しました` })
+      }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
@@ -200,6 +204,15 @@ export default function ApiSettings() {
       window.open(data.url, '_blank', 'width=600,height=700')
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.error || 'Shopify認証URLの取得に失敗しました' })
+    }
+  }
+
+  const handleTikTokOAuth = async () => {
+    try {
+      const { data } = await api.get('/tiktok/login')
+      window.open(data.url, '_blank', 'width=600,height=700')
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'TikTok認証URLの取得に失敗しました' })
     }
   }
 
@@ -540,7 +553,7 @@ export default function ApiSettings() {
                 Shopify連携
               </button>
               <button
-                onClick={() => { setChannelForm({ ...channelForm, channel: 'tiktok' }); setShowChannelForm(true) }}
+                onClick={handleTikTokOAuth}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition"
               >
                 <Store size={16} />
