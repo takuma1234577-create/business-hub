@@ -138,4 +138,95 @@ router.post('/connections/:id/refresh', async (req, res) => {
   }
 });
 
+// === Amazon SP-API Accounts ===
+
+// List Amazon accounts
+router.get('/amazon/accounts', async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('amazon_sp_accounts')
+      .select('id, account_name, seller_id, marketplace_id, endpoint, is_active, last_synced_at, created_at')
+      .order('created_at', { ascending: false });
+    res.json({ accounts: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add Amazon account
+router.post('/amazon/accounts', async (req, res) => {
+  try {
+    const { account_name, seller_id, marketplace_id, refresh_token, client_id, client_secret, endpoint } = req.body;
+    if (!account_name || !seller_id || !refresh_token || !client_id || !client_secret) {
+      return res.status(400).json({ error: '必須項目が不足しています' });
+    }
+
+    // Validate by trying to get access token
+    const axios = require('axios');
+    try {
+      await axios.post('https://api.amazon.com/auth/o2/token',
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token,
+          client_id,
+          client_secret,
+        }).toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+    } catch (authErr) {
+      return res.status(400).json({ error: 'Amazon API認証に失敗しました。認証情報を確認してください。' });
+    }
+
+    const { data, error } = await supabase.from('amazon_sp_accounts').insert({
+      account_name,
+      seller_id,
+      marketplace_id: marketplace_id || 'A1VC38T7YXB528',
+      refresh_token,
+      client_id,
+      client_secret,
+      endpoint: endpoint || 'https://sellingpartnerapi-fe.amazon.com',
+      is_active: true,
+    }).select().single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, account: { id: data.id, account_name: data.account_name, seller_id: data.seller_id } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Amazon account
+router.delete('/amazon/accounts/:id', async (req, res) => {
+  try {
+    await supabase.from('amazon_sp_accounts').delete().eq('id', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test Amazon connection
+router.post('/amazon/accounts/:id/test', async (req, res) => {
+  try {
+    const { data } = await supabase.from('amazon_sp_accounts').select('*').eq('id', req.params.id).single();
+    if (!data) return res.status(404).json({ error: 'Account not found' });
+
+    const axios = require('axios');
+    const tokenRes = await axios.post('https://api.amazon.com/auth/o2/token',
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: data.refresh_token,
+        client_id: data.client_id,
+        client_secret: data.client_secret,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    await supabase.from('amazon_sp_accounts').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
+    res.json({ success: true, expires_in: tokenRes.data.expires_in });
+  } catch (err) {
+    res.status(500).json({ error: 'Amazon API接続テスト失敗: ' + (err.response?.data?.error_description || err.message) });
+  }
+});
+
 module.exports = router;

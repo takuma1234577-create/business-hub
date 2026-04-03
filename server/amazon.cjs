@@ -8,32 +8,68 @@ const router = express.Router();
 // Amazon SP-API auth helpers
 // ---------------------------------------------------------------------------
 const TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
-const SP_API_ENDPOINT =
-  process.env.AMAZON_SP_ENDPOINT || 'https://sellingpartnerapi-na.amazon.com';
-const REFRESH_MARGIN_MS = 5 * 60 * 1000; // refresh 5 min before expiry
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
+let cachedEndpoint = null;
+
+async function getSpAccount() {
+  // Try DB first, then fall back to env vars
+  const { data } = await supabase
+    .from('amazon_sp_accounts')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (data) {
+    return {
+      refreshToken: data.refresh_token,
+      clientId: data.client_id,
+      clientSecret: data.client_secret,
+      endpoint: data.endpoint || 'https://sellingpartnerapi-fe.amazon.com',
+      marketplaceId: data.marketplace_id || 'A1VC38T7YXB528',
+    };
+  }
+
+  // Fallback to env vars
+  if (process.env.AMAZON_SP_REFRESH_TOKEN) {
+    return {
+      refreshToken: process.env.AMAZON_SP_REFRESH_TOKEN,
+      clientId: process.env.AMAZON_SP_CLIENT_ID,
+      clientSecret: process.env.AMAZON_SP_CLIENT_SECRET,
+      endpoint: process.env.AMAZON_SP_ENDPOINT || 'https://sellingpartnerapi-fe.amazon.com',
+      marketplaceId: process.env.AMAZON_SP_MARKETPLACE_ID || 'A1VC38T7YXB528',
+    };
+  }
+
+  throw new Error('Amazon SP-APIアカウントが設定されていません。API設定から連携してください。');
+}
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt - REFRESH_MARGIN_MS) {
-    return cachedToken;
+    return { token: cachedToken, endpoint: cachedEndpoint };
   }
+
+  const account = await getSpAccount();
 
   const response = await axios.post(
     TOKEN_URL,
     new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN,
-      client_id: process.env.AMAZON_SP_CLIENT_ID,
-      client_secret: process.env.AMAZON_SP_CLIENT_SECRET,
+      refresh_token: account.refreshToken,
+      client_id: account.clientId,
+      client_secret: account.clientSecret,
     }).toString(),
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
 
   cachedToken = response.data.access_token;
+  cachedEndpoint = account.endpoint;
   tokenExpiresAt = Date.now() + response.data.expires_in * 1000;
-  return cachedToken;
+  return { token: cachedToken, endpoint: cachedEndpoint, marketplaceId: account.marketplaceId };
 }
 
 // ---------------------------------------------------------------------------
@@ -310,11 +346,8 @@ router.get('/inventory', async (req, res) => {
       return res.status(400).json({ error: 'At least one SKU is required' });
     }
 
-    const marketplaceId =
-      process.env.AMAZON_SP_MARKETPLACE_ID || 'A1VC38T7YXB528'; // default JP
-
-    const token = await getAccessToken();
-    const url = `${SP_API_ENDPOINT}/fba/inventory/v1/summaries`;
+    const { token, endpoint, marketplaceId } = await getAccessToken();
+    const url = `${endpoint}/fba/inventory/v1/summaries`;
 
     const params = new URLSearchParams({
       details: 'true',
@@ -333,16 +366,16 @@ router.get('/inventory', async (req, res) => {
         },
       });
     } catch (apiErr) {
-      // Handle rate limiting with one retry
       if (apiErr.response && apiErr.response.status === 429) {
         const retryAfter = apiErr.response.headers['retry-after'];
         const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 5000;
         await new Promise((resolve) => setTimeout(resolve, waitMs));
 
-        const retryToken = await getAccessToken();
+        cachedToken = null; // force re-fetch
+        const retry = await getAccessToken();
         response = await axios.get(`${url}?${params.toString()}`, {
           headers: {
-            'x-amz-access-token': retryToken,
+            'x-amz-access-token': retry.token,
             'Content-Type': 'application/json',
           },
         });

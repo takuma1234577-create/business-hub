@@ -32,6 +32,16 @@ interface Connection {
   isExpired: boolean
 }
 
+interface AmazonAccount {
+  id: string
+  account_name: string
+  seller_id: string
+  marketplace_id: string
+  is_active: boolean
+  last_synced_at: string | null
+  created_at: string
+}
+
 interface EnvStatus {
   google: boolean
   supabase: boolean
@@ -97,15 +107,24 @@ export default function ApiSettings() {
   const navigate = useNavigate()
   const [connections, setConnections] = useState<Connection[]>([])
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  const [amazonAccounts, setAmazonAccounts] = useState<AmazonAccount[]>([])
+  const [showAmazonForm, setShowAmazonForm] = useState(false)
+  const [amazonForm, setAmazonForm] = useState({ account_name: '', seller_id: '', marketplace_id: 'A1VC38T7YXB528', refresh_token: '', client_id: '', client_secret: '' })
+  const [amazonSaving, setAmazonSaving] = useState(false)
+  const [amazonTesting, setAmazonTesting] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
-      const { data } = await api.get('/connections')
-      setConnections(data.connections)
-      setEnvStatus(data.envStatus)
+      const [connRes, amazonRes] = await Promise.all([
+        api.get('/connections'),
+        api.get('/amazon/accounts'),
+      ])
+      setConnections(connRes.data.connections)
+      setEnvStatus(connRes.data.envStatus)
+      setAmazonAccounts(amazonRes.data.accounts || [])
     } catch {
       setMessage({ type: 'error', text: 'API設定の取得に失敗しました' })
     }
@@ -145,6 +164,47 @@ export default function ApiSettings() {
       setMessage({ type: 'error', text: `更新失敗: ${err.response?.data?.error || err.message}` })
     }
     setRefreshing(null)
+  }
+
+  const handleAmazonSave = async () => {
+    if (!amazonForm.account_name || !amazonForm.seller_id || !amazonForm.refresh_token || !amazonForm.client_id || !amazonForm.client_secret) {
+      setMessage({ type: 'error', text: 'すべての必須項目を入力してください' })
+      return
+    }
+    setAmazonSaving(true)
+    try {
+      await api.post('/amazon/accounts', amazonForm)
+      setMessage({ type: 'success', text: 'Amazon SP-APIアカウントを接続しました' })
+      setShowAmazonForm(false)
+      setAmazonForm({ account_name: '', seller_id: '', marketplace_id: 'A1VC38T7YXB528', refresh_token: '', client_id: '', client_secret: '' })
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || '接続に失敗しました' })
+    }
+    setAmazonSaving(false)
+  }
+
+  const handleAmazonTest = async (id: string) => {
+    setAmazonTesting(id)
+    try {
+      await api.post(`/amazon/accounts/${id}/test`)
+      setMessage({ type: 'success', text: 'Amazon API接続テスト成功' })
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'テスト失敗' })
+    }
+    setAmazonTesting(null)
+  }
+
+  const handleAmazonDelete = async (id: string) => {
+    if (!confirm('このAmazonアカウントの接続を解除しますか？')) return
+    try {
+      await api.delete(`/amazon/accounts/${id}`)
+      setMessage({ type: 'success', text: 'Amazonアカウントを削除しました' })
+      fetchData()
+    } catch {
+      setMessage({ type: 'error', text: '削除に失敗しました' })
+    }
   }
 
   const handleDisconnect = async (id: string) => {
@@ -280,6 +340,102 @@ export default function ApiSettings() {
               )
             })}
           </div>
+        </section>
+
+        {/* Amazon SP-API */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Amazon SP-API</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">セラーセントラルのAPI認証情報を管理。Amazon自動出荷・請求書ツールで使用。</p>
+            </div>
+            <button
+              onClick={() => setShowAmazonForm(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF9900] text-white text-sm font-medium hover:bg-[#E88B00] transition"
+            >
+              <Package size={16} />
+              アカウント追加
+            </button>
+          </div>
+
+          {/* Add form */}
+          {showAmazonForm && (
+            <div className="mb-4 p-5 rounded-xl border border-[#FF9900]/30 bg-[#FF9900]/5 dark:bg-[#FF9900]/10 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">アカウント名 *</label>
+                  <input type="text" value={amazonForm.account_name} onChange={e => setAmazonForm({ ...amazonForm, account_name: e.target.value })} placeholder="メインアカウント" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">セラーID *</label>
+                  <input type="text" value={amazonForm.seller_id} onChange={e => setAmazonForm({ ...amazonForm, seller_id: e.target.value })} placeholder="A1B2C3D4E5F6G7" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">LWA Client ID *</label>
+                  <input type="text" value={amazonForm.client_id} onChange={e => setAmazonForm({ ...amazonForm, client_id: e.target.value })} placeholder="amzn1.application-oa2-client.xxxxx" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">マーケットプレイスID</label>
+                  <input type="text" value={amazonForm.marketplace_id} onChange={e => setAmazonForm({ ...amazonForm, marketplace_id: e.target.value })} placeholder="A1VC38T7YXB528" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">LWA Client Secret *</label>
+                <input type="password" value={amazonForm.client_secret} onChange={e => setAmazonForm({ ...amazonForm, client_secret: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">リフレッシュトークン *</label>
+                <input type="password" value={amazonForm.refresh_token} onChange={e => setAmazonForm({ ...amazonForm, refresh_token: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleAmazonSave} disabled={amazonSaving} className="px-4 py-2 rounded-lg bg-[#FF9900] text-white text-sm font-medium hover:bg-[#E88B00] transition disabled:opacity-50">
+                  {amazonSaving ? '接続確認中...' : '接続する'}
+                </button>
+                <button onClick={() => setShowAmazonForm(false)} className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition">
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Account list */}
+          {amazonAccounts.length > 0 ? (
+            <div className="space-y-3">
+              {amazonAccounts.map(acct => (
+                <div key={acct.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                  <div className="p-2.5 rounded-lg bg-[#FF9900]/10 text-[#FF9900]">
+                    <Package size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-slate-900 dark:text-white">{acct.account_name}</h3>
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${acct.is_active ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/50' : 'text-slate-500 bg-slate-100'}`}>
+                        {acct.is_active ? <><CheckCircle2 size={12} /> 接続中</> : '無効'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      セラーID: {acct.seller_id} · マーケットプレイス: {acct.marketplace_id}
+                      {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                    </p>
+                  </div>
+                  <button onClick={() => handleAmazonTest(acct.id)} disabled={amazonTesting === acct.id} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50 transition disabled:opacity-50" title="接続テスト">
+                    <RefreshCw size={16} className={amazonTesting === acct.id ? 'animate-spin' : ''} />
+                  </button>
+                  <button onClick={() => handleAmazonDelete(acct.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-950/50 transition" title="削除">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : !showAmazonForm && (
+            <div className="p-8 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center">
+              <Package size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">Amazon SP-APIアカウントが未連携です</p>
+              <button onClick={() => setShowAmazonForm(true)} className="mt-2 text-sm font-medium text-[#FF9900] hover:underline">アカウントを追加する</button>
+            </div>
+          )}
         </section>
 
         {/* Environment Variables (server-side) */}
