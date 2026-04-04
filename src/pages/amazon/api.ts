@@ -166,6 +166,9 @@ export const hideApi = {
 }
 
 export const inventoryApi = {
+  sync(): Promise<{ synced: number; skipped: number; errors?: any[] }> {
+    return request(`${BASE_URL}/sync-inventory`, { method: 'POST' })
+  },
   check(skus: string[]): Promise<InventorySummary[]> {
     const query = new URLSearchParams({ skus: skus.join(',') })
     return request<{ data: InventorySummary[] }>(

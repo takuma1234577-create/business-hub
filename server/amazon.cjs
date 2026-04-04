@@ -758,6 +758,131 @@ router.get('/amazon-skus', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Inventory Sync: Amazon FBA → Shopify
+// ---------------------------------------------------------------------------
+
+router.post('/sync-inventory', async (req, res) => {
+  try {
+    // 1. Get all SKU mappings
+    const { data: mappings } = await supabase
+      .from('sku_mappings')
+      .select('*')
+      .eq('is_active', true);
+
+    if (!mappings || mappings.length === 0) {
+      return res.json({ synced: 0, message: 'SKUマッピングがありません' });
+    }
+
+    // 2. Get Amazon FBA inventory
+    const { token, endpoint, marketplaceId } = await getAccessToken();
+    const amazonStock = {}; // sellerSku -> fulfillableQuantity
+
+    let nextToken = null;
+    do {
+      const params = new URLSearchParams({
+        details: 'true',
+        granularityType: 'Marketplace',
+        granularityId: marketplaceId,
+        marketplaceIds: marketplaceId,
+      });
+      if (nextToken) params.set('nextToken', nextToken);
+
+      const response = await axios.get(`${endpoint}/fba/inventory/v1/summaries?${params}`, {
+        headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
+      });
+
+      for (const item of response.data.payload?.inventorySummaries || []) {
+        amazonStock[item.sellerSku] = item.inventoryDetails?.fulfillableQuantity ?? 0;
+      }
+      nextToken = response.data.pagination?.nextToken || null;
+    } while (nextToken);
+
+    // 3. Get Shopify store
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .eq('is_active', true);
+
+    const store = stores?.[0];
+    if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
+
+    // 4. Get Shopify location (needed for inventory updates)
+    const locRes = await axios.get(
+      `https://${store.shop_domain}/admin/api/2024-01/locations.json`,
+      { headers: { 'X-Shopify-Access-Token': store.access_token } }
+    );
+    const locationId = locRes.data.locations?.[0]?.id;
+    if (!locationId) return res.status(400).json({ error: 'Shopifyのロケーションが見つかりません' });
+
+    // 5. Sync each mapping
+    let synced = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const mapping of mappings) {
+      const amazonQty = amazonStock[mapping.amazon_sku];
+      if (amazonQty === undefined) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        // Find Shopify variant by SKU or variantId
+        let variantId = null;
+        let inventoryItemId = null;
+
+        // Try finding by SKU first
+        if (mapping.channel_sku && !/^\d{10,}$/.test(mapping.channel_sku)) {
+          // If channel_sku looks like a real SKU (not a variantId)
+          const variantsRes = await axios.get(
+            `https://${store.shop_domain}/admin/api/2024-01/variants.json?query=sku:${encodeURIComponent(mapping.channel_sku)}`,
+            { headers: { 'X-Shopify-Access-Token': store.access_token } }
+          ).catch(() => null);
+          const v = variantsRes?.data?.variants?.[0];
+          if (v) { variantId = v.id; inventoryItemId = v.inventory_item_id; }
+        }
+
+        // If SKU didn't work, try as variantId
+        if (!variantId && /^\d{10,}$/.test(mapping.channel_sku)) {
+          const vRes = await axios.get(
+            `https://${store.shop_domain}/admin/api/2024-01/variants/${mapping.channel_sku}.json`,
+            { headers: { 'X-Shopify-Access-Token': store.access_token } }
+          ).catch(() => null);
+          const v = vRes?.data?.variant;
+          if (v) { variantId = v.id; inventoryItemId = v.inventory_item_id; }
+        }
+
+        if (!inventoryItemId) {
+          errors.push({ sku: mapping.channel_sku, error: 'Shopifyバリアントが見つかりません' });
+          continue;
+        }
+
+        // Update Shopify inventory
+        await axios.post(
+          `https://${store.shop_domain}/admin/api/2024-01/inventory_levels/set.json`,
+          {
+            location_id: locationId,
+            inventory_item_id: inventoryItemId,
+            available: amazonQty,
+          },
+          { headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' } }
+        );
+
+        synced++;
+      } catch (err) {
+        errors.push({ sku: mapping.channel_sku, error: err.response?.data?.errors || err.message });
+      }
+    }
+
+    return res.json({ synced, skipped, errors: errors.length > 0 ? errors.slice(0, 10) : undefined });
+  } catch (err) {
+    console.error('[sync-inventory] error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Manual product grouping
 router.post('/group-products', async (req, res) => {
   try {
@@ -1531,6 +1656,57 @@ router.get('/cron/sync', async (req, res) => {
     }
     results.autoFulfill = { fulfilled };
     console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders`);
+
+    // 3. Sync Amazon FBA inventory to Shopify
+    try {
+      const { data: activeMappings } = await supabase.from('sku_mappings').select('*').eq('is_active', true);
+      const { data: shopStores } = await supabase.from('channel_stores').select('*').eq('channel', 'SHOPIFY').eq('is_active', true);
+      const shopStore = shopStores?.[0];
+
+      if (activeMappings && activeMappings.length > 0 && shopStore) {
+        const { token: amzToken, endpoint: amzEndpoint, marketplaceId } = await getAccessToken();
+        const amazonStock = {};
+        let nextTok = null;
+        do {
+          const params = new URLSearchParams({ details: 'true', granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId });
+          if (nextTok) params.set('nextToken', nextTok);
+          const r = await axios.get(`${amzEndpoint}/fba/inventory/v1/summaries?${params}`, { headers: { 'x-amz-access-token': amzToken, 'Content-Type': 'application/json' } });
+          for (const it of r.data.payload?.inventorySummaries || []) {
+            amazonStock[it.sellerSku] = it.inventoryDetails?.fulfillableQuantity ?? 0;
+          }
+          nextTok = r.data.pagination?.nextToken || null;
+        } while (nextTok);
+
+        const locRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/locations.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
+        const locationId = locRes.data.locations?.[0]?.id;
+
+        let invSynced = 0;
+        for (const m of activeMappings) {
+          const amzQty = amazonStock[m.amazon_sku];
+          if (amzQty === undefined || !locationId) continue;
+          try {
+            let inventoryItemId = null;
+            if (m.channel_sku && !/^\d{10,}$/.test(m.channel_sku)) {
+              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/variants.json?query=sku:${encodeURIComponent(m.channel_sku)}`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+              inventoryItemId = vRes?.data?.variants?.[0]?.inventory_item_id;
+            }
+            if (!inventoryItemId && /^\d{10,}$/.test(m.channel_sku)) {
+              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/variants/${m.channel_sku}.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+              inventoryItemId = vRes?.data?.variant?.inventory_item_id;
+            }
+            if (!inventoryItemId) continue;
+            await axios.post(`https://${shopStore.shop_domain}/admin/api/2024-01/inventory_levels/set.json`, {
+              location_id: locationId, inventory_item_id: inventoryItemId, available: amzQty,
+            }, { headers: { 'X-Shopify-Access-Token': shopStore.access_token, 'Content-Type': 'application/json' } });
+            invSynced++;
+          } catch (e) {}
+        }
+        results.inventorySync = { synced: invSynced, total: activeMappings.length };
+        console.log(`[cron/sync] Synced inventory for ${invSynced}/${activeMappings.length} mappings`);
+      }
+    } catch (err) {
+      console.error('[cron/sync] inventory sync error:', err.message);
+    }
 
   } catch (err) {
     console.error('[cron/sync] error:', err.message);
