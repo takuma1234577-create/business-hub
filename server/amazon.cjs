@@ -303,7 +303,9 @@ router.get('/sku-mappings', async (req, res) => {
 // POST /sku-mappings - Create or upsert SKU mapping
 router.post('/sku-mappings', async (req, res) => {
   try {
-    const { channel, channel_sku, amazon_sku } = req.body;
+    const channel = req.body.channel;
+    const channel_sku = req.body.channel_sku || req.body.channelSku;
+    const amazon_sku = req.body.amazon_sku || req.body.amazonSku;
 
     if (!channel || !channel_sku || !amazon_sku) {
       return res
