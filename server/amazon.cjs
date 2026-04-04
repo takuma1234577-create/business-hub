@@ -842,6 +842,243 @@ router.post('/fulfill-all', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Check Amazon MCF fulfillment status & update tracking
+// ---------------------------------------------------------------------------
+
+router.post('/check-tracking', async (req, res) => {
+  try {
+    // Get orders that have been submitted to MCF but not yet shipped
+    const { data: pendingOrders } = await supabase
+      .from('orders')
+      .select('*')
+      .not('mcf_order_id', 'is', null)
+      .in('status', ['SUBMITTED', 'PENDING'])
+      .limit(50);
+
+    if (!pendingOrders || pendingOrders.length === 0) {
+      return res.json({ updated: 0, message: '追跡確認対象の注文がありません' });
+    }
+
+    const { token, endpoint } = await getAccessToken();
+    let updated = 0;
+    const results = [];
+
+    for (const order of pendingOrders) {
+      try {
+        const mcfRes = await axios.get(
+          `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${order.mcf_order_id}`,
+          { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+        );
+
+        const fulfillment = mcfRes.data.payload?.fulfillmentOrder;
+        const shipments = mcfRes.data.payload?.fulfillmentShipments || [];
+        const shipment = shipments[0];
+        const pkg = shipment?.fulfillmentShipmentPackage?.[0];
+
+        const mcfStatus = fulfillment?.fulfillmentOrderStatus || '';
+        const trackingNumber = pkg?.trackingNumber || null;
+        const carrier = pkg?.carrierCode || null;
+
+        const updateData = {};
+        let newStatus = order.status;
+
+        if (mcfStatus === 'Complete' || mcfStatus === 'COMPLETE' || shipment?.fulfillmentShipmentStatus === 'SHIPPED') {
+          newStatus = 'SHIPPED';
+          updateData.status = 'SHIPPED';
+          updateData.shipped_at = shipment?.shippingDate || new Date().toISOString();
+        } else if (mcfStatus === 'Processing' || mcfStatus === 'PROCESSING') {
+          newStatus = 'SUBMITTED';
+        }
+
+        if (trackingNumber && trackingNumber !== order.tracking_number) {
+          updateData.tracking_number = trackingNumber;
+          updateData.carrier = carrier;
+          updateData.tracking_updated_at = new Date().toISOString();
+          if (!updateData.status) updateData.status = 'TRACKING_UPDATED';
+          newStatus = updateData.status;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          updateData.updated_at = new Date().toISOString();
+          await supabase.from('orders').update(updateData).eq('id', order.id);
+
+          await supabase.from('fulfillment_logs').insert({
+            order_id: order.id,
+            event: trackingNumber ? 'TRACKING_UPDATED' : 'STATUS_CHECK',
+            message: trackingNumber
+              ? `追跡番号: ${trackingNumber} (${carrier || '-'}) / MCFステータス: ${mcfStatus}`
+              : `MCFステータス: ${mcfStatus}`,
+            payload: JSON.stringify({ mcfStatus, trackingNumber, carrier, shipments: shipments.length }),
+          });
+
+          updated++;
+        }
+
+        results.push({
+          orderId: order.id,
+          mcfOrderId: order.mcf_order_id,
+          mcfStatus,
+          trackingNumber,
+          carrier,
+          newStatus,
+        });
+      } catch (err) {
+        console.error(`[check-tracking] error for ${order.mcf_order_id}:`, err.response?.data || err.message);
+        results.push({ orderId: order.id, mcfOrderId: order.mcf_order_id, error: err.message });
+      }
+    }
+
+    return res.json({ updated, total: pendingOrders.length, results });
+  } catch (err) {
+    console.error('[check-tracking] error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Push tracking info back to Shopify
+// ---------------------------------------------------------------------------
+
+router.post('/orders/:id/sync-to-shopify', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order.tracking_number) return res.status(400).json({ error: '追跡番号がまだ取得されていません' });
+    if (order.channel !== 'SHOPIFY') return res.status(400).json({ error: 'Shopify注文ではありません' });
+
+    // Get Shopify store credentials
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .eq('is_active', true);
+
+    const store = stores?.[0];
+    if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
+
+    // Create fulfillment in Shopify
+    // First, get the order's fulfillment orders
+    const foRes = await axios.get(
+      `https://${store.shop_domain}/admin/api/2024-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+      { headers: { 'X-Shopify-Access-Token': store.access_token } }
+    );
+
+    const fulfillmentOrders = foRes.data.fulfillment_orders || [];
+    const openFO = fulfillmentOrders.find(fo => fo.status === 'open' || fo.status === 'in_progress');
+
+    if (!openFO) {
+      return res.status(400).json({ error: 'Shopifyで未発送の fulfillment order が見つかりません（既に発送済みの可能性があります）' });
+    }
+
+    // Create fulfillment
+    const fulfillmentRes = await axios.post(
+      `https://${store.shop_domain}/admin/api/2024-01/fulfillments.json`,
+      {
+        fulfillment: {
+          line_items_by_fulfillment_order: [{
+            fulfillment_order_id: openFO.id,
+          }],
+          tracking_info: {
+            number: order.tracking_number,
+            company: order.carrier || 'Amazon',
+          },
+          notify_customer: true,
+        },
+      },
+      { headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' } }
+    );
+
+    await supabase.from('fulfillment_logs').insert({
+      order_id: id,
+      event: 'SHOPIFY_SYNCED',
+      message: `Shopifyに配送情報を反映: ${order.tracking_number} (${order.carrier || 'Amazon'})`,
+      payload: JSON.stringify({ shopifyFulfillmentId: fulfillmentRes.data.fulfillment?.id }),
+    });
+
+    await supabase.from('orders').update({
+      status: 'TRACKING_UPDATED',
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+
+    return res.json({ ok: true, message: 'Shopifyに配送情報を反映しました' });
+  } catch (err) {
+    console.error('[sync-to-shopify] error:', err.response?.data || err.message);
+    return res.status(500).json({ error: err.response?.data?.errors || err.message });
+  }
+});
+
+// Push all tracked orders to Shopify
+router.post('/sync-all-to-shopify', async (req, res) => {
+  try {
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .not('tracking_number', 'is', null)
+      .in('status', ['SHIPPED', 'TRACKING_UPDATED'])
+      .limit(50);
+
+    // Get Shopify store
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .eq('is_active', true);
+
+    const store = stores?.[0];
+    if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
+
+    let synced = 0;
+    const errors = [];
+
+    for (const order of orders || []) {
+      try {
+        const foRes = await axios.get(
+          `https://${store.shop_domain}/admin/api/2024-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+          { headers: { 'X-Shopify-Access-Token': store.access_token } }
+        );
+
+        const openFO = (foRes.data.fulfillment_orders || []).find(fo => fo.status === 'open' || fo.status === 'in_progress');
+        if (!openFO) continue; // Already fulfilled in Shopify
+
+        await axios.post(
+          `https://${store.shop_domain}/admin/api/2024-01/fulfillments.json`,
+          {
+            fulfillment: {
+              line_items_by_fulfillment_order: [{ fulfillment_order_id: openFO.id }],
+              tracking_info: { number: order.tracking_number, company: order.carrier || 'Amazon' },
+              notify_customer: true,
+            },
+          },
+          { headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' } }
+        );
+
+        await supabase.from('fulfillment_logs').insert({
+          order_id: order.id,
+          event: 'SHOPIFY_SYNCED',
+          message: `Shopifyに配送情報を反映: ${order.tracking_number}`,
+        });
+
+        synced++;
+      } catch (err) {
+        errors.push({ orderId: order.id, error: err.response?.data?.errors || err.message });
+      }
+    }
+
+    return res.json({ synced, errors: errors.length > 0 ? errors : undefined });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Cron: Auto sync orders every 3 hours
 // ---------------------------------------------------------------------------
 

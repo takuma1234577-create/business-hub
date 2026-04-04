@@ -56,6 +56,18 @@ export const orderApi = {
   fulfillAll(): Promise<{ fulfilled: number; skipped: number; errors?: any[] }> {
     return request(`${BASE_URL}/fulfill-all`, { method: 'POST' })
   },
+
+  checkTracking(): Promise<{ updated: number; total: number; results: any[] }> {
+    return request(`${BASE_URL}/check-tracking`, { method: 'POST' })
+  },
+
+  syncToShopify(id: string): Promise<{ ok: boolean; message: string }> {
+    return request(`${BASE_URL}/orders/${id}/sync-to-shopify`, { method: 'POST' })
+  },
+
+  syncAllToShopify(): Promise<{ synced: number; errors?: any[] }> {
+    return request(`${BASE_URL}/sync-all-to-shopify`, { method: 'POST' })
+  },
 }
 
 // === SKU Mapping API ===

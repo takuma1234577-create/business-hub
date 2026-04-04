@@ -215,6 +215,9 @@ export default function OrderList() {
   const [syncing, setSyncing] = useState(false)
   const [fulfilling, setFulfilling] = useState<string | null>(null)
   const [fulfillingAll, setFulfillingAll] = useState(false)
+  const [checkingTracking, setCheckingTracking] = useState(false)
+  const [syncingShopify, setSyncingShopify] = useState<string | null>(null)
+  const [syncingAllShopify, setSyncingAllShopify] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchOrders = useCallback(
@@ -279,6 +282,43 @@ export default function OrderList() {
     setFulfillingAll(false)
   }
 
+  const handleCheckTracking = async () => {
+    setCheckingTracking(true)
+    try {
+      const res = await orderApi.checkTracking()
+      setMessage({ type: 'success', text: `${res.total}件中${res.updated}件の配送情報を更新しました` })
+      fetchOrders(pagination.page)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '配送情報の取得に失敗しました' })
+    }
+    setCheckingTracking(false)
+  }
+
+  const handleSyncToShopify = async (orderId: string) => {
+    setSyncingShopify(orderId)
+    try {
+      await orderApi.syncToShopify(orderId)
+      setMessage({ type: 'success', text: 'Shopifyに配送情報を反映しました' })
+      fetchOrders(pagination.page)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Shopify反映に失敗しました' })
+    }
+    setSyncingShopify(null)
+  }
+
+  const handleSyncAllToShopify = async () => {
+    if (!confirm('追跡番号のある全注文をShopifyに反映しますか？')) return
+    setSyncingAllShopify(true)
+    try {
+      const res = await orderApi.syncAllToShopify()
+      setMessage({ type: 'success', text: `${res.synced}件をShopifyに反映しました` })
+      fetchOrders(1)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Shopify一括反映に失敗しました' })
+    }
+    setSyncingAllShopify(false)
+  }
+
   const handleRetry = async (orderId: string) => {
     setRetrying(orderId)
     try {
@@ -318,6 +358,22 @@ export default function OrderList() {
         >
           {fulfillingAll ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
           {fulfillingAll ? '一括発送中...' : 'Amazon一括発送'}
+        </button>
+        <button
+          onClick={handleCheckTracking}
+          disabled={checkingTracking}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-blue-600 text-blue-600 text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-950/50 transition disabled:opacity-50 cursor-pointer"
+        >
+          {checkingTracking ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          {checkingTracking ? '確認中...' : 'Amazon追跡確認'}
+        </button>
+        <button
+          onClick={handleSyncAllToShopify}
+          disabled={syncingAllShopify}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#96BF48] text-[#96BF48] text-sm font-medium hover:bg-[#96BF48]/10 transition disabled:opacity-50 cursor-pointer"
+        >
+          {syncingAllShopify ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
+          {syncingAllShopify ? '反映中...' : 'Shopify一括反映'}
         </button>
       </div>
 
@@ -395,9 +451,12 @@ export default function OrderList() {
                   ステータス
                 </th>
                 <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
+                  追跡番号
+                </th>
+                <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
                   注文日
                 </th>
-                <th className="w-20 px-4 py-3" />
+                <th className="w-32 px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -405,7 +464,7 @@ export default function OrderList() {
                 const isExpanded = expandedId === order.id
                 return (
                   <tr key={order.id} className="group">
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       <div
                         className={`flex items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
                           isExpanded ? 'bg-slate-50 dark:bg-slate-800/50' : ''
@@ -432,10 +491,20 @@ export default function OrderList() {
                         <div className="flex-1 px-4 py-3">
                           <StatusBadge status={order.status} />
                         </div>
+                        <div className="flex-1 px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                          {order.trackingNumber ? (
+                            <div>
+                              <span className="text-blue-600 dark:text-blue-400">{order.trackingNumber}</span>
+                              {order.carrier && <span className="ml-1 text-slate-400">({order.carrier})</span>}
+                            </div>
+                          ) : order.mcfOrderId ? (
+                            <span className="text-slate-400 text-[10px]">MCF処理中</span>
+                          ) : '-'}
+                        </div>
                         <div className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
                           {order.orderedAt ? formatDate(order.orderedAt) : formatDate(order.createdAt)}
                         </div>
-                        <div className="w-28 px-4 py-3 flex items-center justify-end gap-1">
+                        <div className="w-32 px-4 py-3 flex items-center justify-end gap-1">
                           {order.status === 'PENDING' && (
                             <button
                               onClick={(e) => {
@@ -447,6 +516,19 @@ export default function OrderList() {
                               title="Amazon MCF発送"
                             >
                               {fulfilling === order.id ? '...' : '発送'}
+                            </button>
+                          )}
+                          {order.trackingNumber && order.channel === 'SHOPIFY' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSyncToShopify(order.id)
+                              }}
+                              disabled={syncingShopify === order.id}
+                              className="px-2 py-1 rounded-md bg-[#96BF48] text-white text-xs font-medium hover:bg-[#7ea33d] transition cursor-pointer disabled:opacity-50"
+                              title="Shopifyに反映"
+                            >
+                              {syncingShopify === order.id ? '...' : 'Shopify'}
                             </button>
                           )}
                           {order.status === 'ERROR' && (
