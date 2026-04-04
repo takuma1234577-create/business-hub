@@ -545,9 +545,22 @@ router.get('/amazon-skus', async (req, res) => {
       });
       if (nextToken) params.set('nextToken', nextToken);
 
-      const response = await axios.get(`${endpoint}/fba/inventory/v1/summaries?${params}`, {
-        headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
-      });
+      // Retry on 429 rate limit
+      let response;
+      for (let retry = 0; retry < 3; retry++) {
+        try {
+          response = await axios.get(`${endpoint}/fba/inventory/v1/summaries?${params}`, {
+            headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
+          });
+          break;
+        } catch (e) {
+          if (e.response?.status === 429 && retry < 2) {
+            await new Promise(r => setTimeout(r, (retry + 1) * 2000));
+            continue;
+          }
+          throw e;
+        }
+      }
 
       const items = response.data.payload?.inventorySummaries || [];
       for (const item of items) {
@@ -621,8 +634,10 @@ router.get('/amazon-skus', async (req, res) => {
     const uncachedAsins = uniqueAsins.filter(a => !cachedSet.has(a));
     console.log(`[amazon-skus] ${cachedSet.size} cached, ${uncachedAsins.length} to fetch from Catalog API`);
 
-    for (let i = 0; i < uncachedAsins.length; i += 5) {
-      const batch = uncachedAsins.slice(i, i + 5);
+    // Limit to 30 per request to avoid timeouts (process remaining on next load)
+    const toFetch = uncachedAsins.slice(0, 30);
+    for (let i = 0; i < toFetch.length; i += 2) {
+      const batch = toFetch.slice(i, i + 2);
       await Promise.all(batch.map(async (asin) => {
         try {
           const catRes = await axios.get(
@@ -673,7 +688,7 @@ router.get('/amazon-skus', async (req, res) => {
           catalogCache[asin] = { parentAsin: asin, variation: nameVariation, imageUrl: null, itemName: '' };
         }
       }));
-      if (i + 5 < uncachedAsins.length) await new Promise(r => setTimeout(r, 500));
+      if (i + 2 < toFetch.length) await new Promise(r => setTimeout(r, 1500));
     }
 
     // Update SKU variation info from catalog
@@ -753,8 +768,13 @@ router.get('/amazon-skus', async (req, res) => {
 
     return res.json({ skus: fbaSkus, products, catalogStats });
   } catch (err) {
-    console.error('GET /amazon-skus error:', err.response?.data || err.message);
-    return res.status(500).json({ error: err.message });
+    const status = err.response?.status;
+    const detail = JSON.stringify(err.response?.data || err.message);
+    console.error(`GET /amazon-skus error (${status}):`, detail);
+    const userMsg = status === 403 ? 'SP-APIの権限エラー。アプリ認証を確認してください。' :
+                    status === 429 ? 'API呼び出し頻度制限。しばらく待ってから再試行してください。' :
+                    err.response?.data?.errors?.[0]?.message || err.message;
+    return res.status(500).json({ error: userMsg, status, detail });
   }
 });
 
