@@ -386,13 +386,16 @@ export default function OrderList() {
                   受取人
                 </th>
                 <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
+                  商品
+                </th>
+                <th className="text-right px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
+                  金額
+                </th>
+                <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
                   ステータス
                 </th>
                 <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
-                  追跡番号
-                </th>
-                <th className="text-left px-4 py-3 text-slate-500 dark:text-slate-400 font-medium">
-                  日時
+                  注文日
                 </th>
                 <th className="w-20 px-4 py-3" />
               </tr>
@@ -402,7 +405,7 @@ export default function OrderList() {
                 const isExpanded = expandedId === order.id
                 return (
                   <tr key={order.id} className="group">
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       <div
                         className={`flex items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
                           isExpanded ? 'bg-slate-50 dark:bg-slate-800/50' : ''
@@ -420,14 +423,17 @@ export default function OrderList() {
                         <div className="flex-1 px-4 py-3 text-slate-700 dark:text-slate-300">
                           {order.recipientName}
                         </div>
+                        <div className="flex-1 px-4 py-3 text-xs text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
+                          {order.items?.map(i => i.title).filter(Boolean).join(', ') || '-'}
+                        </div>
+                        <div className="flex-1 px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
+                          {order.totalAmount ? `¥${Number(order.totalAmount).toLocaleString()}` : '-'}
+                        </div>
                         <div className="flex-1 px-4 py-3">
                           <StatusBadge status={order.status} />
                         </div>
-                        <div className="flex-1 px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
-                          {order.trackingNumber || '-'}
-                        </div>
                         <div className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
-                          {formatDate(order.createdAt)}
+                          {order.orderedAt ? formatDate(order.orderedAt) : formatDate(order.createdAt)}
                         </div>
                         <div className="w-28 px-4 py-3 flex items-center justify-end gap-1">
                           {order.status === 'PENDING' && (

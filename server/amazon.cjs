@@ -88,7 +88,7 @@ router.get('/orders', async (req, res) => {
     let query = supabase
       .from('orders')
       .select('*, order_items(*)', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order('ordered_at', { ascending: false, nullsFirst: false })
       .range(from, to);
 
     if (channel) {
@@ -123,6 +123,9 @@ router.get('/orders', async (req, res) => {
       errorMessage: order.error_message,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
+      orderedAt: order.ordered_at,
+      totalAmount: order.total_amount,
+      currency: order.currency,
       items: (order.order_items || []).map(item => ({
         ...item,
         orderId: item.order_id,
@@ -192,6 +195,9 @@ router.get('/orders/:id', async (req, res) => {
       errorMessage: order.error_message,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
+      orderedAt: order.ordered_at,
+      totalAmount: order.total_amount,
+      currency: order.currency,
       items: (order.order_items || []).map(item => ({
         ...item,
         orderId: item.order_id,
@@ -545,6 +551,9 @@ router.post('/sync-orders', async (req, res) => {
           postal_code: addr.zip || '',
           country_code: addr.country_code || 'JP',
           retry_count: 0,
+          ordered_at: order.created_at,
+          total_amount: parseFloat(order.total_price || '0'),
+          currency: order.currency || 'JPY',
         });
 
         if (orderError) {
@@ -835,6 +844,9 @@ router.get('/cron/sync', async (req, res) => {
               postal_code: addr.zip || '',
               country_code: addr.country_code || 'JP',
               retry_count: 0,
+              ordered_at: order.created_at,
+              total_amount: parseFloat(order.total_price || '0'),
+              currency: order.currency || 'JPY',
             });
 
             for (const item of order.line_items || []) {

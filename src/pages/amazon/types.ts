@@ -54,6 +54,9 @@ export interface Order {
   errorMessage?: string | null
   createdAt: string
   updatedAt: string
+  orderedAt?: string | null
+  totalAmount?: number | null
+  currency?: string | null
   items: OrderItem[]
   logs?: FulfillmentLog[]
 }
