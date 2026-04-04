@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Package, Loader2 } from 'lucide-react'
+import { Search, Package, Loader2, RefreshCw } from 'lucide-react'
 import { inventoryApi } from './api'
 import type { InventorySummary } from './types'
 
@@ -9,6 +9,21 @@ export default function InventoryCheck() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const handleSync = async () => {
+    if (!confirm('Amazon FBA在庫をShopifyに同期しますか？')) return
+    setSyncing(true)
+    setMessage(null)
+    try {
+      const res = await inventoryApi.sync()
+      setMessage({ type: 'success', text: `${res.synced}件の在庫を同期しました（スキップ: ${res.skipped}件）` })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '在庫同期に失敗しました' })
+    }
+    setSyncing(false)
+  }
 
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +54,32 @@ export default function InventoryCheck() {
 
   return (
     <div className="space-y-6">
+      {message && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+          {message.text}
+          <button onClick={() => setMessage(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
+
+      {/* Sync Button */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-5 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2">
+            <RefreshCw size={16} className="text-[#96BF48]" />
+            Amazon → Shopify 在庫同期
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">紐付け済み商品のFBA在庫数をShopifyに反映します</p>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#96BF48] text-white text-sm font-medium hover:bg-[#7ea33d] transition disabled:opacity-50 cursor-pointer"
+        >
+          {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          {syncing ? '同期中...' : '今すぐ同期'}
+        </button>
+      </div>
+
       {/* Search Form */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
