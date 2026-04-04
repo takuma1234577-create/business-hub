@@ -147,6 +147,15 @@ export const shopifyProductApi = {
   },
 }
 
+export const groupApi = {
+  groupProducts(groupAsin: string, childAsins: string[]): Promise<{ ok: boolean }> {
+    return request(`${BASE_URL}/group-products`, { method: 'POST', body: JSON.stringify({ groupAsin, childAsins }) })
+  },
+  ungroup(asin: string): Promise<{ ok: boolean }> {
+    return request(`${BASE_URL}/group-products/${asin}`, { method: 'DELETE' })
+  },
+}
+
 export const hideApi = {
   hideSku(sellerSku: string): Promise<{ ok: boolean }> {
     return request(`${BASE_URL}/hide-sku`, { method: 'POST', body: JSON.stringify({ sellerSku }) })

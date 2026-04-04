@@ -3,6 +3,7 @@ import {
   ShoppingBag,
   Loader2,
   EyeOff,
+  Combine,
   Link,
   RefreshCw,
   Package,
@@ -11,7 +12,7 @@ import {
   CheckCircle2,
   X,
 } from 'lucide-react'
-import { skuMappingApi, amazonSkuApi, shopifyProductApi, hideApi } from './api'
+import { skuMappingApi, amazonSkuApi, shopifyProductApi, hideApi, groupApi } from './api'
 import { smartMatch } from './searchUtils'
 import type { SkuMapping } from './types'
 import type { AmazonProduct, AmazonSku, ShopifyProduct } from './api'
@@ -28,6 +29,8 @@ export default function SkuMappings() {
   const [linking, setLinking] = useState<string | null>(null) // amazonSku being linked
   const [shopifySearch, setShopifySearch] = useState('')
   const [amazonSearch, setAmazonSearch] = useState('')
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selectedParents, setSelectedParents] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchMappings = async () => {
@@ -65,6 +68,45 @@ export default function SkuMappings() {
   useEffect(() => {
     Promise.all([fetchMappings(), fetchAmazon(), fetchShopify()]).finally(() => setLoading(false))
   }, [])
+
+  const toggleSelectParent = (parentAsin: string) => {
+    setSelectedParents(prev => {
+      const next = new Set(prev)
+      if (next.has(parentAsin)) next.delete(parentAsin)
+      else next.add(parentAsin)
+      return next
+    })
+  }
+
+  const handleMerge = async () => {
+    if (selectedParents.size < 2) {
+      setMessage({ type: 'error', text: '2つ以上選択してください' })
+      return
+    }
+    const parentArr = [...selectedParents]
+    const groupAsin = parentArr[0] // First selected becomes the group parent
+
+    // Collect all child ASINs from all selected products
+    const childAsins: string[] = []
+    for (const parent of parentArr) {
+      const product = amazonProducts.find(p => p.parentAsin === parent)
+      if (product) {
+        product.children.forEach(c => childAsins.push(c.asin))
+      }
+    }
+
+    if (!confirm(`選択した${parentArr.length}商品を1つに結合しますか？\n(${childAsins.length}バリエーション)`)) return
+
+    try {
+      await groupApi.groupProducts(groupAsin, childAsins)
+      setMessage({ type: 'success', text: `${parentArr.length}商品を結合しました` })
+      setSelectedParents(new Set())
+      setMergeMode(false)
+      fetchAmazon()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message })
+    }
+  }
 
   const handleHideProduct = async (product: AmazonProduct) => {
     const allSkusInProduct = product.children.flatMap(c => c.skus.map(s => s.sellerSku))
@@ -189,6 +231,32 @@ export default function SkuMappings() {
                 className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 w-48 focus:outline-none focus:ring-2 focus:ring-[#FF9900]/30"
               />
             </div>
+            {mergeMode ? (
+              <>
+                <button
+                  onClick={handleMerge}
+                  disabled={selectedParents.size < 2}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer"
+                >
+                  {selectedParents.size}件を結合
+                </button>
+                <button
+                  onClick={() => { setMergeMode(false); setSelectedParents(new Set()) }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  キャンセル
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setMergeMode(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                title="商品を結合"
+              >
+                <Combine size={12} />
+                結合モード
+              </button>
+            )}
             <button onClick={fetchAmazon} disabled={loadingAmazon} className="p-1.5 rounded-lg text-slate-400 hover:text-[#FF9900] hover:bg-[#FF9900]/10 transition disabled:opacity-50 cursor-pointer" title="Amazon再取得">
               <RefreshCw size={14} className={loadingAmazon ? 'animate-spin' : ''} />
             </button>
@@ -203,6 +271,14 @@ export default function SkuMappings() {
             <div key={product.parentAsin} className="px-5 py-4">
               {/* Parent Product Header */}
               <div className="flex items-center gap-3 mb-3">
+                {mergeMode && (
+                  <input
+                    type="checkbox"
+                    checked={selectedParents.has(product.parentAsin)}
+                    onChange={() => toggleSelectParent(product.parentAsin)}
+                    className="w-4 h-4 rounded cursor-pointer"
+                  />
+                )}
                 {(() => {
                   const img = product.imageUrl || product.children.find(c => c.imageUrl)?.imageUrl
                   return img

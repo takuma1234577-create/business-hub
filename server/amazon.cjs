@@ -598,7 +598,7 @@ router.get('/amazon-skus', async (req, res) => {
     const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
     const catalogCache = {};
 
-    // 1. Check DB cache first
+    // 1. Check DB cache first (only use cache if it has image - otherwise retry)
     const { data: cachedItems } = await supabase
       .from('amazon_catalog_cache')
       .select('*')
@@ -606,6 +606,8 @@ router.get('/amazon-skus', async (req, res) => {
 
     const cachedSet = new Set();
     for (const item of cachedItems || []) {
+      // Skip cache entries without image (likely failed lookups - retry)
+      if (!item.image_url) continue;
       catalogCache[item.asin] = {
         parentAsin: item.parent_asin || item.asin,
         variation: item.variation || '',
@@ -665,15 +667,10 @@ router.get('/amazon-skus', async (req, res) => {
             asin, parent_asin: parentAsin, variation, image_url: imageUrl, item_name: summary.itemName || '', fetched_at: new Date().toISOString(),
           });
         } catch (err) {
-          // Catalog API failed - use product name to extract variation
+          // Don't cache failures - will retry next time
           const skuItem = allSkus.find(s => s.asin === asin);
           const nameVariation = extractVariationFromName(skuItem?.productName || '');
           catalogCache[asin] = { parentAsin: asin, variation: nameVariation, imageUrl: null, itemName: '' };
-
-          // Still cache it (with what we have) to avoid re-fetching
-          await supabase.from('amazon_catalog_cache').upsert({
-            asin, parent_asin: asin, variation: nameVariation, image_url: null, item_name: '', fetched_at: new Date().toISOString(),
-          });
         }
       }));
       if (i + 5 < uncachedAsins.length) await new Promise(r => setTimeout(r, 500));
@@ -699,11 +696,19 @@ router.get('/amazon-skus', async (req, res) => {
     );
     console.log(`[amazon-skus] total: ${allSkus.length}, FBA: ${fbaSkus.length}, self-fulfilled: ${allSkus.length - fbaSkus.length}`);
 
+    // Apply manual grouping (user-assigned parent ASINs override Catalog API)
+    const { data: manualGroups } = await supabase.from('amazon_manual_groups').select('asin, group_asin');
+    const manualGroupMap = {};
+    for (const g of manualGroups || []) {
+      manualGroupMap[g.asin] = g.group_asin;
+    }
+
     // Group by parent ASIN
     const grouped = {};
     for (const sku of fbaSkus) {
       const cat = catalogCache[sku.asin] || {};
-      const parentAsin = cat.parentAsin || sku.asin;
+      // Manual grouping takes priority
+      const parentAsin = manualGroupMap[sku.asin] || cat.parentAsin || sku.asin;
 
       if (!grouped[parentAsin]) {
         grouped[parentAsin] = {
@@ -750,6 +755,31 @@ router.get('/amazon-skus', async (req, res) => {
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Manual product grouping
+router.post('/group-products', async (req, res) => {
+  try {
+    const { groupAsin, childAsins } = req.body;
+    if (!groupAsin || !childAsins || !childAsins.length) {
+      return res.status(400).json({ error: 'groupAsin and childAsins required' });
+    }
+    for (const asin of childAsins) {
+      await supabase.from('amazon_manual_groups').upsert({ asin, group_asin: groupAsin });
+    }
+    res.json({ ok: true, grouped: childAsins.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/group-products/:asin', async (req, res) => {
+  try {
+    await supabase.from('amazon_manual_groups').delete().eq('asin', req.params.asin);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
