@@ -669,13 +669,14 @@ router.get('/amazon-skus', async (req, res) => {
       }
     }
 
-    // Filter: FBA only + exclude hidden SKUs + FITPEAK brand only
+    // Filter: FBA only + exclude hidden + FITPEAK only + exclude zero stock
     const { data: hiddenData } = await supabase.from('amazon_hidden_skus').select('seller_sku');
     const hiddenSet = new Set((hiddenData || []).map(h => h.seller_sku));
     const fbaSkus = allSkus.filter(s =>
       s.isFba &&
       !hiddenSet.has(s.sellerSku) &&
-      s.productName.includes('FITPEAK')
+      s.productName.includes('FITPEAK') &&
+      s.totalQuantity > 0  // Exclude deleted/zero-stock SKUs
     );
     console.log(`[amazon-skus] total: ${allSkus.length}, FBA: ${fbaSkus.length}, self-fulfilled: ${allSkus.length - fbaSkus.length}`);
 
