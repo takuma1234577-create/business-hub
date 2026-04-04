@@ -20,6 +20,7 @@ import {
   MessageCircle,
   ShoppingBag,
   Store,
+  Pencil,
 } from 'lucide-react'
 import axios from 'axios'
 
@@ -132,6 +133,8 @@ export default function ApiSettings() {
   const [amazonForm, setAmazonForm] = useState({ account_name: '', seller_id: '', marketplace_id: 'A1VC38T7YXB528', refresh_token: '', client_id: '', client_secret: '' })
   const [amazonSaving, setAmazonSaving] = useState(false)
   const [amazonTesting, setAmazonTesting] = useState<string | null>(null)
+  const [amazonEditing, setAmazonEditing] = useState<string | null>(null)
+  const [amazonEditForm, setAmazonEditForm] = useState({ account_name: '', seller_id: '', marketplace_id: '', refresh_token: '', client_id: '', client_secret: '', endpoint: '' })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -263,6 +266,38 @@ export default function ApiSettings() {
     } catch {
       setMessage({ type: 'error', text: '削除に失敗しました' })
     }
+  }
+
+  const handleAmazonEdit = async (id: string) => {
+    try {
+      const { data } = await api.get(`/amazon/accounts/${id}`)
+      setAmazonEditForm({
+        account_name: data.account_name || '',
+        seller_id: data.seller_id || '',
+        marketplace_id: data.marketplace_id || '',
+        refresh_token: data.refresh_token || '',
+        client_id: data.client_id || '',
+        client_secret: data.client_secret || '',
+        endpoint: data.endpoint || '',
+      })
+      setAmazonEditing(id)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: 'アカウント情報の取得に失敗しました' })
+    }
+  }
+
+  const handleAmazonUpdate = async () => {
+    if (!amazonEditing) return
+    setAmazonSaving(true)
+    try {
+      await api.put(`/amazon/accounts/${amazonEditing}`, amazonEditForm)
+      setMessage({ type: 'success', text: 'Amazonアカウントを更新しました' })
+      setAmazonEditing(null)
+      fetchData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || '更新に失敗しました' })
+    }
+    setAmazonSaving(false)
   }
 
   const handleAmazonSave = async () => {
@@ -500,6 +535,53 @@ export default function ApiSettings() {
           )}
 
           {/* Account list */}
+          {/* Edit form */}
+          {amazonEditing && (
+            <div className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 space-y-3">
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">アカウント編集</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">アカウント名</label>
+                  <input type="text" value={amazonEditForm.account_name} onChange={e => setAmazonEditForm({ ...amazonEditForm, account_name: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">セラーID</label>
+                  <input type="text" value={amazonEditForm.seller_id} onChange={e => setAmazonEditForm({ ...amazonEditForm, seller_id: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">LWA Client ID</label>
+                  <input type="text" value={amazonEditForm.client_id} onChange={e => setAmazonEditForm({ ...amazonEditForm, client_id: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">マーケットプレイスID</label>
+                  <input type="text" value={amazonEditForm.marketplace_id} onChange={e => setAmazonEditForm({ ...amazonEditForm, marketplace_id: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">LWA Client Secret</label>
+                <input type="password" value={amazonEditForm.client_secret} onChange={e => setAmazonEditForm({ ...amazonEditForm, client_secret: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">リフレッシュトークン</label>
+                <input type="password" value={amazonEditForm.refresh_token} onChange={e => setAmazonEditForm({ ...amazonEditForm, refresh_token: e.target.value })} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">エンドポイント</label>
+                <input type="text" value={amazonEditForm.endpoint} onChange={e => setAmazonEditForm({ ...amazonEditForm, endpoint: e.target.value })} placeholder="https://sellingpartnerapi-fe.amazon.com" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleAmazonUpdate} disabled={amazonSaving} className="px-4 py-2 rounded-lg bg-[#FF9900] text-white text-sm font-medium hover:bg-[#E88B00] transition disabled:opacity-50">
+                  {amazonSaving ? '更新中...' : '更新する'}
+                </button>
+                <button onClick={() => setAmazonEditing(null)} className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-950 transition">
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+
           {amazonAccounts.length > 0 ? (
             <div className="space-y-3">
               {amazonAccounts.map(acct => (
@@ -519,6 +601,9 @@ export default function ApiSettings() {
                       {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
+                  <button onClick={() => handleAmazonEdit(acct.id)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition" title="編集">
+                    <Pencil size={16} />
+                  </button>
                   <button onClick={() => handleAmazonTest(acct.id)} disabled={amazonTesting === acct.id} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50 transition disabled:opacity-50" title="接続テスト">
                     <RefreshCw size={16} className={amazonTesting === acct.id ? 'animate-spin' : ''} />
                   </button>

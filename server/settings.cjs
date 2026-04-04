@@ -197,6 +197,48 @@ router.post('/amazon/accounts', async (req, res) => {
   }
 });
 
+// Get Amazon account details (for editing)
+router.get('/amazon/accounts/:id', async (req, res) => {
+  try {
+    const { data } = await supabase.from('amazon_sp_accounts').select('*').eq('id', req.params.id).single();
+    if (!data) return res.status(404).json({ error: 'Account not found' });
+    res.json({
+      id: data.id,
+      account_name: data.account_name,
+      seller_id: data.seller_id,
+      marketplace_id: data.marketplace_id,
+      refresh_token: data.refresh_token,
+      client_id: data.client_id,
+      client_secret: data.client_secret,
+      endpoint: data.endpoint,
+      is_active: data.is_active,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Amazon account
+router.put('/amazon/accounts/:id', async (req, res) => {
+  try {
+    const { account_name, seller_id, marketplace_id, refresh_token, client_id, client_secret, endpoint } = req.body;
+    const update = {};
+    if (account_name !== undefined) update.account_name = account_name;
+    if (seller_id !== undefined) update.seller_id = seller_id;
+    if (marketplace_id !== undefined) update.marketplace_id = marketplace_id;
+    if (refresh_token !== undefined) update.refresh_token = refresh_token;
+    if (client_id !== undefined) update.client_id = client_id;
+    if (client_secret !== undefined) update.client_secret = client_secret;
+    if (endpoint !== undefined) update.endpoint = endpoint;
+
+    const { data, error } = await supabase.from('amazon_sp_accounts').update(update).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, account: { id: data.id, account_name: data.account_name } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Delete Amazon account
 router.delete('/amazon/accounts/:id', async (req, res) => {
   try {
