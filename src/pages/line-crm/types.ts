@@ -111,9 +111,12 @@ export interface RichMenu {
 // API response types
 export interface PaginatedResponse<T> {
   data: T[]
-  total: number
-  page: number
-  per_page: number
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
 }
 
 export interface FriendListParams {

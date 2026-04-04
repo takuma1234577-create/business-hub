@@ -28,7 +28,7 @@ export default function FriendList({ onSelectFriend }: FriendListProps) {
         per_page: perPage,
       })
       setFriends(res.data)
-      setTotal(res.total)
+      setTotal(res.pagination?.total ?? 0)
     } catch (err) {
       console.error('Failed to fetch friends:', err)
     } finally {
