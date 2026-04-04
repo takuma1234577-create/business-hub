@@ -395,7 +395,18 @@ router.get('/inventory', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Shopify Order Sync - Fetch unfulfilled orders from Shopify
+// Shopify status mapping
+// ---------------------------------------------------------------------------
+function mapShopifyStatus(order) {
+  if (order.cancelled_at) return 'CANCELLED';
+  if (order.fulfillment_status === 'fulfilled') return 'SHIPPED';
+  if (order.fulfillment_status === 'partial') return 'SUBMITTED';
+  if (order.financial_status === 'paid') return 'PENDING';
+  return 'PENDING';
+}
+
+// ---------------------------------------------------------------------------
+// Shopify Order Sync - Fetch orders from Shopify
 // ---------------------------------------------------------------------------
 
 router.post('/sync-orders', async (req, res) => {
@@ -417,12 +428,12 @@ router.post('/sync-orders', async (req, res) => {
     for (const store of stores) {
       // Fetch unfulfilled orders from Shopify
       const shopifyRes = await axios.get(
-        `https://${store.shop_domain}/admin/api/2024-01/orders.json?fulfillment_status=unfulfilled&status=open&limit=50`,
+        `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50`,
         { headers: { 'X-Shopify-Access-Token': store.access_token } }
       );
 
       const shopifyOrders = shopifyRes.data.orders || [];
-      console.log(`[sync-orders] Found ${shopifyOrders.length} unfulfilled orders from ${store.store_name}`);
+      console.log(`[sync-orders] Found ${shopifyOrders.length} orders from ${store.store_name}`);
 
       for (const order of shopifyOrders) {
         // Check if already imported
@@ -440,6 +451,7 @@ router.post('/sync-orders', async (req, res) => {
 
         // Get shipping address
         const addr = order.shipping_address || {};
+        const orderStatus = mapShopifyStatus(order);
 
         // Create order
         const orderId = `SHOP-${order.id}`;
@@ -447,7 +459,7 @@ router.post('/sync-orders', async (req, res) => {
           id: orderId,
           channel: 'SHOPIFY',
           channel_order_id: String(order.id),
-          status: 'PENDING',
+          status: orderStatus,
           shipping_speed: 'STANDARD',
           recipient_name: addr.name || `${addr.last_name || ''} ${addr.first_name || ''}`.trim() || order.customer?.default_address?.name || '',
           address_line1: addr.address1 || '',
@@ -718,7 +730,7 @@ router.get('/cron/sync', async (req, res) => {
       if (store.channel === 'SHOPIFY' && store.shop_domain && store.access_token) {
         try {
           const shopifyRes = await axios.get(
-            `https://${store.shop_domain}/admin/api/2024-01/orders.json?fulfillment_status=unfulfilled&status=open&limit=50`,
+            `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50`,
             { headers: { 'X-Shopify-Access-Token': store.access_token } }
           );
 
@@ -733,13 +745,14 @@ router.get('/cron/sync', async (req, res) => {
             if (existing) continue;
 
             const addr = order.shipping_address || {};
+            const orderStatus = mapShopifyStatus(order);
             const orderId = `SHOP-${order.id}`;
 
             await supabase.from('orders').insert({
               id: orderId,
               channel: 'SHOPIFY',
               channel_order_id: String(order.id),
-              status: 'PENDING',
+              status: orderStatus,
               shipping_speed: 'STANDARD',
               recipient_name: addr.name || `${addr.last_name || ''} ${addr.first_name || ''}`.trim(),
               address_line1: addr.address1 || '',
