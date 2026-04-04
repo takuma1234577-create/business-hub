@@ -201,9 +201,12 @@ export default function SkuMappings() {
                   <div key={child.asin} className="space-y-1">
                     {/* Child ASIN Header */}
                     <div className="flex items-center gap-2">
+                      {child.imageUrl && <img src={child.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />}
                       <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded">{child.asin}</span>
-                      {child.variation && (
-                        <span className="text-[10px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">{child.variation}</span>
+                      {child.variation ? (
+                        <span className="text-xs font-medium bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded">{child.variation}</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">バリエーション情報なし</span>
                       )}
                     </div>
 

@@ -563,59 +563,103 @@ router.get('/amazon-skus', async (req, res) => {
       nextToken = response.data.pagination?.nextToken || null;
     } while (nextToken);
 
-    // Group by product name (strip variation suffixes to find base product)
-    // This works without Catalog API and reliably groups variations together
-    function getBaseProductName(name) {
-      // Remove common variation patterns from product name
-      return name
-        .replace(/[\s　]*[（(][^）)]+[）)]/g, '') // Remove (バリエーション)
-        .replace(/[\s　]*[-–][\s　]*\S+$/g, '')   // Remove trailing "- バリエーション"
-        .replace(/[\s　]+(S|M|L|XL|XXL|2XL|3XL|F|Free|ブラック|ホワイト|レッド|ブルー|グレー|ピンク|ネイビー|ベージュ|グリーン|イエロー|オレンジ|パープル|Black|White|Red|Blue|Gray|Pink|Navy)[\s　]*$/i, '')
-        .trim();
-    }
+    // Fetch catalog info for each ASIN: parent ASIN, variation attributes, images
+    const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
+    const catalogCache = {}; // asin -> { parentAsin, variation, imageUrl, color, size }
 
-    // First pass: determine base names and group
-    const nameGroups = {};
-    for (const sku of allSkus) {
-      const baseName = getBaseProductName(sku.productName);
-      if (!nameGroups[baseName]) {
-        nameGroups[baseName] = [];
-      }
-      nameGroups[baseName].push(sku);
-    }
+    for (let i = 0; i < uniqueAsins.length; i += 5) {
+      const batch = uniqueAsins.slice(i, i + 5);
+      await Promise.all(batch.map(async (asin) => {
+        try {
+          const catRes = await axios.get(
+            `${endpoint}/catalog/2022-04-01/items/${asin}?marketplaceIds=${marketplaceId}&includedData=relationships,summaries,images,attributes`,
+            { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+          );
 
-    // Build hierarchical products
-    const products = Object.entries(nameGroups).map(([baseName, skus]) => {
-      // Group by ASIN within this product
-      const children = {};
-      for (const sku of skus) {
-        if (!children[sku.asin]) {
-          // Extract variation from product name (difference from base name)
-          let variation = sku.productName.replace(baseName, '').trim();
-          variation = variation.replace(/^[-–\s（(]+/, '').replace(/[）)\s]+$/, '').trim();
-          if (!variation && sku.variation) variation = sku.variation;
+          const item = catRes.data;
+          const summary = (item.summaries || [])[0] || {};
+          const images = (item.images || [])[0]?.images || [];
+          const relationships = (item.relationships || [])[0]?.relationships || [];
 
-          children[sku.asin] = {
-            asin: sku.asin,
-            productName: sku.productName,
-            variation: variation || '',
-            imageUrl: null,
-            skus: [],
+          // Find parent ASIN
+          let parentAsin = asin;
+          for (const rel of relationships) {
+            if (rel.parentAsins && rel.parentAsins.length > 0) {
+              parentAsin = rel.parentAsins[0];
+              break;
+            }
+          }
+
+          // Extract variation attributes
+          const attrs = [];
+          if (summary.color) attrs.push(summary.color);
+          if (summary.size) attrs.push(summary.size);
+          if (summary.style) attrs.push(summary.style);
+          const variation = attrs.join(' / ');
+
+          // Get image
+          const mainImage = images.find(img => img.variant === 'MAIN') || images[0];
+          const imageUrl = mainImage?.link || null;
+
+          catalogCache[asin] = {
+            parentAsin,
+            variation,
+            imageUrl,
+            itemName: summary.itemName || '',
           };
+        } catch (err) {
+          // If catalog fails, use product name for grouping
+          catalogCache[asin] = { parentAsin: asin, variation: '', imageUrl: null, itemName: '' };
         }
-        children[sku.asin].skus.push(sku);
+      }));
+      if (i + 5 < uniqueAsins.length) await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Update SKU variation info from catalog
+    for (const sku of allSkus) {
+      const cat = catalogCache[sku.asin];
+      if (cat) {
+        if (cat.variation) sku.variation = cat.variation;
+        if (cat.itemName && !sku.productName) sku.productName = cat.itemName;
+      }
+    }
+
+    // Group by parent ASIN
+    const grouped = {};
+    for (const sku of allSkus) {
+      const cat = catalogCache[sku.asin] || {};
+      const parentAsin = cat.parentAsin || sku.asin;
+
+      if (!grouped[parentAsin]) {
+        grouped[parentAsin] = {
+          parentAsin,
+          productName: sku.productName,
+          imageUrl: cat.imageUrl || null,
+          children: {},
+        };
       }
 
-      // Use the first ASIN as "parent" representative
-      const firstAsin = skus[0].asin;
+      if (!grouped[parentAsin].children[sku.asin]) {
+        grouped[parentAsin].children[sku.asin] = {
+          asin: sku.asin,
+          productName: sku.productName,
+          variation: cat.variation || sku.variation || '',
+          imageUrl: cat.imageUrl || null,
+          skus: [],
+        };
+      }
+      grouped[parentAsin].children[sku.asin].skus.push(sku);
 
-      return {
-        parentAsin: Object.keys(children).length > 1 ? `GROUP-${firstAsin}` : firstAsin,
-        productName: baseName || skus[0].productName,
-        imageUrl: null,
-        children: Object.values(children),
-      };
-    });
+      // Keep shortest product name as parent name (often base product)
+      if (!grouped[parentAsin].productName || (sku.productName && sku.productName.length < grouped[parentAsin].productName.length)) {
+        grouped[parentAsin].productName = sku.productName;
+      }
+    }
+
+    const products = Object.values(grouped).map(p => ({
+      ...p,
+      children: Object.values(p.children),
+    }));
 
     return res.json({ skus: allSkus, products });
   } catch (err) {
