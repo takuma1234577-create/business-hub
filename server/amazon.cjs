@@ -532,19 +532,10 @@ router.get('/amazon-skus', async (req, res) => {
 
       const items = response.data.payload?.inventorySummaries || [];
       for (const item of items) {
-        // Extract variation info from SKU or product name
-        const skuParts = item.sellerSku.split('-');
         const productName = item.productName || '';
 
-        // Try to detect variation from product name (e.g. "商品名 サイズ:M カラー:黒")
-        let variation = '';
-        const varMatch = productName.match(/[（(](.+?)[）)]/);
-        if (varMatch) {
-          variation = varMatch[1];
-        } else if (skuParts.length > 2) {
-          // If SKU has multiple parts, last parts might be variation
-          variation = skuParts.slice(-1).join('-');
-        }
+        // Extract variation from product name (NOT from SKU - SKU suffixes are meaningless)
+        let variation = extractVariationFromName(productName);
 
         allSkus.push({
           sellerSku: item.sellerSku,
@@ -563,12 +554,50 @@ router.get('/amazon-skus', async (req, res) => {
       nextToken = response.data.pagination?.nextToken || null;
     } while (nextToken);
 
-    // Fetch catalog info for each ASIN: parent ASIN, variation attributes, images
-    const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
-    const catalogCache = {}; // asin -> { parentAsin, variation, imageUrl, color, size }
+    // Helper: extract variation from product name
+    function extractVariationFromName(name) {
+      if (!name) return '';
+      // Pattern: "商品名 カラー サイズ" at end
+      const patterns = [
+        /(?:ブラック|ホワイト|レッド|ブルー|グリーン|イエロー|ピンク|グレー|ネイビー|ベージュ|オレンジ|パープル|フルブラック|ダークグレー|ライトグレー|ディープレッド)[\s/]*(?:\d+cm|[SMLX234]+L?サイズ|[SMLX234]+L?)?/i,
+        /[（(]([^）)]+)[）)]/,  // Content in parentheses
+        /((?:S|M|L|XL|2L|3L|4L|2XL|3XL)サイズ?)$/,
+        /(\d+(?:cm|mm|kg|g))\s*$/,
+      ];
+      for (const pattern of patterns) {
+        const match = name.match(pattern);
+        if (match) return (match[1] || match[0]).trim();
+      }
+      return '';
+    }
 
-    for (let i = 0; i < uniqueAsins.length; i += 5) {
-      const batch = uniqueAsins.slice(i, i + 5);
+    // Fetch catalog info with DB cache
+    const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
+    const catalogCache = {};
+
+    // 1. Check DB cache first
+    const { data: cachedItems } = await supabase
+      .from('amazon_catalog_cache')
+      .select('*')
+      .in('asin', uniqueAsins);
+
+    const cachedSet = new Set();
+    for (const item of cachedItems || []) {
+      catalogCache[item.asin] = {
+        parentAsin: item.parent_asin || item.asin,
+        variation: item.variation || '',
+        imageUrl: item.image_url || null,
+        itemName: item.item_name || '',
+      };
+      cachedSet.add(item.asin);
+    }
+
+    // 2. Fetch uncached ASINs from Catalog API
+    const uncachedAsins = uniqueAsins.filter(a => !cachedSet.has(a));
+    console.log(`[amazon-skus] ${cachedSet.size} cached, ${uncachedAsins.length} to fetch from Catalog API`);
+
+    for (let i = 0; i < uncachedAsins.length; i += 5) {
+      const batch = uncachedAsins.slice(i, i + 5);
       await Promise.all(batch.map(async (asin) => {
         try {
           const catRes = await axios.get(
@@ -582,7 +611,6 @@ router.get('/amazon-skus', async (req, res) => {
           const relationships = (item.relationships || [])[0]?.relationships || [];
           const attributes = item.attributes || {};
 
-          // Find parent ASIN
           let parentAsin = asin;
           for (const rel of relationships) {
             if (rel.parentAsins && rel.parentAsins.length > 0) {
@@ -591,44 +619,41 @@ router.get('/amazon-skus', async (req, res) => {
             }
           }
 
-          // Extract variation attributes from summary AND attributes
           const attrs = [];
-          // Try summary first
           const color = summary.color || (attributes.color && attributes.color[0]?.value) || '';
-          const size = summary.size || (attributes.size && attributes.size[0]?.value) || (attributes.item_dimensions_size && attributes.item_dimensions_size[0]?.value) || '';
+          const size = summary.size || (attributes.size && attributes.size[0]?.value) || '';
           const style = summary.style || (attributes.style && attributes.style[0]?.value) || '';
-          const pattern = (attributes.pattern && attributes.pattern[0]?.value) || '';
-
           if (color) attrs.push(color);
           if (size) attrs.push(size);
           if (style) attrs.push(style);
-          if (pattern && !color) attrs.push(pattern);
 
-          // If still no variation, try item_name difference or variation_theme
           let variation = attrs.join(' / ');
-          if (!variation && summary.itemName) {
-            // Try to extract from product name (often has variation in parentheses or after -)
-            const match = summary.itemName.match(/[（(]([^）)]+)[）)]/) || summary.itemName.match(/[-–]\s*(.+)$/);
-            if (match) variation = match[1].trim();
+          if (!variation) {
+            variation = extractVariationFromName(summary.itemName || '');
           }
 
-          // Get image
           const mainImage = images.find(img => img.variant === 'MAIN') || images[0];
           const imageUrl = mainImage?.link || null;
 
-          catalogCache[asin] = {
-            parentAsin,
-            variation,
-            imageUrl,
-            itemName: summary.itemName || '',
-            _debug: { color: summary.color, size: summary.size, style: summary.style, browseClass: summary.browseClassification },
-          };
+          catalogCache[asin] = { parentAsin, variation, imageUrl, itemName: summary.itemName || '' };
+
+          // Save to DB cache
+          await supabase.from('amazon_catalog_cache').upsert({
+            asin, parent_asin: parentAsin, variation, image_url: imageUrl, item_name: summary.itemName || '', fetched_at: new Date().toISOString(),
+          });
         } catch (err) {
-          console.log(`[amazon-skus] catalog failed for ${asin}: ${err.response?.status} ${err.response?.data?.errors?.[0]?.message || err.message}`);
-          catalogCache[asin] = { parentAsin: asin, variation: '', imageUrl: null, itemName: '', _failed: true };
+          // Catalog API failed - use product name to extract variation
+          const skuItem = allSkus.find(s => s.asin === asin);
+          const nameVariation = extractVariationFromName(skuItem?.productName || '');
+          catalogCache[asin] = { parentAsin: asin, variation: nameVariation, imageUrl: null, itemName: '' };
+
+          // Still cache it (with what we have) to avoid re-fetching
+          await supabase.from('amazon_catalog_cache').upsert({
+            asin, parent_asin: asin, variation: nameVariation, image_url: null, item_name: '', fetched_at: new Date().toISOString(),
+          });
         }
       }));
-      if (i + 5 < uniqueAsins.length) await new Promise(r => setTimeout(r, 300));
+      if (i + 5 < uncachedAsins.length) await new Promise(r => setTimeout(r, 500));
     }
 
     // Update SKU variation info from catalog
