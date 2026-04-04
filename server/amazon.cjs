@@ -428,7 +428,7 @@ router.post('/sync-orders', async (req, res) => {
     for (const store of stores) {
       // Fetch unfulfilled orders from Shopify
       const shopifyRes = await axios.get(
-        `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50`,
+        `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50${store.last_synced_at ? '&created_at_min=' + store.last_synced_at : ''}`,
         { headers: { 'X-Shopify-Access-Token': store.access_token } }
       );
 
@@ -730,7 +730,7 @@ router.get('/cron/sync', async (req, res) => {
       if (store.channel === 'SHOPIFY' && store.shop_domain && store.access_token) {
         try {
           const shopifyRes = await axios.get(
-            `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50`,
+            `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50${store.last_synced_at ? '&created_at_min=' + store.last_synced_at : ''}`,
             { headers: { 'X-Shopify-Access-Token': store.access_token } }
           );
 
