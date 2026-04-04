@@ -15,6 +15,10 @@
     {
       "path": "/api/invoice/cron",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/amazon/cron/sync",
+      "schedule": "0 */3 * * *"
     }
   ]
 }

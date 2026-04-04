@@ -698,4 +698,155 @@ router.post('/fulfill-all', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Cron: Auto sync orders every 3 hours
+// ---------------------------------------------------------------------------
+
+router.get('/cron/sync', async (req, res) => {
+  console.log('[cron/sync] Starting auto sync...');
+  const results = { orderSync: null, autoFulfill: null };
+
+  try {
+    // 1. Sync orders from Shopify
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('is_active', true);
+
+    let totalSynced = 0;
+    for (const store of stores || []) {
+      if (store.channel === 'SHOPIFY' && store.shop_domain && store.access_token) {
+        try {
+          const shopifyRes = await axios.get(
+            `https://${store.shop_domain}/admin/api/2024-01/orders.json?fulfillment_status=unfulfilled&status=open&limit=50`,
+            { headers: { 'X-Shopify-Access-Token': store.access_token } }
+          );
+
+          for (const order of shopifyRes.data.orders || []) {
+            const { data: existing } = await supabase
+              .from('orders')
+              .select('id')
+              .eq('channel_order_id', String(order.id))
+              .eq('channel', 'SHOPIFY')
+              .maybeSingle();
+
+            if (existing) continue;
+
+            const addr = order.shipping_address || {};
+            const orderId = `SHOP-${order.id}`;
+
+            await supabase.from('orders').insert({
+              id: orderId,
+              channel: 'SHOPIFY',
+              channel_order_id: String(order.id),
+              status: 'PENDING',
+              shipping_speed: 'STANDARD',
+              recipient_name: addr.name || `${addr.last_name || ''} ${addr.first_name || ''}`.trim(),
+              address_line1: addr.address1 || '',
+              address_line2: addr.address2 || '',
+              city: addr.city || '',
+              state_or_region: addr.province || '',
+              postal_code: addr.zip || '',
+              country_code: addr.country_code || 'JP',
+              retry_count: 0,
+            });
+
+            for (const item of order.line_items || []) {
+              const { data: mapping } = await supabase
+                .from('sku_mappings')
+                .select('amazon_sku')
+                .eq('channel', 'SHOPIFY')
+                .eq('channel_sku', item.sku || '')
+                .eq('is_active', true)
+                .maybeSingle();
+
+              await supabase.from('order_items').insert({
+                id: `${orderId}-${item.id}`,
+                order_id: orderId,
+                channel_sku: item.sku || '',
+                amazon_sku: mapping?.amazon_sku || '',
+                quantity: item.quantity,
+                title: item.title,
+              });
+            }
+
+            await supabase.from('fulfillment_logs').insert({
+              order_id: orderId,
+              event: 'IMPORTED',
+              message: `[自動] Shopify注文 #${order.order_number} をインポート`,
+            });
+
+            totalSynced++;
+          }
+
+          await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', store.id);
+        } catch (err) {
+          console.error(`[cron/sync] Shopify sync error for ${store.store_name}:`, err.message);
+        }
+      }
+    }
+    results.orderSync = { synced: totalSynced };
+    console.log(`[cron/sync] Synced ${totalSynced} orders`);
+
+    // 2. Auto-fulfill pending orders with complete SKU mappings
+    const { data: pendingOrders } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('status', 'PENDING')
+      .limit(20);
+
+    let fulfilled = 0;
+    for (const order of pendingOrders || []) {
+      const items = order.order_items || [];
+      if (items.length === 0 || !items.every(i => i.amazon_sku)) continue;
+
+      try {
+        const { token, endpoint } = await getAccessToken();
+        const mcfOrderId = `MCF-${order.id}-${Date.now()}`;
+
+        await axios.post(
+          `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
+          {
+            sellerFulfillmentOrderId: mcfOrderId,
+            displayableOrderId: order.channel_order_id,
+            displayableOrderDate: order.created_at,
+            displayableOrderComment: `Auto: ${order.channel} #${order.channel_order_id}`,
+            shippingSpeedCategory: order.shipping_speed || 'Standard',
+            destinationAddress: {
+              name: order.recipient_name,
+              addressLine1: order.address_line1,
+              addressLine2: order.address_line2 || '',
+              city: order.city,
+              stateOrRegion: order.state_or_region || '',
+              postalCode: order.postal_code,
+              countryCode: order.country_code || 'JP',
+            },
+            items: items.map((item, idx) => ({
+              sellerSku: item.amazon_sku,
+              sellerFulfillmentOrderItemId: `${mcfOrderId}-item-${idx}`,
+              quantity: item.quantity,
+            })),
+          },
+          { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+        );
+
+        await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, updated_at: new Date().toISOString() }).eq('id', order.id);
+        await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'MCF_SUBMITTED', message: `[自動] Amazon MCF発送: ${mcfOrderId}` });
+        fulfilled++;
+      } catch (err) {
+        console.error(`[cron/sync] fulfill error for ${order.id}:`, err.message);
+        await supabase.from('orders').update({ status: 'ERROR', error_message: err.response?.data?.errors?.[0]?.message || err.message }).eq('id', order.id);
+      }
+    }
+    results.autoFulfill = { fulfilled };
+    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders`);
+
+  } catch (err) {
+    console.error('[cron/sync] error:', err.message);
+    return res.status(500).json({ error: err.message, partial: results });
+  }
+
+  return res.json({ ok: true, results });
+});
+
 module.exports = router;
