@@ -100,13 +100,40 @@ export interface AmazonSku {
   asin: string
   fnSku: string
   productName: string
+  variation: string
+  condition: string
   fulfillableQuantity: number
+  inboundQuantity: number
+  reservedQuantity: number
   totalQuantity: number
 }
 
+export interface AmazonProduct {
+  asin: string
+  productName: string
+  variants: AmazonSku[]
+}
+
+export interface ShopifyProduct {
+  productId: string
+  variantId: string
+  title: string
+  variantTitle: string | null
+  sku: string
+  price: string
+  imageUrl: string | null
+  inventoryQuantity: number
+}
+
 export const amazonSkuApi = {
-  list(): Promise<AmazonSku[]> {
-    return request<{ skus: AmazonSku[] }>(`${BASE_URL}/amazon-skus`).then(res => res.skus)
+  list(): Promise<{ skus: AmazonSku[]; products: AmazonProduct[] }> {
+    return request<{ skus: AmazonSku[]; products: AmazonProduct[] }>(`${BASE_URL}/amazon-skus`)
+  },
+}
+
+export const shopifyProductApi = {
+  list(): Promise<ShopifyProduct[]> {
+    return request<{ products: ShopifyProduct[] }>(`${BASE_URL}/shopify-products`).then(res => res.products)
   },
 }
 

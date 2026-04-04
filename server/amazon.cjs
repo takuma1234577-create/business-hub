@@ -457,6 +457,56 @@ router.get('/inventory', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Shopify Products - Fetch products from connected Shopify store
+// ---------------------------------------------------------------------------
+
+router.get('/shopify-products', async (req, res) => {
+  try {
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .eq('is_active', true);
+
+    const store = stores?.[0];
+    if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
+
+    const allProducts = [];
+    let url = `https://${store.shop_domain}/admin/api/2024-01/products.json?limit=250`;
+
+    while (url) {
+      const prodRes = await axios.get(url, {
+        headers: { 'X-Shopify-Access-Token': store.access_token },
+      });
+
+      for (const product of prodRes.data.products || []) {
+        for (const variant of product.variants || []) {
+          allProducts.push({
+            productId: String(product.id),
+            variantId: String(variant.id),
+            title: product.title,
+            variantTitle: variant.title !== 'Default Title' ? variant.title : null,
+            sku: variant.sku || '',
+            price: variant.price,
+            imageUrl: product.image?.src || null,
+            inventoryQuantity: variant.inventory_quantity,
+          });
+        }
+      }
+
+      const linkHeader = prodRes.headers['link'] || '';
+      const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+      url = nextMatch ? nextMatch[1] : null;
+    }
+
+    return res.json({ products: allProducts });
+  } catch (err) {
+    console.error('GET /shopify-products error:', err.response?.data || err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Amazon SKU List - Fetch all FBA inventory SKUs
 // ---------------------------------------------------------------------------
 
@@ -482,12 +532,30 @@ router.get('/amazon-skus', async (req, res) => {
 
       const items = response.data.payload?.inventorySummaries || [];
       for (const item of items) {
+        // Extract variation info from SKU or product name
+        const skuParts = item.sellerSku.split('-');
+        const productName = item.productName || '';
+
+        // Try to detect variation from product name (e.g. "商品名 サイズ:M カラー:黒")
+        let variation = '';
+        const varMatch = productName.match(/[（(](.+?)[）)]/);
+        if (varMatch) {
+          variation = varMatch[1];
+        } else if (skuParts.length > 2) {
+          // If SKU has multiple parts, last parts might be variation
+          variation = skuParts.slice(-1).join('-');
+        }
+
         allSkus.push({
           sellerSku: item.sellerSku,
           asin: item.asin,
           fnSku: item.fnSku,
-          productName: item.productName || '',
+          productName,
+          variation,
+          condition: item.condition || '',
           fulfillableQuantity: item.inventoryDetails?.fulfillableQuantity ?? 0,
+          inboundQuantity: (item.inventoryDetails?.inboundWorkingQuantity ?? 0) + (item.inventoryDetails?.inboundShippedQuantity ?? 0) + (item.inventoryDetails?.inboundReceivingQuantity ?? 0),
+          reservedQuantity: item.inventoryDetails?.reservedQuantity?.totalReservedQuantity ?? 0,
           totalQuantity: item.totalQuantity ?? 0,
         });
       }
@@ -495,7 +563,20 @@ router.get('/amazon-skus', async (req, res) => {
       nextToken = response.data.pagination?.nextToken || null;
     } while (nextToken);
 
-    return res.json({ skus: allSkus });
+    // Group by ASIN for easier product-level view
+    const grouped = {};
+    for (const sku of allSkus) {
+      if (!grouped[sku.asin]) {
+        grouped[sku.asin] = {
+          asin: sku.asin,
+          productName: sku.productName,
+          variants: [],
+        };
+      }
+      grouped[sku.asin].variants.push(sku);
+    }
+
+    return res.json({ skus: allSkus, products: Object.values(grouped) });
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });
