@@ -147,6 +147,15 @@ export const shopifyProductApi = {
   },
 }
 
+export const hideApi = {
+  hideSku(sellerSku: string): Promise<{ ok: boolean }> {
+    return request(`${BASE_URL}/hide-sku`, { method: 'POST', body: JSON.stringify({ sellerSku }) })
+  },
+  hideProduct(sellerSkus: string[]): Promise<{ ok: boolean }> {
+    return request(`${BASE_URL}/hide-product`, { method: 'POST', body: JSON.stringify({ sellerSkus }) })
+  },
+}
+
 export const inventoryApi = {
   check(skus: string[]): Promise<InventorySummary[]> {
     const query = new URLSearchParams({ skus: skus.join(',') })

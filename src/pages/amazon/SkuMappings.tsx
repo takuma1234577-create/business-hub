@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   ShoppingBag,
   Loader2,
+  EyeOff,
   Link,
   RefreshCw,
   Package,
@@ -10,7 +11,7 @@ import {
   CheckCircle2,
   X,
 } from 'lucide-react'
-import { skuMappingApi, amazonSkuApi, shopifyProductApi } from './api'
+import { skuMappingApi, amazonSkuApi, shopifyProductApi, hideApi } from './api'
 import type { SkuMapping } from './types'
 import type { AmazonProduct, AmazonSku, ShopifyProduct } from './api'
 
@@ -63,6 +64,18 @@ export default function SkuMappings() {
   useEffect(() => {
     Promise.all([fetchMappings(), fetchAmazon(), fetchShopify()]).finally(() => setLoading(false))
   }, [])
+
+  const handleHideProduct = async (product: AmazonProduct) => {
+    const allSkusInProduct = product.children.flatMap(c => c.skus.map(s => s.sellerSku))
+    if (!confirm(`「${product.productName}」を非表示にしますか？（${allSkusInProduct.length}SKU）`)) return
+    try {
+      await hideApi.hideProduct(allSkusInProduct)
+      setMessage({ type: 'success', text: `${product.productName} を非表示にしました` })
+      fetchAmazon()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message })
+    }
+  }
 
   const handleLink = async (amzSku: string, shopifySku: string) => {
     setLinking(amzSku)
@@ -198,6 +211,13 @@ export default function SkuMappings() {
                   </div>
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{product.productName}</p>
                 </div>
+                <button
+                  onClick={() => handleHideProduct(product)}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition flex-shrink-0 cursor-pointer"
+                  title="この商品を非表示"
+                >
+                  <EyeOff size={16} />
+                </button>
               </div>
 
               {/* Child ASINs */}

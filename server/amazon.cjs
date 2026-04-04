@@ -669,8 +669,14 @@ router.get('/amazon-skus', async (req, res) => {
       }
     }
 
-    // Filter: FBA only (exclude self-fulfilled SKUs)
-    const fbaSkus = allSkus.filter(s => s.isFba);
+    // Filter: FBA only + exclude hidden SKUs + FITPEAK brand only
+    const { data: hiddenData } = await supabase.from('amazon_hidden_skus').select('seller_sku');
+    const hiddenSet = new Set((hiddenData || []).map(h => h.seller_sku));
+    const fbaSkus = allSkus.filter(s =>
+      s.isFba &&
+      !hiddenSet.has(s.sellerSku) &&
+      s.productName.includes('FITPEAK')
+    );
     console.log(`[amazon-skus] total: ${allSkus.length}, FBA: ${fbaSkus.length}, self-fulfilled: ${allSkus.length - fbaSkus.length}`);
 
     // Group by parent ASIN
@@ -724,6 +730,31 @@ router.get('/amazon-skus', async (req, res) => {
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Hide/unhide SKUs
+router.post('/hide-sku', async (req, res) => {
+  try {
+    const { sellerSku } = req.body;
+    if (!sellerSku) return res.status(400).json({ error: 'sellerSku is required' });
+    await supabase.from('amazon_hidden_skus').upsert({ seller_sku: sellerSku });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/hide-product', async (req, res) => {
+  try {
+    const { sellerSkus } = req.body;
+    if (!sellerSkus || !sellerSkus.length) return res.status(400).json({ error: 'sellerSkus is required' });
+    for (const sku of sellerSkus) {
+      await supabase.from('amazon_hidden_skus').upsert({ seller_sku: sku });
+    }
+    res.json({ ok: true, hidden: sellerSkus.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
