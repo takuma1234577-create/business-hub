@@ -293,7 +293,17 @@ router.get('/sku-mappings', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    return res.json(data);
+    // Map to camelCase for frontend
+    const mapped = (data || []).map(m => ({
+      id: m.id,
+      channel: m.channel,
+      channelSku: m.channel_sku,
+      amazonSku: m.amazon_sku,
+      isActive: m.is_active,
+      createdAt: m.created_at,
+    }));
+
+    return res.json(mapped);
   } catch (err) {
     console.error('GET /sku-mappings error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -357,7 +367,14 @@ router.post('/sku-mappings', async (req, res) => {
       result = data;
     }
 
-    return res.json(result);
+    return res.json({
+      id: result.id,
+      channel: result.channel,
+      channelSku: result.channel_sku,
+      amazonSku: result.amazon_sku,
+      isActive: result.is_active,
+      createdAt: result.created_at,
+    });
   } catch (err) {
     console.error('POST /sku-mappings error:', err);
     return res.status(500).json({ error: 'Internal server error' });
