@@ -120,11 +120,11 @@ export default function SkuMappings() {
     : amazonProducts
 
   const filteredShopify = shopifySearch
-    ? shopifyProducts.filter(p =>
-        p.title.toLowerCase().includes(shopifySearch.toLowerCase()) ||
-        p.sku.toLowerCase().includes(shopifySearch.toLowerCase()) ||
-        (p.variantTitle || '').toLowerCase().includes(shopifySearch.toLowerCase())
-      )
+    ? shopifyProducts.filter(p => {
+        const searchText = `${p.title} ${p.variantTitle || ''} ${p.sku}`.toLowerCase()
+        // Support space-separated AND search (e.g. "イエロー 90cm")
+        return shopifySearch.toLowerCase().split(/\s+/).every(term => searchText.includes(term))
+      })
     : shopifyProducts
 
   if (loading) {
