@@ -212,6 +212,10 @@ export default function OrderList() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [fulfilling, setFulfilling] = useState<string | null>(null)
+  const [fulfillingAll, setFulfillingAll] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchOrders = useCallback(
     async (page = 1) => {
@@ -237,6 +241,44 @@ export default function OrderList() {
     fetchOrders(1)
   }, [fetchOrders])
 
+  const handleSync = async () => {
+    setSyncing(true)
+    setMessage(null)
+    try {
+      const res = await orderApi.syncFromShopify()
+      setMessage({ type: 'success', text: `Shopifyから${res.synced}件の注文を取得しました（${res.skipped}件はスキップ）` })
+      fetchOrders(1)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '注文同期に失敗しました' })
+    }
+    setSyncing(false)
+  }
+
+  const handleFulfill = async (orderId: string) => {
+    setFulfilling(orderId)
+    try {
+      const res = await orderApi.fulfill(orderId)
+      setMessage({ type: 'success', text: `Amazon MCF発送依頼を送信: ${res.mcfOrderId}` })
+      fetchOrders(pagination.page)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '発送依頼に失敗しました' })
+    }
+    setFulfilling(null)
+  }
+
+  const handleFulfillAll = async () => {
+    if (!confirm('全ての保留中注文をAmazon MCFで一括発送しますか？')) return
+    setFulfillingAll(true)
+    try {
+      const res = await orderApi.fulfillAll()
+      setMessage({ type: 'success', text: `${res.fulfilled}件を発送依頼（${res.skipped}件はSKU未設定でスキップ）` })
+      fetchOrders(1)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || '一括発送に失敗しました' })
+    }
+    setFulfillingAll(false)
+  }
+
   const handleRetry = async (orderId: string) => {
     setRetrying(orderId)
     try {
@@ -251,6 +293,34 @@ export default function OrderList() {
 
   return (
     <div className="space-y-4">
+      {/* Message */}
+      {message && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+          {message.text}
+          <button onClick={() => setMessage(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#96BF48] text-white text-sm font-medium hover:bg-[#7ea33d] transition disabled:opacity-50 cursor-pointer"
+        >
+          {syncing ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
+          {syncing ? 'Shopify注文取得中...' : 'Shopify注文を取得'}
+        </button>
+        <button
+          onClick={handleFulfillAll}
+          disabled={fulfillingAll}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FF9900] text-white text-sm font-medium hover:bg-[#E88B00] transition disabled:opacity-50 cursor-pointer"
+        >
+          {fulfillingAll ? <Loader2 size={16} className="animate-spin" /> : <Package size={16} />}
+          {fulfillingAll ? '一括発送中...' : 'Amazon一括発送'}
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <select
@@ -359,7 +429,20 @@ export default function OrderList() {
                         <div className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
                           {formatDate(order.createdAt)}
                         </div>
-                        <div className="w-20 px-4 py-3 flex items-center justify-end gap-1">
+                        <div className="w-28 px-4 py-3 flex items-center justify-end gap-1">
+                          {order.status === 'PENDING' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleFulfill(order.id)
+                              }}
+                              disabled={fulfilling === order.id}
+                              className="px-2 py-1 rounded-md bg-[#FF9900] text-white text-xs font-medium hover:bg-[#E88B00] transition cursor-pointer disabled:opacity-50"
+                              title="Amazon MCF発送"
+                            >
+                              {fulfilling === order.id ? '...' : '発送'}
+                            </button>
+                          )}
                           {order.status === 'ERROR' && (
                             <button
                               onClick={(e) => {

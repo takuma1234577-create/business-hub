@@ -44,6 +44,18 @@ export const orderApi = {
   retry(id: string): Promise<{ ok: boolean; message: string }> {
     return request(`${BASE_URL}/orders/${id}/retry`, { method: 'POST' })
   },
+
+  fulfill(id: string): Promise<{ ok: boolean; mcfOrderId: string }> {
+    return request(`${BASE_URL}/orders/${id}/fulfill`, { method: 'POST' })
+  },
+
+  syncFromShopify(): Promise<{ synced: number; skipped: number }> {
+    return request(`${BASE_URL}/sync-orders`, { method: 'POST' })
+  },
+
+  fulfillAll(): Promise<{ fulfilled: number; skipped: number; errors?: any[] }> {
+    return request(`${BASE_URL}/fulfill-all`, { method: 'POST' })
+  },
 }
 
 // === SKU Mapping API ===

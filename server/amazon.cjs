@@ -394,4 +394,308 @@ router.get('/inventory', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Shopify Order Sync - Fetch unfulfilled orders from Shopify
+// ---------------------------------------------------------------------------
+
+router.post('/sync-orders', async (req, res) => {
+  try {
+    // Get Shopify store from channel_stores
+    const { data: stores } = await supabase
+      .from('channel_stores')
+      .select('*')
+      .eq('channel', 'SHOPIFY')
+      .eq('is_active', true);
+
+    if (!stores || stores.length === 0) {
+      return res.status(400).json({ error: 'Shopifyストアが連携されていません。API設定から連携してください。' });
+    }
+
+    let totalSynced = 0;
+    let totalSkipped = 0;
+
+    for (const store of stores) {
+      // Fetch unfulfilled orders from Shopify
+      const shopifyRes = await axios.get(
+        `https://${store.shop_domain}/admin/api/2024-01/orders.json?fulfillment_status=unfulfilled&status=open&limit=50`,
+        { headers: { 'X-Shopify-Access-Token': store.access_token } }
+      );
+
+      const shopifyOrders = shopifyRes.data.orders || [];
+      console.log(`[sync-orders] Found ${shopifyOrders.length} unfulfilled orders from ${store.store_name}`);
+
+      for (const order of shopifyOrders) {
+        // Check if already imported
+        const { data: existing } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('channel_order_id', String(order.id))
+          .eq('channel', 'SHOPIFY')
+          .maybeSingle();
+
+        if (existing) {
+          totalSkipped++;
+          continue;
+        }
+
+        // Get shipping address
+        const addr = order.shipping_address || {};
+
+        // Create order
+        const orderId = `SHOP-${order.id}`;
+        const { error: orderError } = await supabase.from('orders').insert({
+          id: orderId,
+          channel: 'SHOPIFY',
+          channel_order_id: String(order.id),
+          status: 'PENDING',
+          shipping_speed: 'STANDARD',
+          recipient_name: addr.name || `${addr.last_name || ''} ${addr.first_name || ''}`.trim() || order.customer?.default_address?.name || '',
+          address_line1: addr.address1 || '',
+          address_line2: addr.address2 || '',
+          city: addr.city || '',
+          state_or_region: addr.province || '',
+          postal_code: addr.zip || '',
+          country_code: addr.country_code || 'JP',
+          retry_count: 0,
+        });
+
+        if (orderError) {
+          console.error(`[sync-orders] order insert error:`, orderError.message);
+          continue;
+        }
+
+        // Create order items with SKU mapping
+        for (const item of order.line_items || []) {
+          // Look up Amazon SKU from sku_mappings
+          const { data: mapping } = await supabase
+            .from('sku_mappings')
+            .select('amazon_sku')
+            .eq('channel', 'SHOPIFY')
+            .eq('channel_sku', item.sku || item.variant_id?.toString() || '')
+            .eq('is_active', true)
+            .maybeSingle();
+
+          await supabase.from('order_items').insert({
+            id: `${orderId}-${item.id}`,
+            order_id: orderId,
+            channel_sku: item.sku || item.variant_id?.toString() || '',
+            amazon_sku: mapping?.amazon_sku || '',
+            quantity: item.quantity,
+            title: item.title,
+          });
+        }
+
+        // Log
+        await supabase.from('fulfillment_logs').insert({
+          order_id: orderId,
+          event: 'IMPORTED',
+          message: `Shopify注文 #${order.order_number} をインポート (${store.store_name})`,
+        });
+
+        totalSynced++;
+      }
+
+      // Update last_synced_at
+      await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', store.id);
+    }
+
+    return res.json({ synced: totalSynced, skipped: totalSkipped });
+  } catch (err) {
+    console.error('[sync-orders] error:', err.response?.data || err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Amazon MCF Fulfillment - Submit order to Amazon Multi-Channel Fulfillment
+// ---------------------------------------------------------------------------
+
+router.post('/orders/:id/fulfill', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get order with items
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .single();
+
+    if (orderError) return res.status(404).json({ error: 'Order not found' });
+    if (order.status !== 'PENDING') {
+      return res.status(400).json({ error: `注文ステータスが${order.status}のため、発送依頼できません` });
+    }
+
+    // Check all items have amazon_sku
+    const items = order.order_items || [];
+    const unmapped = items.filter(i => !i.amazon_sku);
+    if (unmapped.length > 0) {
+      return res.status(400).json({
+        error: `SKUマッピングが未設定の商品があります: ${unmapped.map(i => i.channel_sku).join(', ')}`,
+        unmapped: unmapped.map(i => i.channel_sku),
+      });
+    }
+
+    // Get Amazon access token
+    const { token, endpoint } = await getAccessToken();
+
+    // Create MCF fulfillment order
+    const mcfOrderId = `MCF-${id}-${Date.now()}`;
+    const mcfBody = {
+      sellerFulfillmentOrderId: mcfOrderId,
+      displayableOrderId: order.channel_order_id,
+      displayableOrderDate: order.created_at,
+      displayableOrderComment: `Shopify Order ${order.channel_order_id}`,
+      shippingSpeedCategory: order.shipping_speed || 'Standard',
+      destinationAddress: {
+        name: order.recipient_name,
+        addressLine1: order.address_line1,
+        addressLine2: order.address_line2 || '',
+        city: order.city,
+        stateOrRegion: order.state_or_region || '',
+        postalCode: order.postal_code,
+        countryCode: order.country_code || 'JP',
+      },
+      items: items.map((item, idx) => ({
+        sellerSku: item.amazon_sku,
+        sellerFulfillmentOrderItemId: `${mcfOrderId}-item-${idx}`,
+        quantity: item.quantity,
+      })),
+    };
+
+    console.log('[fulfill] Creating MCF order:', mcfOrderId);
+
+    await axios.post(
+      `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
+      mcfBody,
+      {
+        headers: {
+          'x-amz-access-token': token,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    // Update order status
+    await supabase.from('orders').update({
+      status: 'SUBMITTED',
+      mcf_order_id: mcfOrderId,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+
+    // Log
+    await supabase.from('fulfillment_logs').insert({
+      order_id: id,
+      event: 'MCF_SUBMITTED',
+      message: `Amazon MCF発送依頼を送信: ${mcfOrderId}`,
+      payload: JSON.stringify({ mcfOrderId, items: items.length }),
+    });
+
+    return res.json({ ok: true, mcfOrderId });
+  } catch (err) {
+    console.error('[fulfill] error:', err.response?.data || err.message);
+
+    // Log error
+    await supabase.from('fulfillment_logs').insert({
+      order_id: req.params.id,
+      event: 'ERROR',
+      message: `MCF発送依頼エラー: ${err.response?.data?.errors?.[0]?.message || err.message}`,
+      payload: JSON.stringify(err.response?.data || err.message),
+    });
+
+    // Update order status
+    await supabase.from('orders').update({
+      status: 'ERROR',
+      error_message: err.response?.data?.errors?.[0]?.message || err.message,
+      updated_at: new Date().toISOString(),
+    }).eq('id', req.params.id);
+
+    return res.status(500).json({
+      error: err.response?.data?.errors?.[0]?.message || err.message,
+    });
+  }
+});
+
+// POST /orders/fulfill-all - Auto fulfill all PENDING orders with complete SKU mappings
+router.post('/fulfill-all', async (req, res) => {
+  try {
+    const { data: pendingOrders } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('status', 'PENDING')
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    let fulfilled = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const order of pendingOrders || []) {
+      const items = order.order_items || [];
+      const allMapped = items.length > 0 && items.every(i => i.amazon_sku);
+      if (!allMapped) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        const { token, endpoint } = await getAccessToken();
+        const mcfOrderId = `MCF-${order.id}-${Date.now()}`;
+
+        await axios.post(
+          `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
+          {
+            sellerFulfillmentOrderId: mcfOrderId,
+            displayableOrderId: order.channel_order_id,
+            displayableOrderDate: order.created_at,
+            displayableOrderComment: `Auto-fulfillment: ${order.channel} Order ${order.channel_order_id}`,
+            shippingSpeedCategory: order.shipping_speed || 'Standard',
+            destinationAddress: {
+              name: order.recipient_name,
+              addressLine1: order.address_line1,
+              addressLine2: order.address_line2 || '',
+              city: order.city,
+              stateOrRegion: order.state_or_region || '',
+              postalCode: order.postal_code,
+              countryCode: order.country_code || 'JP',
+            },
+            items: items.map((item, idx) => ({
+              sellerSku: item.amazon_sku,
+              sellerFulfillmentOrderItemId: `${mcfOrderId}-item-${idx}`,
+              quantity: item.quantity,
+            })),
+          },
+          { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+        );
+
+        await supabase.from('orders').update({
+          status: 'SUBMITTED',
+          mcf_order_id: mcfOrderId,
+          updated_at: new Date().toISOString(),
+        }).eq('id', order.id);
+
+        await supabase.from('fulfillment_logs').insert({
+          order_id: order.id,
+          event: 'MCF_SUBMITTED',
+          message: `自動発送: ${mcfOrderId}`,
+        });
+
+        fulfilled++;
+      } catch (err) {
+        errors.push({ orderId: order.id, error: err.response?.data?.errors?.[0]?.message || err.message });
+        await supabase.from('orders').update({
+          status: 'ERROR',
+          error_message: err.response?.data?.errors?.[0]?.message || err.message,
+          updated_at: new Date().toISOString(),
+        }).eq('id', order.id);
+      }
+    }
+
+    return res.json({ fulfilled, skipped, errors: errors.length > 0 ? errors : undefined });
+  } catch (err) {
+    console.error('[fulfill-all] error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
