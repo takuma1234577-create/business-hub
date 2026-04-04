@@ -16,7 +16,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `Request failed: ${res.status}`)
+    const msg = body.error || `Request failed: ${res.status}`
+    const detail = body.detail ? ` (${body.detail.slice(0, 200)})` : ''
+    throw new Error(msg + detail)
   }
   return res.json()
 }
