@@ -563,100 +563,59 @@ router.get('/amazon-skus', async (req, res) => {
       nextToken = response.data.pagination?.nextToken || null;
     } while (nextToken);
 
-    // Fetch parent ASIN relationships via Catalog API
-    const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
-    const asinToParent = {};
-    const parentInfo = {};
-
-    // Batch catalog lookups (max 20 per request to avoid rate limits)
-    for (let i = 0; i < uniqueAsins.length; i += 5) {
-      const batch = uniqueAsins.slice(i, i + 5);
-      await Promise.all(batch.map(async (asin) => {
-        try {
-          const catRes = await axios.get(
-            `${endpoint}/catalog/2022-04-01/items/${asin}?marketplaceIds=${marketplaceId}&includedData=relationships,summaries,images`,
-            { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
-          );
-          const relationships = catRes.data?.relationships || [];
-          const summaries = catRes.data?.summaries || [];
-          const images = catRes.data?.images || [];
-          const summary = summaries[0] || {};
-
-          // Find parent ASIN
-          for (const rel of relationships) {
-            for (const r of rel.relationships || []) {
-              if (r.parentAsins && r.parentAsins.length > 0) {
-                asinToParent[asin] = r.parentAsins[0];
-              }
-              // Extract variation info
-              if (r.variationTheme) {
-                const skuItem = allSkus.find(s => s.asin === asin);
-                if (skuItem && !skuItem.variation) {
-                  skuItem.variation = r.variationTheme;
-                }
-              }
-            }
-          }
-
-          // Store variation attributes from summary
-          if (summary.itemName) {
-            const skuItems = allSkus.filter(s => s.asin === asin);
-            for (const skuItem of skuItems) {
-              if (!skuItem.productName) skuItem.productName = summary.itemName;
-              // Get color/size from summary
-              if (summary.color) skuItem.variation = summary.color;
-              if (summary.size) skuItem.variation = (skuItem.variation ? skuItem.variation + ' / ' : '') + summary.size;
-            }
-          }
-
-          // Store image
-          const imgUrl = images?.[0]?.images?.[0]?.link || null;
-          if (imgUrl) {
-            parentInfo[asin] = { ...(parentInfo[asin] || {}), imageUrl: imgUrl };
-          }
-        } catch (err) {
-          // Catalog lookup is optional, continue
-          console.log(`[amazon-skus] catalog lookup failed for ${asin}:`, err.message);
-        }
-      }));
-      // Small delay between batches to avoid rate limits
-      if (i + 5 < uniqueAsins.length) await new Promise(r => setTimeout(r, 500));
+    // Group by product name (strip variation suffixes to find base product)
+    // This works without Catalog API and reliably groups variations together
+    function getBaseProductName(name) {
+      // Remove common variation patterns from product name
+      return name
+        .replace(/[\s　]*[（(][^）)]+[）)]/g, '') // Remove (バリエーション)
+        .replace(/[\s　]*[-–][\s　]*\S+$/g, '')   // Remove trailing "- バリエーション"
+        .replace(/[\s　]+(S|M|L|XL|XXL|2XL|3XL|F|Free|ブラック|ホワイト|レッド|ブルー|グレー|ピンク|ネイビー|ベージュ|グリーン|イエロー|オレンジ|パープル|Black|White|Red|Blue|Gray|Pink|Navy)[\s　]*$/i, '')
+        .trim();
     }
 
-    // Group by parent ASIN (or self if no parent)
-    const grouped = {};
+    // First pass: determine base names and group
+    const nameGroups = {};
     for (const sku of allSkus) {
-      const parentAsin = asinToParent[sku.asin] || sku.asin;
-      if (!grouped[parentAsin]) {
-        grouped[parentAsin] = {
-          parentAsin,
-          productName: sku.productName,
-          imageUrl: parentInfo[sku.asin]?.imageUrl || parentInfo[parentAsin]?.imageUrl || null,
-          children: {},
-        };
+      const baseName = getBaseProductName(sku.productName);
+      if (!nameGroups[baseName]) {
+        nameGroups[baseName] = [];
       }
-      // Group children by child ASIN
-      if (!grouped[parentAsin].children[sku.asin]) {
-        grouped[parentAsin].children[sku.asin] = {
-          asin: sku.asin,
-          productName: sku.productName,
-          variation: sku.variation,
-          imageUrl: parentInfo[sku.asin]?.imageUrl || null,
-          skus: [],
-        };
-      }
-      grouped[parentAsin].children[sku.asin].skus.push(sku);
-      // Use the most descriptive product name for parent
-      if (sku.productName && sku.productName.length > (grouped[parentAsin].productName || '').length) {
-        grouped[parentAsin].productName = sku.productName;
-      }
+      nameGroups[baseName].push(sku);
     }
 
-    // Convert children objects to arrays
-    const products = Object.values(grouped).map((p) => ({
-      ...p,
-      children: Object.values(p.children),
-    }));
+    // Build hierarchical products
+    const products = Object.entries(nameGroups).map(([baseName, skus]) => {
+      // Group by ASIN within this product
+      const children = {};
+      for (const sku of skus) {
+        if (!children[sku.asin]) {
+          // Extract variation from product name (difference from base name)
+          let variation = sku.productName.replace(baseName, '').trim();
+          variation = variation.replace(/^[-–\s（(]+/, '').replace(/[）)\s]+$/, '').trim();
+          if (!variation && sku.variation) variation = sku.variation;
+
+          children[sku.asin] = {
+            asin: sku.asin,
+            productName: sku.productName,
+            variation: variation || '',
+            imageUrl: null,
+            skus: [],
+          };
+        }
+        children[sku.asin].skus.push(sku);
+      }
+
+      // Use the first ASIN as "parent" representative
+      const firstAsin = skus[0].asin;
+
+      return {
+        parentAsin: Object.keys(children).length > 1 ? `GROUP-${firstAsin}` : firstAsin,
+        productName: baseName || skus[0].productName,
+        imageUrl: null,
+        children: Object.values(children),
+      };
+    });
 
     return res.json({ skus: allSkus, products });
   } catch (err) {
