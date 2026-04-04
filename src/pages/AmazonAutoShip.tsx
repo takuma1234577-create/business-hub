@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Package, Link, Search } from 'lucide-react'
+import { Package, Link, Search, ShoppingBag } from 'lucide-react'
 import ToolLayout from '../components/ToolLayout'
 import OrderList from './amazon/OrderList'
 import SkuMappings from './amazon/SkuMappings'
 import InventoryCheck from './amazon/InventoryCheck'
+import ChannelProducts from './amazon/ChannelProducts'
 
-type Tab = 'orders' | 'sku-mappings' | 'inventory'
+type Tab = 'orders' | 'channel-products' | 'sku-mappings' | 'inventory'
 
 const TABS: { key: Tab; label: string; icon: typeof Package }[] = [
   { key: 'orders', label: '注文管理', icon: Package },
+  { key: 'channel-products', label: 'チャネル商品', icon: ShoppingBag },
   { key: 'sku-mappings', label: 'SKUマッピング', icon: Link },
   { key: 'inventory', label: '在庫確認', icon: Search },
 ]
@@ -38,6 +40,7 @@ export default function AmazonAutoShip() {
 
       {/* Tab Content */}
       {activeTab === 'orders' && <OrderList />}
+      {activeTab === 'channel-products' && <ChannelProducts />}
       {activeTab === 'sku-mappings' && <SkuMappings />}
       {activeTab === 'inventory' && <InventoryCheck />}
     </ToolLayout>
