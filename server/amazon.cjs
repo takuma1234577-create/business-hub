@@ -580,6 +580,7 @@ router.get('/amazon-skus', async (req, res) => {
           const summary = (item.summaries || [])[0] || {};
           const images = (item.images || [])[0]?.images || [];
           const relationships = (item.relationships || [])[0]?.relationships || [];
+          const attributes = item.attributes || {};
 
           // Find parent ASIN
           let parentAsin = asin;
@@ -590,12 +591,26 @@ router.get('/amazon-skus', async (req, res) => {
             }
           }
 
-          // Extract variation attributes
+          // Extract variation attributes from summary AND attributes
           const attrs = [];
-          if (summary.color) attrs.push(summary.color);
-          if (summary.size) attrs.push(summary.size);
-          if (summary.style) attrs.push(summary.style);
-          const variation = attrs.join(' / ');
+          // Try summary first
+          const color = summary.color || (attributes.color && attributes.color[0]?.value) || '';
+          const size = summary.size || (attributes.size && attributes.size[0]?.value) || (attributes.item_dimensions_size && attributes.item_dimensions_size[0]?.value) || '';
+          const style = summary.style || (attributes.style && attributes.style[0]?.value) || '';
+          const pattern = (attributes.pattern && attributes.pattern[0]?.value) || '';
+
+          if (color) attrs.push(color);
+          if (size) attrs.push(size);
+          if (style) attrs.push(style);
+          if (pattern && !color) attrs.push(pattern);
+
+          // If still no variation, try item_name difference or variation_theme
+          let variation = attrs.join(' / ');
+          if (!variation && summary.itemName) {
+            // Try to extract from product name (often has variation in parentheses or after -)
+            const match = summary.itemName.match(/[（(]([^）)]+)[）)]/) || summary.itemName.match(/[-–]\s*(.+)$/);
+            if (match) variation = match[1].trim();
+          }
 
           // Get image
           const mainImage = images.find(img => img.variant === 'MAIN') || images[0];
@@ -606,10 +621,11 @@ router.get('/amazon-skus', async (req, res) => {
             variation,
             imageUrl,
             itemName: summary.itemName || '',
+            _debug: { color: summary.color, size: summary.size, style: summary.style, browseClass: summary.browseClassification },
           };
         } catch (err) {
-          // If catalog fails, use product name for grouping
-          catalogCache[asin] = { parentAsin: asin, variation: '', imageUrl: null, itemName: '' };
+          console.log(`[amazon-skus] catalog failed for ${asin}: ${err.response?.status} ${err.response?.data?.errors?.[0]?.message || err.message}`);
+          catalogCache[asin] = { parentAsin: asin, variation: '', imageUrl: null, itemName: '', _failed: true };
         }
       }));
       if (i + 5 < uniqueAsins.length) await new Promise(r => setTimeout(r, 300));
@@ -661,7 +677,17 @@ router.get('/amazon-skus', async (req, res) => {
       children: Object.values(p.children),
     }));
 
-    return res.json({ skus: allSkus, products });
+    // Debug: count catalog successes/failures
+    const catalogStats = {
+      total: uniqueAsins.length,
+      success: Object.values(catalogCache).filter(c => !c._failed).length,
+      failed: Object.values(catalogCache).filter(c => c._failed).length,
+      withVariation: Object.values(catalogCache).filter(c => c.variation).length,
+      withImage: Object.values(catalogCache).filter(c => c.imageUrl).length,
+    };
+    console.log('[amazon-skus] catalog stats:', JSON.stringify(catalogStats));
+
+    return res.json({ skus: allSkus, products, catalogStats });
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });
