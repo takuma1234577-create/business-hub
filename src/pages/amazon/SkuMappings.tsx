@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { skuMappingApi, amazonSkuApi, shopifyProductApi, hideApi } from './api'
+import { smartMatch } from './searchUtils'
 import type { SkuMapping } from './types'
 import type { AmazonProduct, AmazonSku, ShopifyProduct } from './api'
 
@@ -110,22 +111,19 @@ export default function SkuMappings() {
 
   const filteredAmazonProducts = amazonSearch
     ? amazonProducts.filter(p => {
-        const q = amazonSearch.toLowerCase()
-        return p.productName.toLowerCase().includes(q) ||
-          p.parentAsin.toLowerCase().includes(q) ||
-          p.children.some(c =>
-            c.asin.toLowerCase().includes(q) ||
-            (c.variation || '').toLowerCase().includes(q) ||
-            c.skus.some(s => s.sellerSku.toLowerCase().includes(q) || s.fnSku.toLowerCase().includes(q))
-          )
+        const baseText = `${p.productName} ${p.parentAsin}`
+        if (smartMatch(baseText, amazonSearch)) return true
+        return p.children.some(c => {
+          const childText = `${c.asin} ${c.variation || ''} ${c.skus.map(s => `${s.sellerSku} ${s.fnSku}`).join(' ')}`
+          return smartMatch(childText, amazonSearch)
+        })
       })
     : amazonProducts
 
   const filteredShopify = shopifySearch
     ? shopifyProducts.filter(p => {
-        const searchText = `${p.title} ${p.variantTitle || ''} ${p.sku}`.toLowerCase()
-        // Support space-separated AND search (e.g. "イエロー 90cm")
-        return shopifySearch.toLowerCase().split(/\s+/).every(term => searchText.includes(term))
+        const searchText = `${p.title} ${p.variantTitle || ''} ${p.sku}`
+        return smartMatch(searchText, shopifySearch)
       })
     : shopifyProducts
 

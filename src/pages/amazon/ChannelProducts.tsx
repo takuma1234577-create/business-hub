@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { shopifyProductApi, amazonSkuApi, skuMappingApi } from './api'
+import { smartMatch } from './searchUtils'
 import type { ShopifyProduct, AmazonSku } from './api'
 import type { SkuMapping } from './types'
 
@@ -84,20 +85,16 @@ export default function ChannelProducts() {
     if (filter === 'linked' && !mapping) return false
     if (filter === 'unlinked' && mapping) return false
     if (search) {
-      const q = search.toLowerCase()
-      const text = `${sp.title} ${sp.variantTitle || ''} ${sp.sku}`.toLowerCase()
-      return q.split(/\s+/).every(t => text.includes(t))
+      const text = `${sp.title} ${sp.variantTitle || ''} ${sp.sku}`
+      return smartMatch(text, search)
     }
     return true
   })
 
   const filteredAmazon = amazonSearch
     ? amazonSkus.filter(s => {
-        const q = amazonSearch.toLowerCase()
-        return s.sellerSku.toLowerCase().includes(q) ||
-          s.productName.toLowerCase().includes(q) ||
-          s.asin.toLowerCase().includes(q) ||
-          (s.variation || '').toLowerCase().includes(q)
+        const text = `${s.sellerSku} ${s.productName} ${s.asin} ${s.variation || ''}`
+        return smartMatch(text, amazonSearch)
       })
     : amazonSkus
 
