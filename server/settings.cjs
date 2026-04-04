@@ -550,13 +550,14 @@ router.post('/channels/:id/test', async (req, res) => {
     if (!store) return res.status(404).json({ error: 'Store not found' });
 
     const axios = require('axios');
-    if (store.channel === 'shopify') {
+    const channelLower = (store.channel || '').toLowerCase();
+    if (channelLower === 'shopify') {
       const testRes = await axios.get(`https://${store.shop_domain}/admin/api/2024-01/shop.json`, {
         headers: { 'X-Shopify-Access-Token': store.access_token },
       });
       await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
       res.json({ success: true, shop_name: testRes.data.shop.name });
-    } else if (store.channel === 'tiktok') {
+    } else if (channelLower === 'tiktok') {
       // Basic connectivity check
       await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
       res.json({ success: true });
