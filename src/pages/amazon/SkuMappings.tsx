@@ -185,7 +185,12 @@ export default function SkuMappings() {
             <div key={product.parentAsin} className="px-5 py-4">
               {/* Parent Product Header */}
               <div className="flex items-center gap-3 mb-3">
-                {product.imageUrl && <img src={product.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                {(() => {
+                  const img = product.imageUrl || product.children.find(c => c.imageUrl)?.imageUrl
+                  return img
+                    ? <img src={img} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-slate-100 dark:border-slate-700" />
+                    : <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0"><Package size={20} className="text-slate-300" /></div>
+                })()}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono bg-[#FF9900]/10 text-[#FF9900] px-1.5 py-0.5 rounded">親ASIN: {product.parentAsin}</span>
@@ -222,6 +227,7 @@ export default function SkuMappings() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs font-medium text-slate-700 dark:text-slate-300">{variant.sellerSku}</span>
+                              <span className="text-[9px] font-medium bg-[#FF9900]/10 text-[#FF9900] px-1.5 py-0.5 rounded">FBA</span>
                               <span className={`text-[10px] ${variant.fulfillableQuantity === 0 ? 'text-red-500' : variant.fulfillableQuantity <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
                                 出荷可能:{variant.fulfillableQuantity}
                               </span>

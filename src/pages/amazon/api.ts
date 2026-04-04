@@ -102,6 +102,7 @@ export interface AmazonSku {
   productName: string
   variation: string
   condition: string
+  isFba: boolean
   fulfillableQuantity: number
   inboundQuantity: number
   reservedQuantity: number

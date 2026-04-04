@@ -537,6 +537,9 @@ router.get('/amazon-skus', async (req, res) => {
         // Extract variation from product name (NOT from SKU - SKU suffixes are meaningless)
         let variation = extractVariationFromName(productName);
 
+        // FBA判定: fnSkuが X00 で始まる = FBA、ASINと同じ = 自社出荷
+        const isFba = item.fnSku && item.fnSku !== item.asin && item.fnSku.startsWith('X00');
+
         allSkus.push({
           sellerSku: item.sellerSku,
           asin: item.asin,
@@ -544,6 +547,7 @@ router.get('/amazon-skus', async (req, res) => {
           productName,
           variation,
           condition: item.condition || '',
+          isFba,
           fulfillableQuantity: item.inventoryDetails?.fulfillableQuantity ?? 0,
           inboundQuantity: (item.inventoryDetails?.inboundWorkingQuantity ?? 0) + (item.inventoryDetails?.inboundShippedQuantity ?? 0) + (item.inventoryDetails?.inboundReceivingQuantity ?? 0),
           reservedQuantity: item.inventoryDetails?.reservedQuantity?.totalReservedQuantity ?? 0,
@@ -665,9 +669,13 @@ router.get('/amazon-skus', async (req, res) => {
       }
     }
 
+    // Filter: FBA only (exclude self-fulfilled SKUs)
+    const fbaSkus = allSkus.filter(s => s.isFba);
+    console.log(`[amazon-skus] total: ${allSkus.length}, FBA: ${fbaSkus.length}, self-fulfilled: ${allSkus.length - fbaSkus.length}`);
+
     // Group by parent ASIN
     const grouped = {};
-    for (const sku of allSkus) {
+    for (const sku of fbaSkus) {
       const cat = catalogCache[sku.asin] || {};
       const parentAsin = cat.parentAsin || sku.asin;
 
@@ -712,7 +720,7 @@ router.get('/amazon-skus', async (req, res) => {
     };
     console.log('[amazon-skus] catalog stats:', JSON.stringify(catalogStats));
 
-    return res.json({ skus: allSkus, products, catalogStats });
+    return res.json({ skus: fbaSkus, products, catalogStats });
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });
