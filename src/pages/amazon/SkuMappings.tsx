@@ -96,8 +96,8 @@ export default function SkuMappings() {
   const filteredAmazonProducts = amazonSearch
     ? amazonProducts.filter(p =>
         p.productName.toLowerCase().includes(amazonSearch.toLowerCase()) ||
-        p.asin.toLowerCase().includes(amazonSearch.toLowerCase()) ||
-        p.variants.some(v => v.sellerSku.toLowerCase().includes(amazonSearch.toLowerCase()))
+        p.parentAsin.toLowerCase().includes(amazonSearch.toLowerCase()) ||
+        p.children.some(c => c.asin.toLowerCase().includes(amazonSearch.toLowerCase()) || c.skus.some(s => s.sellerSku.toLowerCase().includes(amazonSearch.toLowerCase())))
       )
     : amazonProducts
 
@@ -180,36 +180,52 @@ export default function SkuMappings() {
           </div>
         </div>
 
-        <div className="divide-y divide-slate-50 dark:divide-slate-800">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {filteredAmazonProducts.map(product => (
-            <div key={product.asin} className="px-5 py-3">
-              {/* Product Header */}
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-mono bg-[#FF9900]/10 text-[#FF9900] px-1.5 py-0.5 rounded">{product.asin}</span>
-                <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{product.productName}</span>
+            <div key={product.parentAsin} className="px-5 py-4">
+              {/* Parent Product Header */}
+              <div className="flex items-center gap-3 mb-3">
+                {product.imageUrl && <img src={product.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono bg-[#FF9900]/10 text-[#FF9900] px-1.5 py-0.5 rounded">親ASIN: {product.parentAsin}</span>
+                    <span className="text-xs text-slate-400">{product.children.length}バリエーション</span>
+                  </div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{product.productName}</p>
+                </div>
               </div>
 
-              {/* Variants */}
-              <div className="space-y-1.5 ml-2">
-                {product.variants.map(variant => {
-                  const mapping = getMappingForAmazonSku(variant.sellerSku)
-                  const linkedShopify = mapping ? getShopifyBySku(mapping.channelSku) : null
-                  const isLinking = linking === variant.sellerSku
+              {/* Child ASINs */}
+              <div className="space-y-2 ml-3 border-l-2 border-slate-100 dark:border-slate-800 pl-4">
+                {product.children.map(child => (
+                  <div key={child.asin} className="space-y-1">
+                    {/* Child ASIN Header */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded">{child.asin}</span>
+                      {child.variation && (
+                        <span className="text-[10px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">{child.variation}</span>
+                      )}
+                    </div>
 
-                  return (
-                    <div key={variant.sellerSku} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                      {/* Amazon SKU info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-slate-700 dark:text-slate-300">{variant.sellerSku}</span>
-                          {variant.variation && (
-                            <span className="text-[10px] bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">{variant.variation}</span>
-                          )}
-                          <span className={`text-[10px] ${variant.fulfillableQuantity === 0 ? 'text-red-500' : variant.fulfillableQuantity <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
-                            在庫:{variant.fulfillableQuantity}
-                          </span>
-                        </div>
-                      </div>
+                    {/* SKUs under this child ASIN */}
+                    {child.skus.map(variant => {
+                      const mapping = getMappingForAmazonSku(variant.sellerSku)
+                      const linkedShopify = mapping ? getShopifyBySku(mapping.channelSku) : null
+                      const isLinking = linking === variant.sellerSku
+
+                      return (
+                        <div key={variant.sellerSku} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 ml-2">
+                          {/* Amazon SKU info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-medium text-slate-700 dark:text-slate-300">{variant.sellerSku}</span>
+                              <span className={`text-[10px] ${variant.fulfillableQuantity === 0 ? 'text-red-500' : variant.fulfillableQuantity <= 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                出荷可能:{variant.fulfillableQuantity}
+                              </span>
+                              {variant.inboundQuantity > 0 && <span className="text-[10px] text-blue-500">入庫:{variant.inboundQuantity}</span>}
+                              {variant.reservedQuantity > 0 && <span className="text-[10px] text-orange-500">予約:{variant.reservedQuantity}</span>}
+                            </div>
+                          </div>
 
                       {/* Arrow */}
                       <ArrowRight size={14} className="text-slate-300 flex-shrink-0" />
@@ -289,9 +305,11 @@ export default function SkuMappings() {
                           </button>
                         )}
                       </div>
-                    </div>
-                  )
-                })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
             </div>
           ))}

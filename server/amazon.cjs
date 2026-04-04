@@ -563,20 +563,102 @@ router.get('/amazon-skus', async (req, res) => {
       nextToken = response.data.pagination?.nextToken || null;
     } while (nextToken);
 
-    // Group by ASIN for easier product-level view
-    const grouped = {};
-    for (const sku of allSkus) {
-      if (!grouped[sku.asin]) {
-        grouped[sku.asin] = {
-          asin: sku.asin,
-          productName: sku.productName,
-          variants: [],
-        };
-      }
-      grouped[sku.asin].variants.push(sku);
+    // Fetch parent ASIN relationships via Catalog API
+    const uniqueAsins = [...new Set(allSkus.map(s => s.asin))];
+    const asinToParent = {};
+    const parentInfo = {};
+
+    // Batch catalog lookups (max 20 per request to avoid rate limits)
+    for (let i = 0; i < uniqueAsins.length; i += 5) {
+      const batch = uniqueAsins.slice(i, i + 5);
+      await Promise.all(batch.map(async (asin) => {
+        try {
+          const catRes = await axios.get(
+            `${endpoint}/catalog/2022-04-01/items/${asin}?marketplaceIds=${marketplaceId}&includedData=relationships,summaries,images`,
+            { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+          );
+          const relationships = catRes.data?.relationships || [];
+          const summaries = catRes.data?.summaries || [];
+          const images = catRes.data?.images || [];
+          const summary = summaries[0] || {};
+
+          // Find parent ASIN
+          for (const rel of relationships) {
+            for (const r of rel.relationships || []) {
+              if (r.parentAsins && r.parentAsins.length > 0) {
+                asinToParent[asin] = r.parentAsins[0];
+              }
+              // Extract variation info
+              if (r.variationTheme) {
+                const skuItem = allSkus.find(s => s.asin === asin);
+                if (skuItem && !skuItem.variation) {
+                  skuItem.variation = r.variationTheme;
+                }
+              }
+            }
+          }
+
+          // Store variation attributes from summary
+          if (summary.itemName) {
+            const skuItems = allSkus.filter(s => s.asin === asin);
+            for (const skuItem of skuItems) {
+              if (!skuItem.productName) skuItem.productName = summary.itemName;
+              // Get color/size from summary
+              if (summary.color) skuItem.variation = summary.color;
+              if (summary.size) skuItem.variation = (skuItem.variation ? skuItem.variation + ' / ' : '') + summary.size;
+            }
+          }
+
+          // Store image
+          const imgUrl = images?.[0]?.images?.[0]?.link || null;
+          if (imgUrl) {
+            parentInfo[asin] = { ...(parentInfo[asin] || {}), imageUrl: imgUrl };
+          }
+        } catch (err) {
+          // Catalog lookup is optional, continue
+          console.log(`[amazon-skus] catalog lookup failed for ${asin}:`, err.message);
+        }
+      }));
+      // Small delay between batches to avoid rate limits
+      if (i + 5 < uniqueAsins.length) await new Promise(r => setTimeout(r, 500));
     }
 
-    return res.json({ skus: allSkus, products: Object.values(grouped) });
+    // Group by parent ASIN (or self if no parent)
+    const grouped = {};
+    for (const sku of allSkus) {
+      const parentAsin = asinToParent[sku.asin] || sku.asin;
+      if (!grouped[parentAsin]) {
+        grouped[parentAsin] = {
+          parentAsin,
+          productName: sku.productName,
+          imageUrl: parentInfo[sku.asin]?.imageUrl || parentInfo[parentAsin]?.imageUrl || null,
+          children: {},
+        };
+      }
+      // Group children by child ASIN
+      if (!grouped[parentAsin].children[sku.asin]) {
+        grouped[parentAsin].children[sku.asin] = {
+          asin: sku.asin,
+          productName: sku.productName,
+          variation: sku.variation,
+          imageUrl: parentInfo[sku.asin]?.imageUrl || null,
+          skus: [],
+        };
+      }
+      grouped[parentAsin].children[sku.asin].skus.push(sku);
+      // Use the most descriptive product name for parent
+      if (sku.productName && sku.productName.length > (grouped[parentAsin].productName || '').length) {
+        grouped[parentAsin].productName = sku.productName;
+      }
+    }
+
+    // Convert children objects to arrays
+    const products = Object.values(grouped).map((p) => ({
+      ...p,
+      children: Object.values(p.children),
+    }));
+
+    return res.json({ skus: allSkus, products });
   } catch (err) {
     console.error('GET /amazon-skus error:', err.response?.data || err.message);
     return res.status(500).json({ error: err.message });

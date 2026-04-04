@@ -108,10 +108,19 @@ export interface AmazonSku {
   totalQuantity: number
 }
 
-export interface AmazonProduct {
+export interface AmazonChild {
   asin: string
   productName: string
-  variants: AmazonSku[]
+  variation: string
+  imageUrl: string | null
+  skus: AmazonSku[]
+}
+
+export interface AmazonProduct {
+  parentAsin: string
+  productName: string
+  imageUrl: string | null
+  children: AmazonChild[]
 }
 
 export interface ShopifyProduct {
