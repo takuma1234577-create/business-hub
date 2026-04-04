@@ -107,11 +107,16 @@ export default function SkuMappings() {
   const getShopifyBySku = (sku: string) => shopifyProducts.find(p => p.sku === sku)
 
   const filteredAmazonProducts = amazonSearch
-    ? amazonProducts.filter(p =>
-        p.productName.toLowerCase().includes(amazonSearch.toLowerCase()) ||
-        p.parentAsin.toLowerCase().includes(amazonSearch.toLowerCase()) ||
-        p.children.some(c => c.asin.toLowerCase().includes(amazonSearch.toLowerCase()) || c.skus.some(s => s.sellerSku.toLowerCase().includes(amazonSearch.toLowerCase())))
-      )
+    ? amazonProducts.filter(p => {
+        const q = amazonSearch.toLowerCase()
+        return p.productName.toLowerCase().includes(q) ||
+          p.parentAsin.toLowerCase().includes(q) ||
+          p.children.some(c =>
+            c.asin.toLowerCase().includes(q) ||
+            (c.variation || '').toLowerCase().includes(q) ||
+            c.skus.some(s => s.sellerSku.toLowerCase().includes(q) || s.fnSku.toLowerCase().includes(q))
+          )
+      })
     : amazonProducts
 
   const filteredShopify = shopifySearch
@@ -180,7 +185,7 @@ export default function SkuMappings() {
                 type="text"
                 value={amazonSearch}
                 onChange={e => setAmazonSearch(e.target.value)}
-                placeholder="Amazon商品を検索..."
+                placeholder="商品名 / ASIN / SKUで検索..."
                 className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 w-48 focus:outline-none focus:ring-2 focus:ring-[#FF9900]/30"
               />
             </div>
