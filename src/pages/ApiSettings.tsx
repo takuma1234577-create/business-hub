@@ -727,14 +727,14 @@ export default function ApiSettings() {
             <div className="space-y-3">
               {channelStores.map(store => (
                 <div key={store.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-                  <div className={`p-2.5 rounded-lg ${store.channel === 'shopify' ? 'bg-[#96BF48]/10 text-[#96BF48]' : 'bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white'}`}>
-                    {store.channel === 'shopify' ? <ShoppingBag size={20} /> : <Store size={20} />}
+                  <div className={`p-2.5 rounded-lg ${store.channel.toLowerCase() === 'shopify' ? 'bg-[#96BF48]/10 text-[#96BF48]' : 'bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white'}`}>
+                    {store.channel.toLowerCase() === 'shopify' ? <ShoppingBag size={20} /> : <Store size={20} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-medium text-slate-900 dark:text-white">{store.store_name}</h3>
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${store.channel === 'shopify' ? 'text-[#96BF48] bg-[#96BF48]/10' : 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}>
-                        {store.channel === 'shopify' ? 'Shopify' : 'TikTok'}
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${store.channel.toLowerCase() === 'shopify' ? 'text-[#96BF48] bg-[#96BF48]/10' : 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}>
+                        {store.channel.toLowerCase() === 'shopify' ? 'Shopify' : 'TikTok'}
                       </span>
                       {store.is_active && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-full">
