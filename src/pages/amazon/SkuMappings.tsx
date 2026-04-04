@@ -106,7 +106,7 @@ export default function SkuMappings() {
   }
 
   const getMappingForAmazonSku = (sku: string) => mappings.find(m => m.amazonSku === sku)
-  const getShopifyBySku = (sku: string) => shopifyProducts.find(p => p.sku === sku)
+  const getShopifyBySku = (sku: string) => shopifyProducts.find(p => p.sku === sku || p.variantId === sku)
 
   const filteredAmazonProducts = amazonSearch
     ? amazonProducts.filter(p => {
@@ -387,7 +387,7 @@ export default function SkuMappings() {
             </thead>
             <tbody>
               {shopifyProducts.map(sp => {
-                const mapped = mappings.find(m => m.channelSku === sp.sku)
+                const mapped = mappings.find(m => m.channelSku === sp.sku || m.channelSku === sp.variantId)
                 return (
                   <tr key={sp.variantId} className="border-t border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-2">
