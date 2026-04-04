@@ -256,20 +256,60 @@ router.post('/amazon/accounts/:id/test', async (req, res) => {
     if (!data) return res.status(404).json({ error: 'Account not found' });
 
     const axios = require('axios');
-    const tokenRes = await axios.post('https://api.amazon.com/auth/o2/token',
-      new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: data.refresh_token,
-        client_id: data.client_id,
-        client_secret: data.client_secret,
-      }).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
+    const endpoint = data.endpoint || 'https://sellingpartnerapi-fe.amazon.com';
+    const marketplaceId = data.marketplace_id || 'A1VC38T7YXB528';
 
+    // Step 1: Get LWA access token
+    let accessToken;
+    try {
+      const tokenRes = await axios.post('https://api.amazon.com/auth/o2/token',
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: data.refresh_token,
+          client_id: data.client_id,
+          client_secret: data.client_secret,
+        }).toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      accessToken = tokenRes.data.access_token;
+    } catch (err) {
+      return res.status(500).json({
+        step: 'lwa_token',
+        error: 'LWAトークン取得失敗',
+        detail: err.response?.data?.error_description || err.message,
+      });
+    }
+
+    // Step 2: Test each required API
+    const tests = [
+      { name: 'FBA在庫 (Inventory & Order Tracking)', path: `/fba/inventory/v1/summaries?details=false&granularityType=Marketplace&granularityId=${marketplaceId}&marketplaceIds=${marketplaceId}` },
+      { name: 'Catalog (Product Listings)', path: `/catalog/2022-04-01/items?marketplaceIds=${marketplaceId}&keywords=test&pageSize=1` },
+      { name: 'Orders (Order Tracking)', path: `/orders/v0/orders?MarketplaceIds=${marketplaceId}&CreatedAfter=2026-01-01T00:00:00Z` },
+    ];
+
+    const results = [];
+    for (const test of tests) {
+      try {
+        await axios.get(`${endpoint}${test.path}`, {
+          headers: { 'x-amz-access-token': accessToken, 'Content-Type': 'application/json' },
+        });
+        results.push({ name: test.name, ok: true });
+      } catch (err) {
+        results.push({
+          name: test.name,
+          ok: false,
+          status: err.response?.status,
+          error: err.response?.data?.errors?.[0]?.message || err.message,
+        });
+      }
+    }
+
+    const allOk = results.every(r => r.ok);
     await supabase.from('amazon_sp_accounts').update({ last_synced_at: new Date().toISOString() }).eq('id', req.params.id);
-    res.json({ success: true, expires_in: tokenRes.data.expires_in });
+
+    res.json({ success: allOk, accessTokenOk: true, tests: results });
   } catch (err) {
-    res.status(500).json({ error: 'Amazon API接続テスト失敗: ' + (err.response?.data?.error_description || err.message) });
+    res.status(500).json({ error: 'Amazon API接続テスト失敗: ' + err.message });
   }
 });
 

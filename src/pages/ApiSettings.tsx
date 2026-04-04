@@ -321,11 +321,18 @@ export default function ApiSettings() {
   const handleAmazonTest = async (id: string) => {
     setAmazonTesting(id)
     try {
-      await api.post(`/amazon/accounts/${id}/test`)
-      setMessage({ type: 'success', text: 'Amazon API接続テスト成功' })
+      const { data } = await api.post(`/amazon/accounts/${id}/test`)
+      if (data.success) {
+        setMessage({ type: 'success', text: '✓ すべてのAPI権限OK: ' + data.tests.map((t: any) => t.name).join(', ') })
+      } else {
+        const failed = data.tests.filter((t: any) => !t.ok)
+        const failMsg = failed.map((t: any) => `${t.name} (${t.status}): ${t.error}`).join(' / ')
+        setMessage({ type: 'error', text: `権限不足: ${failMsg}` })
+      }
       fetchData()
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.error || 'テスト失敗' })
+      const d = err.response?.data
+      setMessage({ type: 'error', text: `${d?.error || 'テスト失敗'}${d?.detail ? ' - ' + d.detail : ''}` })
     }
     setAmazonTesting(null)
   }
