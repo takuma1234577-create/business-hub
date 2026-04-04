@@ -78,7 +78,10 @@ export default function SkuMappings() {
   }
 
   const handleLink = async (amzSku: string, shopifySku: string) => {
-    setLinking(amzSku)
+    if (!shopifySku) {
+      setMessage({ type: 'error', text: 'この商品にはSKUが設定されていません。Shopifyで先にSKUを設定してください。' })
+      return
+    }
     try {
       await skuMappingApi.create({ channel: 'SHOPIFY', channelSku: shopifySku, amazonSku: amzSku })
       setMessage({ type: 'success', text: `${shopifySku} → ${amzSku} を紐付けました` })
@@ -87,7 +90,6 @@ export default function SkuMappings() {
       await fetchMappings()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || '紐付けに失敗しました' })
-      setLinking(null)
     }
   }
 
@@ -305,7 +307,7 @@ export default function SkuMappings() {
                               </button>
                             </div>
                             {shopifySearch && (
-                              <div className="absolute z-20 mt-1 w-80 max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+                              <div className="absolute z-20 mt-1 w-80 max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl" onMouseDown={e => e.preventDefault()}>
                                 {filteredShopify.length === 0 ? (
                                   <div className="px-3 py-2 text-xs text-slate-400">該当なし</div>
                                 ) : (
