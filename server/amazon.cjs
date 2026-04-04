@@ -898,8 +898,10 @@ router.post('/sync-inventory', async (req, res) => {
 
     return res.json({ synced, skipped, errors: errors.length > 0 ? errors.slice(0, 10) : undefined });
   } catch (err) {
-    console.error('[sync-inventory] error:', err.message);
-    return res.status(500).json({ error: err.message });
+    const status = err.response?.status;
+    const detail = JSON.stringify(err.response?.data || err.message);
+    console.error(`[sync-inventory] error ${status}:`, detail);
+    return res.status(500).json({ error: err.message, status, detail });
   }
 });
 
