@@ -451,6 +451,31 @@ router.get('/inventory', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Shopify helpers
+// ---------------------------------------------------------------------------
+
+// Fetch all orders from Shopify with cursor-based pagination
+async function fetchAllShopifyOrders(shopDomain, accessToken, sinceDate) {
+  const allOrders = [];
+  let url = `https://${shopDomain}/admin/api/2024-01/orders.json?status=any&limit=250${sinceDate ? '&created_at_min=' + sinceDate : ''}`;
+
+  while (url) {
+    const res = await axios.get(url, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
+    });
+
+    allOrders.push(...(res.data.orders || []));
+
+    // Parse Link header for next page
+    const linkHeader = res.headers['link'] || res.headers['Link'] || '';
+    const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    url = nextMatch ? nextMatch[1] : null;
+  }
+
+  return allOrders;
+}
+
+// ---------------------------------------------------------------------------
 // Shopify status mapping
 // ---------------------------------------------------------------------------
 function mapShopifyStatus(order) {
@@ -482,13 +507,8 @@ router.post('/sync-orders', async (req, res) => {
     let totalSkipped = 0;
 
     for (const store of stores) {
-      // Fetch unfulfilled orders from Shopify
-      const shopifyRes = await axios.get(
-        `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50${store.last_synced_at ? '&created_at_min=' + store.last_synced_at : ''}`,
-        { headers: { 'X-Shopify-Access-Token': store.access_token } }
-      );
-
-      const shopifyOrders = shopifyRes.data.orders || [];
+      // Fetch all orders from Shopify (with pagination)
+      const shopifyOrders = await fetchAllShopifyOrders(store.shop_domain, store.access_token, store.last_synced_at);
       console.log(`[sync-orders] Found ${shopifyOrders.length} orders from ${store.store_name}`);
 
       for (const order of shopifyOrders) {
@@ -785,12 +805,9 @@ router.get('/cron/sync', async (req, res) => {
     for (const store of stores || []) {
       if (store.channel === 'SHOPIFY' && store.shop_domain && store.access_token) {
         try {
-          const shopifyRes = await axios.get(
-            `https://${store.shop_domain}/admin/api/2024-01/orders.json?status=any&limit=50${store.last_synced_at ? '&created_at_min=' + store.last_synced_at : ''}`,
-            { headers: { 'X-Shopify-Access-Token': store.access_token } }
-          );
+          const cronOrders = await fetchAllShopifyOrders(store.shop_domain, store.access_token, store.last_synced_at);
 
-          for (const order of shopifyRes.data.orders || []) {
+          for (const order of cronOrders) {
             const { data: existing } = await supabase
               .from('orders')
               .select('id')
