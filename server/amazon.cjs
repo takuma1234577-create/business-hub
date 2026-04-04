@@ -104,8 +104,35 @@ router.get('/orders', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
+    // Map snake_case keys to camelCase for frontend
+    const mapped = (data || []).map(order => ({
+      ...order,
+      channelOrderId: order.channel_order_id,
+      mcfOrderId: order.mcf_order_id,
+      shippingSpeed: order.shipping_speed,
+      recipientName: order.recipient_name,
+      addressLine1: order.address_line1,
+      addressLine2: order.address_line2,
+      stateOrRegion: order.state_or_region,
+      postalCode: order.postal_code,
+      countryCode: order.country_code,
+      trackingNumber: order.tracking_number,
+      shippedAt: order.shipped_at,
+      trackingUpdatedAt: order.tracking_updated_at,
+      retryCount: order.retry_count,
+      errorMessage: order.error_message,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      items: (order.order_items || []).map(item => ({
+        ...item,
+        orderId: item.order_id,
+        channelSku: item.channel_sku,
+        amazonSku: item.amazon_sku,
+      })),
+    }));
+
     return res.json({
-      data,
+      data: mapped,
       pagination: {
         page: currentPage,
         pageSize: size,
@@ -147,7 +174,36 @@ router.get('/orders/:id', async (req, res) => {
       return res.status(500).json({ error: logsError.message });
     }
 
-    return res.json({ ...order, logs });
+    return res.json({
+      ...order,
+      channelOrderId: order.channel_order_id,
+      mcfOrderId: order.mcf_order_id,
+      shippingSpeed: order.shipping_speed,
+      recipientName: order.recipient_name,
+      addressLine1: order.address_line1,
+      addressLine2: order.address_line2,
+      stateOrRegion: order.state_or_region,
+      postalCode: order.postal_code,
+      countryCode: order.country_code,
+      trackingNumber: order.tracking_number,
+      shippedAt: order.shipped_at,
+      trackingUpdatedAt: order.tracking_updated_at,
+      retryCount: order.retry_count,
+      errorMessage: order.error_message,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      items: (order.order_items || []).map(item => ({
+        ...item,
+        orderId: item.order_id,
+        channelSku: item.channel_sku,
+        amazonSku: item.amazon_sku,
+      })),
+      logs: (logs || []).map(log => ({
+        ...log,
+        orderId: log.order_id,
+        createdAt: log.created_at,
+      })),
+    });
   } catch (err) {
     console.error('GET /orders/:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
