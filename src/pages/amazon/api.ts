@@ -83,6 +83,21 @@ export const skuMappingApi = {
 
 // === Inventory API ===
 
+export interface AmazonSku {
+  sellerSku: string
+  asin: string
+  fnSku: string
+  productName: string
+  fulfillableQuantity: number
+  totalQuantity: number
+}
+
+export const amazonSkuApi = {
+  list(): Promise<AmazonSku[]> {
+    return request<{ skus: AmazonSku[] }>(`${BASE_URL}/amazon-skus`).then(res => res.skus)
+  },
+}
+
 export const inventoryApi = {
   check(skus: string[]): Promise<InventorySummary[]> {
     const query = new URLSearchParams({ skus: skus.join(',') })

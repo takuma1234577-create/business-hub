@@ -457,6 +457,52 @@ router.get('/inventory', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Amazon SKU List - Fetch all FBA inventory SKUs
+// ---------------------------------------------------------------------------
+
+router.get('/amazon-skus', async (req, res) => {
+  try {
+    const { token, endpoint, marketplaceId } = await getAccessToken();
+
+    const allSkus = [];
+    let nextToken = null;
+
+    do {
+      const params = new URLSearchParams({
+        details: 'true',
+        granularityType: 'Marketplace',
+        granularityId: marketplaceId,
+        marketplaceIds: marketplaceId,
+      });
+      if (nextToken) params.set('nextToken', nextToken);
+
+      const response = await axios.get(`${endpoint}/fba/inventory/v1/summaries?${params}`, {
+        headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
+      });
+
+      const items = response.data.payload?.inventorySummaries || [];
+      for (const item of items) {
+        allSkus.push({
+          sellerSku: item.sellerSku,
+          asin: item.asin,
+          fnSku: item.fnSku,
+          productName: item.productName || '',
+          fulfillableQuantity: item.inventoryDetails?.fulfillableQuantity ?? 0,
+          totalQuantity: item.totalQuantity ?? 0,
+        });
+      }
+
+      nextToken = response.data.pagination?.nextToken || null;
+    } while (nextToken);
+
+    return res.json({ skus: allSkus });
+  } catch (err) {
+    console.error('GET /amazon-skus error:', err.response?.data || err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Shopify helpers
 // ---------------------------------------------------------------------------
 
