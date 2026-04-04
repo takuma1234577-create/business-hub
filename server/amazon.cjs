@@ -1390,18 +1390,22 @@ router.get('/cron/sync', async (req, res) => {
             });
 
             for (const item of order.line_items || []) {
-              const { data: mapping } = await supabase
-                .from('sku_mappings')
-                .select('amazon_sku')
-                .eq('channel', 'SHOPIFY')
-                .eq('channel_sku', item.sku || '')
-                .eq('is_active', true)
-                .maybeSingle();
+              const channelSku = item.sku || item.variant_id?.toString() || '';
+              // Try matching by SKU first, then by variant_id
+              let mapping = null;
+              if (item.sku) {
+                const { data } = await supabase.from('sku_mappings').select('amazon_sku').eq('channel', 'SHOPIFY').eq('channel_sku', item.sku).eq('is_active', true).maybeSingle();
+                mapping = data;
+              }
+              if (!mapping && item.variant_id) {
+                const { data } = await supabase.from('sku_mappings').select('amazon_sku').eq('channel', 'SHOPIFY').eq('channel_sku', item.variant_id.toString()).eq('is_active', true).maybeSingle();
+                mapping = data;
+              }
 
               await supabase.from('order_items').insert({
                 id: `${orderId}-${item.id}`,
                 order_id: orderId,
-                channel_sku: item.sku || '',
+                channel_sku: channelSku,
                 amazon_sku: mapping?.amazon_sku || '',
                 quantity: item.quantity,
                 title: item.title,

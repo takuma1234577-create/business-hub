@@ -315,7 +315,7 @@ export default function SkuMappings() {
                                     <button
                                       key={sp.variantId}
                                       type="button"
-                                      onClick={() => handleLink(variant.sellerSku, sp.sku)}
+                                      onClick={() => handleLink(variant.sellerSku, sp.sku || sp.variantId)}
                                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[#96BF48]/10 transition cursor-pointer"
                                     >
                                       {sp.imageUrl && <img src={sp.imageUrl} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />}
