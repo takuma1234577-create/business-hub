@@ -828,13 +828,13 @@ router.post('/sync-inventory', async (req, res) => {
     const store = stores?.[0];
     if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
 
-    // 4. Get Shopify location (needed for inventory updates)
-    const locRes = await axios.get(
-      `https://${store.shop_domain}/admin/api/2024-01/locations.json`,
+    // 4. Get Shopify primary location (the one that fulfills online orders)
+    const shopRes = await axios.get(
+      `https://${store.shop_domain}/admin/api/2024-01/shop.json`,
       { headers: { 'X-Shopify-Access-Token': store.access_token } }
     );
-    const locationId = locRes.data.locations?.[0]?.id;
-    if (!locationId) return res.status(400).json({ error: 'Shopifyのロケーションが見つかりません' });
+    const locationId = shopRes.data.shop?.primary_location_id;
+    if (!locationId) return res.status(400).json({ error: 'Shopifyのプライマリロケーションが見つかりません' });
 
     // 5. Sync each mapping
     let synced = 0;
@@ -1699,8 +1699,8 @@ router.get('/cron/sync', async (req, res) => {
           nextTok = r.data.pagination?.nextToken || null;
         } while (nextTok);
 
-        const locRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/locations.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
-        const locationId = locRes.data.locations?.[0]?.id;
+        const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
+        const locationId = shopRes2.data.shop?.primary_location_id;
 
         let invSynced = 0;
         for (const m of activeMappings) {

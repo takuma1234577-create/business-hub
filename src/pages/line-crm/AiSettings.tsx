@@ -209,7 +209,7 @@ export default function AiSettings() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                Temperature: {settings.temperature.toFixed(2)}
+                Temperature: {(settings.temperature ?? 0.7).toFixed(2)}
               </label>
               <div className="pt-2">
                 <input
@@ -217,11 +217,11 @@ export default function AiSettings() {
                   min="0"
                   max="2"
                   step="0.05"
-                  value={settings.temperature}
+                  value={settings.temperature ?? 0.7}
                   onChange={e => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, #06C755 ${(settings.temperature / 2) * 100}%, #e2e8f0 ${(settings.temperature / 2) * 100}%)`,
+                    background: `linear-gradient(to right, #06C755 ${((settings.temperature ?? 0.7) / 2) * 100}%, #e2e8f0 ${((settings.temperature ?? 0.7) / 2) * 100}%)`,
                   }}
                 />
                 <div className="flex justify-between text-xs text-slate-400 mt-1">

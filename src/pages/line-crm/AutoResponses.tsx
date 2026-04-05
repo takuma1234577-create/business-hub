@@ -1,36 +1,77 @@
 import { useState, useEffect, useCallback } from 'react'
+import axios from 'axios'
 import { Plus, Pencil, Trash2, Zap, X, ToggleLeft, ToggleRight } from 'lucide-react'
-import { autoResponseApi } from './api'
-import type { AutoResponse } from './types'
+import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
+
+interface AutoResponse {
+  id: string
+  name: string
+  keywords: string[]
+  match_type: 'exact' | 'contains' | 'starts_with' | 'regex'
+  response_messages: Array<{ type: string; text?: string } & Record<string, unknown>>
+  is_active: boolean
+  priority?: number
+  folder: string | null
+}
+
+interface Template {
+  id: string
+  name: string
+  content: { messages: Array<{ type: string; text?: string } & Record<string, unknown>> }
+}
+
+const api = axios.create({ baseURL: '/api/line-crm' })
 
 type FormData = {
-  keyword: string
-  match_type: 'exact' | 'contains' | 'regex'
-  response_type: 'text' | 'image' | 'template'
-  response_content: string
+  name: string
+  folder: string
+  keywords: string[]
+  match_type: AutoResponse['match_type']
+  response_mode: 'text' | 'template'
+  response_text: string
+  template_id: string
   is_active: boolean
 }
 
 const emptyForm: FormData = {
-  keyword: '',
+  name: '',
+  folder: '',
+  keywords: [],
   match_type: 'contains',
-  response_type: 'text',
-  response_content: '',
+  response_mode: 'text',
+  response_text: '',
+  template_id: '',
   is_active: true,
+}
+
+const parseKeywordsRaw = (raw: string): string[] =>
+  (raw || '')
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+
+const extractText = (msg: { type: string; text?: string }): string => {
+  if (msg.type === 'text' && typeof msg.text === 'string') return msg.text
+  return `(${msg.type})`
 }
 
 export default function AutoResponses() {
   const [responses, setResponses] = useState<AutoResponse[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormData>(emptyForm)
+  const [keywordInput, setKeywordInput] = useState('')
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [pendingFolders, setPendingFolders] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
 
   const fetchResponses = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await autoResponseApi.list()
-      setResponses(res)
+      const res = await api.get<AutoResponse[]>('/auto-responses')
+      setResponses(res.data)
     } catch (err) {
       console.error('Failed to fetch auto responses:', err)
     } finally {
@@ -38,60 +79,113 @@ export default function AutoResponses() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchResponses()
-  }, [fetchResponses])
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await api.get<Template[]>('/message-templates')
+      setTemplates(res.data)
+    } catch (err) {
+      console.error('Failed to fetch templates:', err)
+    }
+  }, [])
+
+  useEffect(() => { fetchResponses() }, [fetchResponses])
+  useEffect(() => { fetchTemplates() }, [fetchTemplates])
 
   const openCreate = () => {
-    setForm(emptyForm)
+    const initialFolder = selectedFolder && selectedFolder !== '__uncategorized__' ? selectedFolder : ''
+    setForm({ ...emptyForm, folder: initialFolder })
+    setKeywordInput('')
     setEditingId(null)
     setShowForm(true)
   }
 
   const openEdit = (resp: AutoResponse) => {
+    // 既存のresponse_messagesが単一textならtextモード、それ以外はtemplateモード（inline編集は未対応）
+    const isSimpleText = resp.response_messages.length === 1 && resp.response_messages[0].type === 'text'
     setForm({
-      keyword: resp.keyword,
+      name: resp.name || '',
+      folder: resp.folder || '',
+      keywords: resp.keywords || [],
       match_type: resp.match_type,
-      response_type: resp.response_type,
-      response_content: resp.response_content,
+      response_mode: isSimpleText ? 'text' : 'template',
+      response_text: isSimpleText ? (resp.response_messages[0].text || '') : '',
+      template_id: '',
       is_active: resp.is_active,
     })
+    setKeywordInput('')
     setEditingId(resp.id)
     setShowForm(true)
   }
 
+  const commitKeywordInput = () => {
+    const parts = parseKeywordsRaw(keywordInput)
+    if (parts.length === 0) return
+    setForm(f => ({ ...f, keywords: Array.from(new Set([...f.keywords, ...parts])) }))
+    setKeywordInput('')
+  }
+
+  const removeKeyword = (idx: number) => {
+    setForm(f => ({ ...f, keywords: f.keywords.filter((_, i) => i !== idx) }))
+  }
+
   const handleSave = async () => {
+    setSaving(true)
     try {
-      if (editingId) {
-        await autoResponseApi.update(editingId, form)
+      const pending = parseKeywordsRaw(keywordInput)
+      const finalKeywords = Array.from(new Set([...form.keywords, ...pending]))
+      if (finalKeywords.length === 0) { alert('キーワードを1件以上追加してください'); setSaving(false); return }
+      if (!form.name.trim()) { alert('ルール名を入力してください'); setSaving(false); return }
+
+      let response_messages: unknown[]
+      if (form.response_mode === 'template') {
+        const tmpl = templates.find(t => t.id === form.template_id)
+        if (!tmpl || !tmpl.content?.messages?.length) { alert('テンプレートを選択してください'); setSaving(false); return }
+        response_messages = tmpl.content.messages
       } else {
-        await autoResponseApi.create(form)
+        if (!form.response_text.trim()) { alert('返信メッセージを入力してください'); setSaving(false); return }
+        response_messages = [{ type: 'text', text: form.response_text }]
+      }
+
+      const payload = {
+        name: form.name,
+        folder: form.folder.trim() || null,
+        keywords: finalKeywords,
+        match_type: form.match_type,
+        response_messages,
+        is_active: form.is_active,
+      }
+
+      if (editingId) {
+        await api.put(`/auto-responses/${editingId}`, payload)
+      } else {
+        await api.post('/auto-responses', payload)
       }
       setShowForm(false)
       fetchResponses()
     } catch (err) {
-      console.error('Failed to save auto response:', err)
+      const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : (err instanceof Error ? err.message : '保存に失敗しました')
+      alert('保存失敗: ' + msg)
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('この自動応答を削除しますか？')) return
     try {
-      await autoResponseApi.delete(id)
+      await api.delete(`/auto-responses/${id}`)
       fetchResponses()
     } catch (err) {
-      console.error('Failed to delete auto response:', err)
+      console.error('delete:', err)
     }
   }
 
   const handleToggle = async (resp: AutoResponse) => {
     try {
-      await autoResponseApi.toggleActive(resp.id, !resp.is_active)
-      setResponses(prev =>
-        prev.map(r => r.id === resp.id ? { ...r, is_active: !r.is_active } : r)
-      )
+      await api.patch(`/auto-responses/${resp.id}/toggle`, { is_active: !resp.is_active })
+      setResponses(prev => prev.map(r => r.id === resp.id ? { ...r, is_active: !r.is_active } : r))
     } catch (err) {
-      console.error('Failed to toggle auto response:', err)
+      console.error('toggle:', err)
     }
   }
 
@@ -99,6 +193,7 @@ export default function AutoResponses() {
     switch (t) {
       case 'exact': return '完全一致'
       case 'contains': return '部分一致'
+      case 'starts_with': return '前方一致'
       case 'regex': return '正規表現'
       default: return t
     }
@@ -106,7 +201,6 @@ export default function AutoResponses() {
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#06C755]/10 flex items-center justify-center">
@@ -126,35 +220,63 @@ export default function AutoResponses() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-2 border-[#06C755] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : responses.length === 0 ? (
-          <div className="text-center py-20 text-slate-400">
-            <Zap size={40} className="mx-auto mb-3 opacity-50" />
-            <p>自動応答ルールがありません</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">キーワード</th>
-                <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">マッチタイプ</th>
-                <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">応答内容</th>
-                <th className="text-center px-5 py-3 font-medium text-slate-500 dark:text-slate-400">有効</th>
-                <th className="text-right px-5 py-3 font-medium text-slate-500 dark:text-slate-400">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {responses.map(resp => (
+      {(() => {
+        const { folders, counts } = computeFolderCounts(responses)
+        const mergedFolders = Array.from(new Set([...folders, ...pendingFolders])).sort((a, b) => a.localeCompare(b, 'ja'))
+        const filtered = filterByFolder(responses, selectedFolder)
+        return (
+          <>
+            <FolderTabs
+              folders={mergedFolders}
+              selected={selectedFolder}
+              onSelect={setSelectedFolder}
+              onCreate={name => {
+                setPendingFolders(p => Array.from(new Set([...p, name])))
+                setSelectedFolder(name)
+              }}
+              counts={counts}
+            />
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="w-8 h-8 border-2 border-[#06C755] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-20 text-slate-400">
+                  <Zap size={40} className="mx-auto mb-3 opacity-50" />
+                  <p>自動応答ルールがありません</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                      <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">ルール名</th>
+                      <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">キーワード</th>
+                      <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">マッチ</th>
+                      <th className="text-left px-5 py-3 font-medium text-slate-500 dark:text-slate-400">応答内容</th>
+                      <th className="text-center px-5 py-3 font-medium text-slate-500 dark:text-slate-400">有効</th>
+                      <th className="text-right px-5 py-3 font-medium text-slate-500 dark:text-slate-400">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {filtered.map(resp => (
                 <tr key={resp.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${!resp.is_active ? 'opacity-50' : ''}`}>
                   <td className="px-5 py-3">
-                    <code className="text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded font-mono text-slate-700 dark:text-slate-300">
-                      {resp.keyword}
-                    </code>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-900 dark:text-white">{resp.name}</span>
+                      {resp.folder && (
+                        <span className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">📁 {resp.folder}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(resp.keywords || []).map((kw, i) => (
+                        <code key={i} className="text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded font-mono text-slate-700 dark:text-slate-300">
+                          {kw}
+                        </code>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-5 py-3">
                     <span className="text-xs px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">
@@ -162,69 +284,112 @@ export default function AutoResponses() {
                     </span>
                   </td>
                   <td className="px-5 py-3 max-w-[240px]">
-                    <p className="text-slate-700 dark:text-slate-300 truncate">{resp.response_content}</p>
+                    <p className="text-slate-700 dark:text-slate-300 truncate">
+                      {(resp.response_messages || []).map(m => extractText(m)).join(' / ')}
+                    </p>
                   </td>
                   <td className="px-5 py-3 text-center">
-                    <button
-                      onClick={() => handleToggle(resp)}
-                      className="cursor-pointer inline-flex items-center"
-                    >
-                      {resp.is_active ? (
-                        <ToggleRight size={28} className="text-[#06C755]" />
-                      ) : (
-                        <ToggleLeft size={28} className="text-slate-300 dark:text-slate-600" />
-                      )}
+                    <button onClick={() => handleToggle(resp)} className="cursor-pointer inline-flex items-center">
+                      {resp.is_active ? <ToggleRight size={28} className="text-[#06C755]" /> : <ToggleLeft size={28} className="text-slate-300 dark:text-slate-600" />}
                     </button>
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => openEdit(resp)}
-                        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                      >
+                      <button onClick={() => openEdit(resp)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
                         <Pencil size={15} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(resp.id)}
-                        className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                      >
+                      <button onClick={() => handleDelete(resp.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
                         <Trash2 size={15} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )
+      })()}
 
       {/* Modal Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
               <h3 className="font-semibold text-slate-900 dark:text-white">
                 {editingId ? '自動応答を編集' : '自動応答を作成'}
               </h3>
-              <button
-                onClick={() => setShowForm(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors cursor-pointer"
-              >
+              <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors cursor-pointer">
                 <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">キーワード</label>
-                <input
-                  type="text"
-                  value={form.keyword}
-                  onChange={e => setForm(f => ({ ...f, keyword: e.target.value }))}
-                  placeholder="例: こんにちは"
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
-                />
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">ルール名</label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="例: 挨拶への返答"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">フォルダ <span className="text-xs text-slate-400 font-normal">（任意）</span></label>
+                  <input
+                    type="text"
+                    value={form.folder}
+                    onChange={e => setForm(f => ({ ...f, folder: e.target.value }))}
+                    list="auto-response-folders-list"
+                    placeholder="例: 挨拶"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755]"
+                  />
+                  <datalist id="auto-response-folders-list">
+                    {computeFolderCounts(responses).folders.map(f => (
+                      <option key={f} value={f} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  キーワード <span className="text-xs text-slate-400 font-normal">（Enter / スペース / , で区切る）</span>
+                </label>
+                <div className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-[#06C755]/40 focus-within:border-[#06C755]">
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.keywords.map((kw, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-xs bg-[#06C755]/10 text-[#06C755] px-2 py-1 rounded-md font-medium">
+                        {kw}
+                        <button type="button" onClick={() => removeKeyword(i)} className="hover:bg-[#06C755]/20 rounded-full p-0.5 cursor-pointer">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={keywordInput}
+                      onChange={e => setKeywordInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+                          e.preventDefault()
+                          commitKeywordInput()
+                        } else if (e.key === 'Backspace' && keywordInput === '' && form.keywords.length > 0) {
+                          e.preventDefault()
+                          removeKeyword(form.keywords.length - 1)
+                        }
+                      }}
+                      onBlur={commitKeywordInput}
+                      placeholder={form.keywords.length === 0 ? '例: こんにちは' : ''}
+                      className="flex-1 min-w-[120px] bg-transparent text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none text-sm py-0.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">マッチタイプ</label>
                 <select
@@ -234,45 +399,61 @@ export default function AutoResponses() {
                 >
                   <option value="contains">部分一致</option>
                   <option value="exact">完全一致</option>
+                  <option value="starts_with">前方一致</option>
                   <option value="regex">正規表現</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">応答タイプ</label>
-                <select
-                  value={form.response_type}
-                  onChange={e => setForm(f => ({ ...f, response_type: e.target.value as FormData['response_type'] }))}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
-                >
-                  <option value="text">テキスト</option>
-                  <option value="image">画像</option>
-                  <option value="template">テンプレート</option>
-                </select>
-              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">応答内容</label>
-                <textarea
-                  value={form.response_content}
-                  onChange={e => setForm(f => ({ ...f, response_content: e.target.value }))}
-                  placeholder="応答メッセージを入力..."
-                  rows={4}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm resize-none"
-                />
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, response_mode: 'text' }))}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${form.response_mode === 'text' ? 'border-[#06C755] bg-[#06C755]/5 text-[#06C755]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}
+                  >
+                    テキスト
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, response_mode: 'template' }))}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${form.response_mode === 'template' ? 'border-[#06C755] bg-[#06C755]/5 text-[#06C755]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}
+                  >
+                    テンプレート
+                  </button>
+                </div>
+                {form.response_mode === 'text' ? (
+                  <textarea
+                    value={form.response_text}
+                    onChange={e => setForm(f => ({ ...f, response_text: e.target.value }))}
+                    placeholder="返信メッセージを入力..."
+                    rows={4}
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm resize-none"
+                  />
+                ) : (
+                  <select
+                    value={form.template_id}
+                    onChange={e => setForm(f => ({ ...f, template_id: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
+                  >
+                    <option value="">テンプレートを選択...</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}（{t.content?.messages?.length || 0}件）</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors cursor-pointer"
-              >
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors cursor-pointer">
                 キャンセル
               </button>
               <button
                 onClick={handleSave}
-                disabled={!form.keyword.trim() || !form.response_content.trim()}
+                disabled={saving}
                 className="px-5 py-2.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
               >
-                {editingId ? '更新' : '作成'}
+                {saving ? '保存中...' : editingId ? '更新' : '作成'}
               </button>
             </div>
           </div>

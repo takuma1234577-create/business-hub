@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, MessageCircle, Zap, Megaphone, Bot } from 'lucide-react'
+import { ArrowLeft, Users, MessageCircle, Zap, Megaphone, Bot, BookOpen, FileText, LayoutGrid, Sparkles } from 'lucide-react'
 import FriendList from './line-crm/FriendList'
+import ChatThreads from './line-crm/ChatThreads'
 import ChatView from './line-crm/ChatView'
 import AutoResponses from './line-crm/AutoResponses'
 import Broadcasts from './line-crm/Broadcasts'
 import AiSettings from './line-crm/AiSettings'
+import KnowledgeChunks from './line-crm/KnowledgeChunks'
+import MessageTemplates from './line-crm/MessageTemplates'
+import RichMenus from './line-crm/RichMenus'
+import GreetingSettings from './line-crm/GreetingSettings'
 import type { Friend } from './line-crm/types'
 
-type TabId = 'friends' | 'chat' | 'auto-responses' | 'broadcasts' | 'ai-settings'
+type TabId = 'friends' | 'threads' | 'chat' | 'auto-responses' | 'broadcasts' | 'ai-settings' | 'knowledge' | 'templates' | 'rich-menus' | 'greeting'
 
 interface TabDef {
   id: TabId
@@ -24,10 +29,15 @@ export default function LineCrm() {
 
   const tabs: TabDef[] = [
     { id: 'friends', label: '友だち一覧', icon: <Users size={18} /> },
+    { id: 'threads', label: 'チャット一覧', icon: <MessageCircle size={18} /> },
     { id: 'chat', label: 'チャット', icon: <MessageCircle size={18} />, hidden: !selectedFriend },
+    { id: 'templates', label: 'テンプレート', icon: <FileText size={18} /> },
+    { id: 'rich-menus', label: 'リッチメニュー', icon: <LayoutGrid size={18} /> },
+    { id: 'greeting', label: '挨拶メッセージ', icon: <Sparkles size={18} /> },
     { id: 'auto-responses', label: '自動応答', icon: <Zap size={18} /> },
     { id: 'broadcasts', label: '一斉配信', icon: <Megaphone size={18} /> },
     { id: 'ai-settings', label: 'AI設定', icon: <Bot size={18} /> },
+    { id: 'knowledge', label: 'RAGナレッジ', icon: <BookOpen size={18} /> },
   ]
 
   const handleSelectFriend = (friend: Friend) => {
@@ -36,7 +46,7 @@ export default function LineCrm() {
   }
 
   const handleBackFromChat = () => {
-    setActiveTab('friends')
+    setActiveTab('threads')
   }
 
   return (
@@ -93,6 +103,9 @@ export default function LineCrm() {
         {activeTab === 'friends' && (
           <FriendList onSelectFriend={handleSelectFriend} />
         )}
+        {activeTab === 'threads' && (
+          <ChatThreads onSelectFriend={handleSelectFriend} />
+        )}
         {activeTab === 'chat' && selectedFriend && (
           <ChatView friend={selectedFriend} onBack={handleBackFromChat} />
         )}
@@ -104,6 +117,18 @@ export default function LineCrm() {
         )}
         {activeTab === 'ai-settings' && (
           <AiSettings />
+        )}
+        {activeTab === 'knowledge' && (
+          <KnowledgeChunks />
+        )}
+        {activeTab === 'templates' && (
+          <MessageTemplates />
+        )}
+        {activeTab === 'rich-menus' && (
+          <RichMenus />
+        )}
+        {activeTab === 'greeting' && (
+          <GreetingSettings />
         )}
       </main>
     </div>

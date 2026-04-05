@@ -7,7 +7,15 @@ const app = express();
 // Middleware
 app.set('trust proxy', 1);
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(
+  express.json({
+    limit: '50mb',
+    // LINE Webhook 署名検証のため生ボディを保持する
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Tool route modules (use absolute paths for Vercel compatibility)

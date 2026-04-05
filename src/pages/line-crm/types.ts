@@ -38,11 +38,12 @@ export interface ChatMessage {
 
 export interface AutoResponse {
   id: string
-  keyword: string
-  match_type: 'exact' | 'contains' | 'regex'
-  response_type: 'text' | 'image' | 'template'
-  response_content: string
+  name: string
+  keywords: string[]
+  match_type: 'exact' | 'contains' | 'starts_with' | 'regex'
+  response_messages: Array<{ type: string; text?: string } & Record<string, unknown>>
   is_active: boolean
+  priority?: number
   created_at?: string
   updated_at?: string
 }

@@ -48,6 +48,26 @@ export const chatApi = {
 
   send: (friendId: string, content: string) =>
     api.post<ChatMessage>(`/chat/${friendId}/send`, { content }).then(r => r.data),
+
+  listThreads: (search?: string) =>
+    api
+      .get<{
+        friend: {
+          id: string
+          line_user_id: string
+          display_name: string
+          picture_url: string | null
+          status: 'active' | 'blocked' | 'unfollowed'
+        }
+        last_message: {
+          friend_id: string
+          content: unknown
+          direction: 'incoming' | 'outgoing'
+          message_type: string
+          created_at: string
+        } | null
+      }[]>('/chat-threads', { params: search ? { search } : undefined })
+      .then(r => r.data),
 }
 
 // Auto Response API
