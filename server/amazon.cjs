@@ -13,6 +13,7 @@ const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 let cachedToken = null;
 let tokenExpiresAt = 0;
 let cachedEndpoint = null;
+let cachedRefreshToken = null;
 
 async function getSpAccount() {
   // Try DB first, then fall back to env vars
@@ -49,11 +50,12 @@ async function getSpAccount() {
 }
 
 async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpiresAt - REFRESH_MARGIN_MS) {
-    return { token: cachedToken, endpoint: cachedEndpoint };
-  }
-
   const account = await getSpAccount();
+
+  // Use cache only if refresh_token hasn't changed AND token still valid
+  if (cachedToken && cachedRefreshToken === account.refreshToken && Date.now() < tokenExpiresAt - REFRESH_MARGIN_MS) {
+    return { token: cachedToken, endpoint: cachedEndpoint, marketplaceId: account.marketplaceId };
+  }
 
   const response = await axios.post(
     TOKEN_URL,
@@ -68,6 +70,7 @@ async function getAccessToken() {
 
   cachedToken = response.data.access_token;
   cachedEndpoint = account.endpoint;
+  cachedRefreshToken = account.refreshToken;
   tokenExpiresAt = Date.now() + response.data.expires_in * 1000;
   return { token: cachedToken, endpoint: cachedEndpoint, marketplaceId: account.marketplaceId };
 }
