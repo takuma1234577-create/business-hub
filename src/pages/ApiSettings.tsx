@@ -53,6 +53,12 @@ interface ChannelStore {
   inventory_sync_enabled: boolean
   last_synced_at: string | null
   created_at: string
+  gmail_token_id: string | null
+}
+
+interface ChannelGmailStatus {
+  hasToken: boolean
+  tokenInfo: { scope: string; expiryDate: string; updatedAt: string; isExpired: boolean } | null
 }
 
 interface GoogleService {
@@ -110,6 +116,8 @@ export default function ApiSettings() {
   const [channelForm, setChannelForm] = useState({ channel: 'shopify' as 'shopify' | 'tiktok', store_name: '', shop_domain: '', access_token: '', app_key: '', app_secret: '', shop_id: '', tiktok_access_token: '' })
   const [channelSaving, setChannelSaving] = useState(false)
   const [channelTesting, setChannelTesting] = useState<string | null>(null)
+  const [channelGmailStatus, setChannelGmailStatus] = useState<Record<string, ChannelGmailStatus>>({})
+  const [channelGmailConnecting, setChannelGmailConnecting] = useState<string | null>(null)
   const [showAmazonForm, setShowAmazonForm] = useState(false)
   const [amazonForm, setAmazonForm] = useState({ account_name: '', seller_id: '', marketplace_id: 'A1VC38T7YXB528', refresh_token: '', client_id: '', client_secret: '' })
   const [amazonSaving, setAmazonSaving] = useState(false)
@@ -137,8 +145,21 @@ export default function ApiSettings() {
       ])
       setConnections(connRes.data.connections)
       setAmazonAccounts(amazonRes.data.accounts || [])
-      setChannelStores(channelRes.data.stores || [])
+      const stores = channelRes.data.stores || []
+      setChannelStores(stores)
       setApiKeys(keysRes.data)
+
+      // チャネル別Gmail状態を取得
+      const gmailStatuses: Record<string, ChannelGmailStatus> = {}
+      for (const store of stores) {
+        if (store.gmail_token_id) {
+          try {
+            const gmRes = await api.get(`/channels/${store.id}/gmail/status`)
+            gmailStatuses[store.id] = gmRes.data
+          } catch { /* ignore */ }
+        }
+      }
+      setChannelGmailStatus(gmailStatuses)
     } catch {
       setMessage({ type: 'error', text: 'API設定の取得に失敗しました' })
     }
@@ -152,7 +173,13 @@ export default function ApiSettings() {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'oauth_complete') {
         fetchData()
-        setMessage({ type: 'success', text: `${e.data.service} の認証が完了しました` })
+        const svc = e.data.service as string
+        if (svc?.startsWith('gmail_channel_')) {
+          setChannelGmailConnecting(null)
+          setMessage({ type: 'success', text: 'Gmail連携が完了しました（メール自動返信用）' })
+        } else {
+          setMessage({ type: 'success', text: `${svc} の認証が完了しました` })
+        }
       }
       if (e.data?.type === 'shopify_connected') {
         fetchData()
@@ -244,6 +271,29 @@ export default function ApiSettings() {
       setMessage({ type: 'error', text: err.response?.data?.error || 'テスト失敗' })
     }
     setChannelTesting(null)
+  }
+
+  const handleChannelGmailConnect = async (storeId: string) => {
+    setChannelGmailConnecting(storeId)
+    try {
+      const { data } = await api.get(`/channels/${storeId}/gmail/login`)
+      window.open(data.url, '_blank', 'width=600,height=700')
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Gmail認証URLの取得に失敗しました' })
+      setChannelGmailConnecting(null)
+    }
+  }
+
+  const handleChannelGmailDisconnect = async (storeId: string) => {
+    if (!confirm('このチャネルのGmail連携を解除しますか？メール自動返信が停止します。')) return
+    try {
+      await api.delete(`/channels/${storeId}/gmail/disconnect`)
+      setChannelGmailStatus(prev => { const next = { ...prev }; delete next[storeId]; return next })
+      setMessage({ type: 'success', text: 'Gmail連携を解除しました' })
+      fetchData()
+    } catch {
+      setMessage({ type: 'error', text: 'Gmail連携の解除に失敗しました' })
+    }
   }
 
   const handleChannelDelete = async (id: string) => {
@@ -743,6 +793,19 @@ export default function ApiSettings() {
                       {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
+                  {/* Gmail連携ボタン */}
+                  {channelGmailStatus[store.id]?.hasToken ? (
+                    <button onClick={() => handleChannelGmailDisconnect(store.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition" title="Gmail連携済み">
+                      <Mail size={14} />
+                      <CheckCircle2 size={12} />
+                      Gmail
+                    </button>
+                  ) : (
+                    <button onClick={() => handleChannelGmailConnect(store.id)} disabled={channelGmailConnecting === store.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50" title="Gmail連携">
+                      <Mail size={14} />
+                      {channelGmailConnecting === store.id ? '認証中...' : 'Gmail連携'}
+                    </button>
+                  )}
                   <button onClick={() => handleChannelTest(store.id)} disabled={channelTesting === store.id} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-950/50 transition disabled:opacity-50" title="接続テスト">
                     <RefreshCw size={16} className={channelTesting === store.id ? 'animate-spin' : ''} />
                   </button>

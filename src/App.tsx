@@ -6,6 +6,9 @@ import AmazonAutoShip from './pages/AmazonAutoShip'
 import LineCrm from './pages/LineCrm'
 import AccountingTool from './pages/AccountingTool'
 import ApiSettings from './pages/ApiSettings'
+import ReturnRequest from './pages/ReturnRequest'
+import ReturnSettings from './pages/ReturnSettings'
+import ReturnLogs from './pages/ReturnLogs'
 
 function App() {
   return (
@@ -17,6 +20,9 @@ function App() {
       <Route path="/amazon/*" element={<AmazonAutoShip />} />
       <Route path="/line-crm/*" element={<LineCrm />} />
       <Route path="/accounting/*" element={<AccountingTool />} />
+      <Route path="/return-request" element={<ReturnRequest />} />
+      <Route path="/return-settings" element={<ReturnSettings />} />
+      <Route path="/return-logs" element={<ReturnLogs />} />
     </Routes>
   )
 }

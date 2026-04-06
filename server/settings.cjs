@@ -56,7 +56,7 @@ const GOOGLE_SCOPES = {
     'https://www.googleapis.com/auth/spreadsheets',
   ],
   drive: [
-    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.file',
   ],
 };
 
@@ -566,6 +566,82 @@ router.post('/channels/:id/test', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: '接続テスト失敗: ' + (err.response?.data?.errors || err.message) });
+  }
+});
+
+// =====================
+// チャネル別Gmail連携
+// =====================
+
+const CHANNEL_GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+];
+
+// GET /channels/:id/gmail/status - チャネルのGmail認証状態
+router.get('/channels/:id/gmail/status', async (req, res) => {
+  try {
+    const { data: store } = await supabase.from('channel_stores').select('gmail_token_id').eq('id', req.params.id).maybeSingle();
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    if (!store.gmail_token_id) return res.json({ hasToken: false, tokenInfo: null });
+
+    const { data: token } = await supabase.from('oauth_tokens').select('scope, expiry_date, updated_at').eq('id', store.gmail_token_id).maybeSingle();
+    return res.json({
+      hasToken: !!token,
+      tokenInfo: token ? {
+        scope: token.scope,
+        expiryDate: token.expiry_date,
+        updatedAt: token.updated_at,
+        isExpired: token.expiry_date ? Date.now() > Number(token.expiry_date) : false,
+      } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /channels/:id/gmail/login - Gmail OAuth URLを取得
+router.get('/channels/:id/gmail/login', async (req, res) => {
+  try {
+    const { data: store } = await supabase.from('channel_stores').select('id').eq('id', req.params.id).maybeSingle();
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const tokenId = `gmail_channel_${req.params.id}`;
+    const callbackUrl = getCallbackUrl(req);
+    const oauth2Client = getGoogleOAuth2(callbackUrl);
+    if (!oauth2Client) return res.status(400).json({ error: 'Google OAuth未設定' });
+
+    // gmail_token_id を先に保存
+    await supabase.from('channel_stores').update({ gmail_token_id: tokenId }).eq('id', req.params.id);
+
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: CHANNEL_GMAIL_SCOPES,
+      prompt: 'consent',
+      state: tokenId,
+    });
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /channels/:id/gmail/disconnect - Gmail連携を解除
+router.delete('/channels/:id/gmail/disconnect', async (req, res) => {
+  try {
+    const { data: store } = await supabase.from('channel_stores').select('gmail_token_id').eq('id', req.params.id).maybeSingle();
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    if (store.gmail_token_id) {
+      await supabase.from('oauth_tokens').delete().eq('id', store.gmail_token_id);
+      await supabase.from('channel_stores').update({ gmail_token_id: null }).eq('id', req.params.id);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

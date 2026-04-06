@@ -24,11 +24,11 @@ const tasksRoutes = require(path.join(__dirname, 'tasks.cjs'));
 const amazonRoutes = require(path.join(__dirname, 'amazon.cjs'));
 const lineCrmRoutes = require(path.join(__dirname, 'line-crm.cjs'));
 const accountingRoutes = require(path.join(__dirname, 'accounting.cjs'));
-const bankScraperRoutes = require(path.join(__dirname, 'bank-scraper.cjs'));
 const accountingCoreRoutes = require(path.join(__dirname, 'accounting-core.cjs'));
 const fiscalAnalysisRoutes = require(path.join(__dirname, 'fiscal-analysis.cjs'));
 const settingsRoutes = require(path.join(__dirname, 'settings.cjs'));
 const emailAutoReplyRoutes = require(path.join(__dirname, 'email-autoresponder.cjs'));
+const returnReviewRoutes = require(path.join(__dirname, 'return-review.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -37,20 +37,17 @@ app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm', lineCrmRoutes);
 app.use('/api/line-crm/email-auto-reply', emailAutoReplyRoutes);
 app.use('/api/accounting', accountingRoutes);
-app.use('/api/accounting/bank-sync', bankScraperRoutes);
 app.use('/api/accounting/core', accountingCoreRoutes);
 app.use('/api/accounting/fiscal', fiscalAnalysisRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/return-review', returnReviewRoutes);
 
 // Global health check
 app.get('/api/health', (_req, res) => {
-  const ek = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || '';
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     tools: ['invoice', 'tasks', 'amazon', 'line-crm', 'accounting'],
-    encKeyFirst8: ek.substring(0, 8),
-    encKeyLen: ek.length,
   });
 });
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { documentApi } from './api'
 import type { AccountingDocument, DocumentType, DocumentStatus } from './types'
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, COMMON_ACCOUNT_TITLES } from './types'
-import { ArrowLeft, Save, RefreshCw, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Save, RefreshCw, ExternalLink, HardDrive } from 'lucide-react'
 
 interface Props {
   documentId: string
@@ -14,6 +14,7 @@ export function DocumentDetail({ documentId, onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [uploadingDrive, setUploadingDrive] = useState(false)
   const [form, setForm] = useState<Partial<AccountingDocument>>({})
 
   useEffect(() => {
@@ -51,6 +52,20 @@ export function DocumentDetail({ documentId, onBack }: Props) {
     }
   }
 
+  const handleUploadToDrive = async () => {
+    setUploadingDrive(true)
+    try {
+      const updated = await documentApi.uploadToDrive(documentId)
+      setDoc(updated)
+      setForm(updated)
+    } catch (err) {
+      console.error(err)
+      alert('Google Driveへのアップロードに失敗しました。Drive認証が必要な場合は設定画面からログインしてください。')
+    } finally {
+      setUploadingDrive(false)
+    }
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>
   if (!doc) return <div className="p-8 text-center text-red-500">書類が見つかりません</div>
 
@@ -62,6 +77,16 @@ export function DocumentDetail({ documentId, onBack }: Props) {
           <ArrowLeft size={16} /> 一覧に戻る
         </button>
         <div className="flex gap-2">
+          {!doc.googleDriveFileId && doc.supabaseStoragePath && (
+            <button
+              onClick={handleUploadToDrive}
+              disabled={uploadingDrive}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <HardDrive size={14} className={uploadingDrive ? 'animate-pulse' : ''} />
+              {uploadingDrive ? 'アップロード中...' : 'Driveに保存'}
+            </button>
+          )}
           <button
             onClick={handleReanalyze}
             disabled={analyzing || !doc.supabaseStoragePath}

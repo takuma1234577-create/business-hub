@@ -7,6 +7,7 @@ import {
   Receipt,
   ArrowRight,
   Settings,
+  RotateCcw,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -19,6 +20,7 @@ interface Tool {
   color: string
   bgColor: string
   status: 'active' | 'coming-soon'
+  links?: { label: string; path: string }[]
 }
 
 const tools: Tool[] = [
@@ -72,6 +74,21 @@ const tools: Tool[] = [
     bgColor: 'bg-violet-50 dark:bg-violet-950/50',
     status: 'active',
   },
+  {
+    id: 'return-review',
+    name: '返品・交換審査システム',
+    description: 'お客様からの返品・交換申請をAIで自動審査。Shopify返金・LINE通知を自動化。',
+    icon: <RotateCcw size={28} />,
+    path: '/return-request',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/50',
+    status: 'active',
+    links: [
+      { label: '顧客申請フォーム', path: '/return-request' },
+      { label: '審査ルール設定', path: '/return-settings' },
+      { label: '審査ログ一覧', path: '/return-logs' },
+    ],
+  },
 ]
 
 export default function Home() {
@@ -104,34 +121,53 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tools.map((tool) => (
-            <button
+            <div
               key={tool.id}
-              onClick={() => navigate(tool.path)}
-              className="group relative flex flex-col items-start text-left p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200 cursor-pointer"
+              className="group relative flex flex-col items-start text-left p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200"
             >
-              {/* Icon */}
-              <div className={`p-3 rounded-lg ${tool.bgColor} ${tool.color} mb-4`}>
-                {tool.icon}
-              </div>
+              <button
+                onClick={() => navigate(tool.path)}
+                className="w-full text-left cursor-pointer"
+              >
+                {/* Icon */}
+                <div className={`p-3 rounded-lg ${tool.bgColor} ${tool.color} mb-4`}>
+                  {tool.icon}
+                </div>
 
-              {/* Content */}
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                {tool.name}
-                {tool.status === 'coming-soon' && (
-                  <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                    準備中
-                  </span>
-                )}
-              </h2>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                {tool.description}
-              </p>
+                {/* Content */}
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  {tool.name}
+                  {tool.status === 'coming-soon' && (
+                    <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+                      準備中
+                    </span>
+                  )}
+                </h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {tool.description}
+                </p>
+              </button>
+
+              {/* Sub-links */}
+              {tool.links && (
+                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 w-full flex flex-wrap gap-2">
+                  {tool.links.map((link) => (
+                    <button
+                      key={link.path}
+                      onClick={() => navigate(link.path)}
+                      className="text-xs px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                    >
+                      {link.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Arrow */}
               <div className="absolute top-6 right-6 text-slate-300 dark:text-slate-700 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
                 <ArrowRight size={20} />
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </main>

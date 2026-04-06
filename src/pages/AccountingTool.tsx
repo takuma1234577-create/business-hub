@@ -6,14 +6,13 @@ import { DocumentDetail } from './accounting/DocumentDetail'
 import { PendingDocuments } from './accounting/PendingDocuments'
 import { SourceSettings } from './accounting/SourceSettings'
 import { Transactions } from './accounting/Transactions'
-import { BankSync } from './accounting/BankSync'
 import { JournalEntries } from './accounting/JournalEntries'
 import { BalanceSheet } from './accounting/BalanceSheet'
 import { ProfitLoss } from './accounting/ProfitLoss'
 import { FiscalAnalysis } from './accounting/FiscalAnalysis'
 import type { AccountingDocument } from './accounting/types'
 
-type Tab = 'dashboard' | 'documents' | 'pending' | 'transactions' | 'bank-sync' | 'journal' | 'bs' | 'pl' | 'fiscal' | 'sources'
+type Tab = 'dashboard' | 'documents' | 'pending' | 'transactions' | 'journal' | 'bs' | 'pl' | 'fiscal' | 'sources'
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'dashboard', label: 'ダッシュボード' },
@@ -21,7 +20,6 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'documents', label: '書類一覧' },
   { id: 'pending', label: '未確認・手動追加' },
   { id: 'transactions', label: '取引明細' },
-  { id: 'bank-sync', label: '自動取り込み' },
   { id: 'journal', label: '仕訳帳' },
   { id: 'bs', label: '貸借対照表' },
   { id: 'pl', label: '損益計算書' },
@@ -66,7 +64,6 @@ export default function AccountingTool() {
       )}
       {activeTab === 'pending' && <PendingDocuments />}
       {activeTab === 'transactions' && <Transactions />}
-      {activeTab === 'bank-sync' && <BankSync />}
       {activeTab === 'journal' && <JournalEntries />}
       {activeTab === 'bs' && <BalanceSheet />}
       {activeTab === 'pl' && <ProfitLoss />}

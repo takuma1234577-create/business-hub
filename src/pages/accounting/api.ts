@@ -40,6 +40,9 @@ export const documentApi = {
 
   bulkUpdateStatus: (ids: string[], status: string) =>
     api.put('/documents/bulk-status', { ids, status }).then(r => r.data),
+
+  uploadToDrive: (id: string) =>
+    api.post<AccountingDocument>(`/documents/${id}/upload-to-drive`).then(r => r.data),
 }
 
 export const dashboardApi = {
@@ -132,41 +135,16 @@ export const transactionApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },
-}
 
-// =====================
-// 銀行スクレイピング連携
-// =====================
+  classifyAi: (accountId: string, transactionIds?: string[]) =>
+    api.post<{ classified: number; results: Array<{ id: string; accountTitleId: string; accountTitleName: string; counterAccountTitleId: string; counterAccountTitleName: string; confidence: number }> }>(
+      '/transactions/classify-ai', { accountId, transactionIds }, { timeout: 120000 }
+    ).then(r => r.data),
 
-import type { BankCredential, ScrapingJob, SupportedInstitution } from './types'
-
-export const bankSyncApi = {
-  listInstitutions: () =>
-    api.get<SupportedInstitution[]>('/bank-sync/institutions').then(r => r.data),
-
-  listCredentials: () =>
-    api.get<BankCredential[]>('/bank-sync/credentials').then(r => r.data),
-
-  addCredential: (data: { accountId: string; institutionCode: string; loginId: string; password: string; extraAuth?: Record<string, string> }) =>
-    api.post<BankCredential>('/bank-sync/credentials', data).then(r => r.data),
-
-  updateCredential: (id: string, data: { loginId?: string; password?: string; isActive?: boolean }) =>
-    api.put<BankCredential>(`/bank-sync/credentials/${id}`, data).then(r => r.data),
-
-  deleteCredential: (id: string) =>
-    api.delete(`/bank-sync/credentials/${id}`).then(r => r.data),
-
-  triggerSync: (credentialId: string, daysBack?: number) =>
-    api.post<{ status: string; found?: number; imported?: number; skipped?: number; jobId?: string; mode?: string }>(`/bank-sync/trigger/${credentialId}`, { daysBack }, { timeout: 60000 }).then(r => r.data),
-
-  submit2fa: (jobId: string, code: string) =>
-    api.post(`/bank-sync/jobs/${jobId}/2fa`, { code }).then(r => r.data),
-
-  triggerAll: () =>
-    api.post<{ triggered: number }>('/bank-sync/trigger-all').then(r => r.data),
-
-  listJobs: (limit?: number) =>
-    api.get<ScrapingJob[]>('/bank-sync/jobs', { params: { limit } }).then(r => r.data),
+  autoJournal: (accountId: string, transactionIds: string[], classificationResults: Array<{ id: string; accountTitleId: string; accountTitleName: string; counterAccountTitleId: string; counterAccountTitleName: string; confidence: number }>) =>
+    api.post<{ created: number; errors: number }>(
+      '/transactions/auto-journal', { accountId, transactionIds, classificationResults }
+    ).then(r => r.data),
 }
 
 // =====================

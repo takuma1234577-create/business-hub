@@ -7,6 +7,112 @@ const crypto = require('crypto');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+// =====================
+// Google Drive ヘルパー
+// =====================
+
+const DRIVE_FOLDER_MAP = {
+  sales: '売上明細',
+  invoice: '請求書',
+  receipt: '領収書',
+  import_permit: '輸入許可証',
+  other: 'その他',
+};
+
+async function getDriveClient() {
+  const oauth2Client = getGoogleOAuth2();
+  if (!oauth2Client) return null;
+
+  const { data: tokenData, error } = await supabase.from('oauth_tokens')
+    .select('*').eq('id', 'drive').single();
+  if (error || !tokenData) return null;
+
+  oauth2Client.setCredentials({
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token,
+    scope: tokenData.scope,
+    token_type: tokenData.token_type,
+    expiry_date: Number(tokenData.expiry_date),
+  });
+
+  oauth2Client.on('tokens', async (tokens) => {
+    const updates = { access_token: tokens.access_token, updated_at: new Date().toISOString() };
+    if (tokens.refresh_token) updates.refresh_token = tokens.refresh_token;
+    await supabase.from('oauth_tokens').update(updates).eq('id', 'drive');
+  });
+
+  return google.drive({ version: 'v3', auth: oauth2Client });
+}
+
+async function getOrCreateFolder(drive, name, parentId) {
+  // 既存フォルダを検索
+  const query = parentId
+    ? `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const res = await drive.files.list({ q: query, fields: 'files(id, name)', spaces: 'drive' });
+  if (res.data.files && res.data.files.length > 0) return res.data.files[0].id;
+
+  // 作成
+  const meta = { name, mimeType: 'application/vnd.google-apps.folder' };
+  if (parentId) meta.parents = [parentId];
+  const created = await drive.files.create({ requestBody: meta, fields: 'id' });
+  return created.data.id;
+}
+
+async function uploadDocumentToDrive(docId) {
+  try {
+    const drive = await getDriveClient();
+    if (!drive) return null;
+
+    const { data: doc } = await supabase.from('accounting_documents').select('*').eq('id', docId).single();
+    if (!doc || doc.google_drive_file_id) return doc?.google_drive_file_id || null;
+
+    // ファイルをSupabase Storageからダウンロード
+    if (!doc.supabase_storage_path) return null;
+    const { data: fileData, error: dlErr } = await supabase.storage.from('documents').download(doc.supabase_storage_path);
+    if (dlErr) throw dlErr;
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+
+    // フォルダ階層: 会計書類 / {year} / {document_type_label}
+    const year = doc.document_date ? doc.document_date.substring(0, 4) : new Date().getFullYear().toString();
+    const typeLabel = DRIVE_FOLDER_MAP[doc.document_type] || 'その他';
+
+    const rootId = await getOrCreateFolder(drive, '会計書類', null);
+    const yearId = await getOrCreateFolder(drive, year, rootId);
+    const typeId = await getOrCreateFolder(drive, typeLabel, yearId);
+
+    // アップロード
+    const ext = (doc.original_filename || '').split('.').pop() || 'pdf';
+    const mimeMap = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif' };
+    const mimeType = mimeMap[ext.toLowerCase()] || 'application/octet-stream';
+
+    const { Readable } = require('stream');
+    const uploaded = await drive.files.create({
+      requestBody: {
+        name: doc.original_filename || `document_${docId}.${ext}`,
+        parents: [typeId],
+      },
+      media: { mimeType, body: Readable.from(buffer) },
+      fields: 'id, webViewLink',
+    });
+
+    const fileId = uploaded.data.id;
+    const webViewLink = uploaded.data.webViewLink;
+
+    // DB更新
+    await supabase.from('accounting_documents').update({
+      google_drive_file_id: fileId,
+      google_drive_url: webViewLink,
+      updated_at: new Date().toISOString(),
+    }).eq('id', docId);
+
+    return fileId;
+  } catch (err) {
+    console.error('uploadDocumentToDrive error:', err.message);
+    return null;
+  }
+}
+
 // --- Column mapping ---
 const SNAKE_MAP = {
   documentType: 'document_type', documentDate: 'document_date', dueDate: 'due_date',
@@ -108,6 +214,12 @@ router.put('/documents/:id', async (req, res) => {
     row.updated_at = new Date().toISOString();
     const { data, error } = await supabase.from('accounting_documents').update(row).eq('id', req.params.id).select().single();
     if (error) throw error;
+
+    // 確認済み/仕訳済みになったらGoogle Driveに自動アップロード
+    if ((row.status === 'confirmed' || row.status === 'journalized') && !data.google_drive_file_id) {
+      uploadDocumentToDrive(data.id).catch(err => console.error('Drive upload failed:', err.message));
+    }
+
     res.json(toCamel(data));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -133,7 +245,27 @@ router.put('/documents/bulk-status', async (req, res) => {
       .update({ status, updated_at: new Date().toISOString() })
       .in('id', ids);
     if (error) throw error;
+
+    // 確認済み/仕訳済みのドキュメントをGoogle Driveに自動アップロード
+    if (status === 'confirmed' || status === 'journalized') {
+      for (const id of ids) {
+        uploadDocumentToDrive(id).catch(err => console.error('Drive upload failed:', err.message));
+      }
+    }
+
     res.json({ success: true, updated: ids.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /documents/:id/upload-to-drive - 手動でGoogle Driveにアップロード
+router.post('/documents/:id/upload-to-drive', async (req, res) => {
+  try {
+    const fileId = await uploadDocumentToDrive(req.params.id);
+    if (!fileId) return res.status(400).json({ error: 'Google Drive認証が未設定か、ファイルが見つかりません' });
+    const { data } = await supabase.from('accounting_documents').select('*').eq('id', req.params.id).single();
+    res.json(toCamel(data));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -179,10 +311,10 @@ router.post('/documents/upload', upload.single('file'), async (req, res) => {
     const { data, error } = await supabase.from('accounting_documents').insert(row).select().single();
     if (error) throw error;
 
-    // AI解析を非同期で実行
-    analyzeDocument(data.id, file.buffer, file.mimetype, file.originalname).catch(err =>
-      console.error('AI analysis failed for', data.id, err.message)
-    );
+    // AI解析を非同期で実行 → 完了後にGoogle Driveへアップロード
+    analyzeDocument(data.id, file.buffer, file.mimetype, file.originalname)
+      .then(() => uploadDocumentToDrive(data.id))
+      .catch(err => console.error('AI analysis/drive failed for', data.id, err.message));
 
     res.json(toCamel(data));
   } catch (err) {
@@ -527,9 +659,10 @@ router.post('/gmail/scan', async (req, res) => {
 
           if (newDoc) {
             saved++;
-            // AI解析を非同期実行
+            // AI解析を非同期実行 → 完了後にGoogle Driveへアップロード
             analyzeDocument(newDoc.id, buffer, part.mimeType || 'application/pdf', part.filename)
-              .catch(err => console.error('Gmail doc analysis failed:', err.message));
+              .then(() => uploadDocumentToDrive(newDoc.id))
+              .catch(err => console.error('Gmail doc analysis/drive failed:', err.message));
           }
         }
       } catch (msgErr) {
@@ -907,6 +1040,216 @@ router.post('/transactions/import-csv', upload.single('file'), async (req, res) 
     }
 
     res.json({ imported, skipped });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// AI仕訳分類
+// =====================
+
+// POST /transactions/classify-ai - AIで勘定科目を自動分類
+router.post('/transactions/classify-ai', async (req, res) => {
+  try {
+    const { accountId, transactionIds } = req.body;
+    if (!accountId) return res.status(400).json({ error: '口座IDが必要です' });
+
+    const anthropic = getAnthropicClient();
+
+    // 分類対象の取引を取得
+    let query = supabase.from('financial_transactions').select('*').eq('account_id', accountId);
+    if (transactionIds && transactionIds.length > 0) {
+      query = query.in('id', transactionIds);
+    } else {
+      query = query.is('account_title', null);
+    }
+    query = query.order('transaction_date', { ascending: false }).limit(100);
+
+    const { data: txns, error: txErr } = await query;
+    if (txErr) throw txErr;
+    if (!txns || txns.length === 0) return res.json({ classified: 0, results: [] });
+
+    // 勘定科目マスターを取得
+    const { data: accounts } = await supabase.from('account_titles').select('id, code, name, category').eq('is_active', true);
+    const accountList = (accounts || []).map(a => ({ id: a.id, code: a.code, name: a.name, category: a.category }));
+
+    // 口座情報を取得（相手勘定用）
+    const { data: facc } = await supabase.from('financial_accounts').select('account_type, account_name').eq('id', accountId).single();
+
+    // バッチでAI分類（20件ずつ）
+    const allResults = [];
+    for (let i = 0; i < txns.length; i += 20) {
+      const batch = txns.slice(i, i + 20);
+      const txnList = batch.map(t => ({
+        id: t.id,
+        date: t.transaction_date,
+        description: t.description,
+        amount: t.amount,
+        counterparty: t.counterparty || '',
+      }));
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{
+          role: 'user',
+          content: `以下の銀行/カード取引に対して、最も適切な勘定科目を分類してください。
+
+口座: ${facc?.account_name || '不明'} (${facc?.account_type === 'credit_card' ? 'クレジットカード' : '銀行口座'})
+
+勘定科目マスター:
+${JSON.stringify(accountList, null, 0)}
+
+取引一覧:
+${JSON.stringify(txnList, null, 0)}
+
+各取引について以下のJSON配列で返してください。JSONのみ返してください。
+[
+  {
+    "id": "取引ID",
+    "accountTitleId": "勘定科目ID",
+    "accountTitleName": "勘定科目名",
+    "counterAccountTitleId": "相手勘定科目ID（入金なら売上高等、出金なら普通預金等）",
+    "counterAccountTitleName": "相手勘定科目名",
+    "confidence": 0.0〜1.0
+  }
+]
+
+ルール:
+- 出金(amount < 0): 費用科目を借方、現金/預金科目を貸方に
+- 入金(amount > 0): 現金/預金科目を借方、収益科目を貸方に
+- 振込手数料は「支払手数料」
+- 不明な場合は最も近い科目を推測してconfidenceを低く設定`
+        }],
+      });
+
+      const text = response.content[0]?.text || '';
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          allResults.push(...parsed);
+        } catch { /* skip invalid batch */ }
+      }
+    }
+
+    // DB更新
+    let classified = 0;
+    for (const r of allResults) {
+      try {
+        const accountName = r.accountTitleName || null;
+        await supabase.from('financial_transactions').update({
+          account_title: accountName,
+          category: accountName,
+          updated_at: new Date().toISOString(),
+        }).eq('id', r.id);
+        classified++;
+      } catch { /* skip */ }
+    }
+
+    res.json({ classified, results: allResults });
+  } catch (err) {
+    let msg = err.message;
+    if (msg.includes('credit balance') || msg.includes('billing')) {
+      msg = 'Anthropic APIのクレジット残高が不足しています。';
+    }
+    res.status(500).json({ error: msg });
+  }
+});
+
+// POST /transactions/auto-journal - 分類済み取引から仕訳を一括作成
+router.post('/transactions/auto-journal', async (req, res) => {
+  try {
+    const { accountId, transactionIds, classificationResults } = req.body;
+    if (!transactionIds || transactionIds.length === 0) {
+      return res.status(400).json({ error: '取引IDが必要です' });
+    }
+
+    // 勘定科目マスターを取得
+    const { data: accounts } = await supabase.from('account_titles').select('id, code, name, category').eq('is_active', true);
+    const nameToId = {};
+    const idToAccount = {};
+    for (const a of (accounts || [])) {
+      nameToId[a.name] = a.id;
+      idToAccount[a.id] = a;
+    }
+
+    // 口座情報を取得
+    const { data: facc } = await supabase.from('financial_accounts')
+      .select('account_type, account_name').eq('id', accountId).single();
+
+    // 普通預金の勘定科目IDを探す
+    const depositAccount = (accounts || []).find(a => a.name === '普通預金') || (accounts || []).find(a => a.category === 'asset' && a.name.includes('預金'));
+    const depositAccountId = depositAccount?.id;
+
+    // 取引を取得
+    const { data: txns, error } = await supabase.from('financial_transactions')
+      .select('*').in('id', transactionIds);
+    if (error) throw error;
+
+    // classificationResults をマップ化
+    const classMap = {};
+    if (classificationResults) {
+      for (const r of classificationResults) {
+        classMap[r.id] = r;
+      }
+    }
+
+    let created = 0, errors = 0;
+
+    for (const tx of (txns || [])) {
+      try {
+        const classification = classMap[tx.id];
+        const accountTitleName = classification?.accountTitleName || tx.account_title;
+        const counterAccountTitleId = classification?.counterAccountTitleId;
+
+        if (!accountTitleName) { errors++; continue; }
+
+        const expenseAccountId = classification?.accountTitleId || nameToId[accountTitleName];
+        if (!expenseAccountId) { errors++; continue; }
+
+        const counterAcctId = counterAccountTitleId || depositAccountId;
+        if (!counterAcctId) { errors++; continue; }
+
+        const amount = Math.abs(tx.amount);
+        const isExpense = tx.amount < 0;
+
+        // 仕訳作成
+        const lines = isExpense
+          ? [
+              { accountTitleId: expenseAccountId, debitAmount: amount, creditAmount: 0 },
+              { accountTitleId: counterAcctId, debitAmount: 0, creditAmount: amount },
+            ]
+          : [
+              { accountTitleId: counterAcctId, debitAmount: amount, creditAmount: 0 },
+              { accountTitleId: expenseAccountId, debitAmount: 0, creditAmount: amount },
+            ];
+
+        const { data: entry, error: entryErr } = await supabase.from('journal_entries').insert({
+          entry_date: tx.transaction_date,
+          description: tx.description + (tx.counterparty ? ` (${tx.counterparty})` : ''),
+          source: 'csv_auto',
+          updated_at: new Date().toISOString(),
+        }).select().single();
+        if (entryErr) { errors++; continue; }
+
+        const lineRows = lines.map((l, i) => ({
+          journal_entry_id: entry.id,
+          account_title_id: l.accountTitleId,
+          debit_amount: l.debitAmount,
+          credit_amount: l.creditAmount,
+          sort_order: i,
+        }));
+
+        await supabase.from('journal_entry_lines').insert(lineRows);
+        created++;
+      } catch {
+        errors++;
+      }
+    }
+
+    res.json({ created, errors });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

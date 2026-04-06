@@ -5,7 +5,7 @@ import type { FinancialAccount, FinancialTransaction } from './types'
 import { ACCOUNT_TYPE_LABELS } from './types'
 import {
   Building2, CreditCard, Plus, Upload, Trash2, ChevronLeft, ChevronRight,
-  Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, PiggyBank,
+  Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, PiggyBank, Sparkles, BookOpen, Check,
 } from 'lucide-react'
 
 const formatCurrency = (amount: number) => `¥${Math.abs(amount).toLocaleString()}`
@@ -188,6 +188,14 @@ export function Transactions() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
 
+  // AI分類
+  type ClassificationResult = { id: string; accountTitleId: string; accountTitleName: string; counterAccountTitleId: string; counterAccountTitleName: string; confidence: number }
+  const [classifying, setClassifying] = useState(false)
+  const [classificationResults, setClassificationResults] = useState<ClassificationResult[]>([])
+  const [selectedForJournal, setSelectedForJournal] = useState<Set<string>>(new Set())
+  const [creatingJournal, setCreatingJournal] = useState(false)
+  const [journalResult, setJournalResult] = useState<{ created: number; errors: number } | null>(null)
+
   // 手動入力
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualForm, setManualForm] = useState({
@@ -329,6 +337,44 @@ export function Transactions() {
     } catch (err) {
       console.error(err)
       alert('取引の登録に失敗しました')
+    }
+  }
+
+  const handleClassifyAi = async () => {
+    if (!selectedAccountId) return
+    setClassifying(true)
+    setClassificationResults([])
+    setJournalResult(null)
+    try {
+      const result = await transactionApi.classifyAi(selectedAccountId)
+      setClassificationResults(result.results)
+      setSelectedForJournal(new Set(result.results.filter(r => r.confidence >= 0.5).map(r => r.id)))
+    } catch (err) {
+      console.error(err)
+      alert('AI分類に失敗しました')
+    } finally {
+      setClassifying(false)
+    }
+  }
+
+  const handleAutoJournal = async () => {
+    if (selectedForJournal.size === 0 || !selectedAccountId) return
+    setCreatingJournal(true)
+    try {
+      const selectedResults = classificationResults.filter(r => selectedForJournal.has(r.id))
+      const result = await transactionApi.autoJournal(
+        selectedAccountId,
+        Array.from(selectedForJournal),
+        selectedResults,
+      )
+      setJournalResult(result)
+      setClassificationResults([])
+      setSelectedForJournal(new Set())
+    } catch (err) {
+      console.error(err)
+      alert('仕訳作成に失敗しました')
+    } finally {
+      setCreatingJournal(false)
     }
   }
 
@@ -523,6 +569,11 @@ export function Transactions() {
               className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700">
               <Upload size={16} /> CSV取り込み
             </button>
+            <button onClick={handleClassifyAi} disabled={classifying}
+              className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 disabled:opacity-50">
+              <Sparkles size={16} className={classifying ? 'animate-pulse' : ''} />
+              {classifying ? 'AI分類中...' : 'AI自動仕訳'}
+            </button>
             <button onClick={() => setShowManualForm(v => !v)}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
               <Plus size={16} /> 手動入力
@@ -570,6 +621,99 @@ export function Transactions() {
                 各銀行・カード会社のWebサイトからダウンロードしたCSVファイルを選択してください。
                 Shift_JISエンコーディングにも対応しています。
               </p>
+            </div>
+          )}
+
+          {/* AI分類結果パネル */}
+          {classificationResults.length > 0 && (
+            <div className="bg-white border border-violet-200 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-medium text-violet-700 flex items-center gap-2">
+                  <Sparkles size={16} />
+                  AI分類結果（{classificationResults.length}件）
+                </h4>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-gray-500">
+                    <input type="checkbox"
+                      checked={selectedForJournal.size === classificationResults.length}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedForJournal(new Set(classificationResults.map(r => r.id)))
+                        else setSelectedForJournal(new Set())
+                      }}
+                      className="mr-1" />
+                    全選択
+                  </label>
+                  <button onClick={handleAutoJournal}
+                    disabled={selectedForJournal.size === 0 || creatingJournal}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 disabled:opacity-50">
+                    <BookOpen size={14} />
+                    {creatingJournal ? '作成中...' : `仕訳を一括作成（${selectedForJournal.size}件）`}
+                  </button>
+                  <button onClick={() => { setClassificationResults([]); setSelectedForJournal(new Set()) }}
+                    className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">
+                    閉じる
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-violet-50 border-b border-violet-100 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-violet-600 w-8"></th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-violet-600">取引</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-violet-600">借方科目</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-violet-600">貸方科目</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-violet-600">信頼度</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {classificationResults.map(r => {
+                      const tx = transactions.find(t => t.id === r.id)
+                      const isExpense = tx && tx.amount < 0
+                      return (
+                        <tr key={r.id} className={`hover:bg-violet-50/50 ${selectedForJournal.has(r.id) ? 'bg-violet-50/30' : ''}`}>
+                          <td className="px-3 py-2">
+                            <input type="checkbox" checked={selectedForJournal.has(r.id)}
+                              onChange={e => {
+                                const next = new Set(selectedForJournal)
+                                if (e.target.checked) next.add(r.id); else next.delete(r.id)
+                                setSelectedForJournal(next)
+                              }} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="text-gray-900 truncate max-w-[200px]">{tx?.description || r.id}</div>
+                            <div className="text-xs text-gray-400">{tx?.transactionDate} / {tx ? (tx.amount >= 0 ? '+' : '') + tx.amount.toLocaleString() + '円' : ''}</div>
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {isExpense ? r.accountTitleName : r.counterAccountTitleName}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {isExpense ? r.counterAccountTitleName : r.accountTitleName}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                              r.confidence >= 0.8 ? 'bg-emerald-100 text-emerald-700' :
+                              r.confidence >= 0.5 ? 'bg-amber-100 text-amber-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {r.confidence >= 0.8 && <Check size={10} />}
+                              {Math.round(r.confidence * 100)}%
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 仕訳作成結果 */}
+          {journalResult && (
+            <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg text-sm text-violet-800 flex items-center gap-2">
+              <BookOpen size={16} />
+              仕訳作成完了: {journalResult.created}件作成 {journalResult.errors > 0 && `/ ${journalResult.errors}件エラー`}
             </div>
           )}
 
