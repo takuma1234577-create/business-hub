@@ -167,17 +167,18 @@ router.post('/trigger/:credentialId', async (req, res) => {
       }).select().single();
       if (jobErr) throw jobErr;
 
-      const axios = require('axios');
-      await axios.post(`${SCRAPER_URL}/scrape`, { jobId: job.id }, {
-        headers: { Authorization: `Bearer ${process.env.SCRAPER_API_SECRET || ''}` },
-        timeout: 55000,
-      });
-
       await supabase.from('bank_credentials').update({
         sync_status: 'running', sync_error: 'スクレイパーサーバーで処理中...',
       }).eq('id', credentialId);
 
+      // 即レスポンスを返してから非同期でRenderに送信（Renderスリープ復帰を待たない）
       res.json({ jobId: job.id, status: 'pending', mode: 'remote' });
+
+      const axios = require('axios');
+      axios.post(`${SCRAPER_URL}/scrape`, { jobId: job.id }, {
+        headers: { Authorization: `Bearer ${process.env.SCRAPER_API_SECRET || ''}` },
+        timeout: 120000,
+      }).catch(err => console.error('Render call failed:', err.message));
     } else {
       // Railway未設定 → ローカル実行（既存のフォールバック）
       const { data: job, error: jobErr } = await supabase.from('scraping_jobs').insert({
