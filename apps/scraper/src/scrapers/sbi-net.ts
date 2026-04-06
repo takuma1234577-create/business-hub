@@ -21,16 +21,9 @@ export class SbiNetScraper extends BaseScraper {
         waitUntil: 'domcontentloaded', timeout: 45000,
       });
 
-      // SPAなのでJSレンダリングを待つ
+      // SPAなのでJSレンダリングを十分に待つ
       console.log('[SBI] ページレンダリング待ち...');
-      await this.sleep(5000);
-
-      // ユーザー名フィールドが表示されるまで待つ
-      await this.page.waitForFunction(
-        () => !!document.querySelector('input[type="text"]'),
-        { timeout: 30000 }
-      ).catch(() => null);
-      await this.sleep(1000);
+      await this.sleep(8000);
 
       // スクリーンショットでデバッグ
       console.log('[SBI] 現在のURL:', this.page.url());
@@ -70,24 +63,10 @@ export class SbiNetScraper extends BaseScraper {
         await this.page.keyboard.press('Enter');
       }
 
-      // ナビゲーションを待たず、URLまたはページ内容の変化を待つ
+      // SPAのためsleepで待つ（waitForFunction/waitForNavigationはコンテキスト破壊の原因）
       console.log('[SBI] ログイン結果を待機中...');
       const loginUrl = this.page.url();
-
-      await this.page.waitForFunction(
-        (origUrl: string) => {
-          // URLが変わった、またはエラーメッセージが出た
-          if (window.location.href !== origUrl) return true;
-          if (document.body?.innerText?.includes('ログインできません')) return true;
-          if (document.body?.innerText?.includes('スマート認証')) return true;
-          if (document.body?.innerText?.includes('認証番号')) return true;
-          return false;
-        },
-        { timeout: 30000 },
-        loginUrl
-      ).catch(() => {});
-
-      await this.sleep(3000);
+      await this.sleep(10000);
 
       // 結果判定
       const currentUrl = this.page.url();
