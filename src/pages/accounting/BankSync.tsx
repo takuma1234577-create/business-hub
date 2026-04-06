@@ -95,9 +95,9 @@ export function BankSync() {
 
       const result = await bankSyncApi.triggerSync(credentialId)
 
-      if (result.mode === 'railway') {
-        // Railway非同期モード: ジョブIDでポーリング開始
-        setSyncMessage('Railway経由で処理中... スマート認証が必要な場合はモーダルが表示されます')
+      if (result.mode === 'remote' || result.mode === 'railway') {
+        // 外部サーバー非同期モード: ジョブIDでポーリング開始
+        setSyncMessage('スクレイパーサーバーで処理中... スマート認証が必要な場合はモーダルが表示されます')
         pollJobStatus(result.jobId!, credentialId)
         return
       }
