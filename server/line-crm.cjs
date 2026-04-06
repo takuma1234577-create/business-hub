@@ -823,15 +823,24 @@ router.get('/ai-settings', async (req, res) => {
       if (error.code === 'PGRST116') {
         return res.json({
           enabled: false,
-          model: 'gpt-4',
+          is_active: false,
+          model: 'claude-sonnet-4-5',
           system_prompt: '',
+          system_instructions: '',
+          persona: '',
           temperature: 0.7,
         });
       }
       return res.status(500).json({ error: error.message });
     }
 
-    return res.json(data);
+    // フロントエンド互換フィールドを付与
+    return res.json({
+      ...data,
+      is_active: data.enabled ?? false,
+      system_instructions: data.system_prompt ?? '',
+      persona: data.persona ?? '',
+    });
   } catch (err) {
     console.error('GET /ai-settings error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -843,8 +852,11 @@ router.put('/ai-settings', async (req, res) => {
   try {
     const {
       enabled,
+      is_active,
       model,
       system_prompt,
+      system_instructions,
+      persona,
       temperature,
       max_tokens,
       api_key,
@@ -858,9 +870,13 @@ router.put('/ai-settings', async (req, res) => {
       .maybeSingle();
 
     const payload = {};
+    // フロントエンドは is_active / persona / system_instructions を送信するため両方受け入れる
     if (enabled !== undefined) payload.enabled = enabled;
+    if (is_active !== undefined) payload.enabled = is_active;
     if (model !== undefined) payload.model = model;
     if (system_prompt !== undefined) payload.system_prompt = system_prompt;
+    if (system_instructions !== undefined) payload.system_prompt = system_instructions;
+    if (persona !== undefined) payload.persona = persona;
     if (temperature !== undefined) payload.temperature = temperature;
     if (max_tokens !== undefined) payload.max_tokens = max_tokens;
     if (api_key !== undefined) payload.api_key = api_key;
@@ -1657,9 +1673,32 @@ router.post('/webhook', async (req, res) => {
   res.status(200).json({ status: 'ok' });
 
   const events = Array.isArray(req.body?.events) ? req.body.events : [];
+
+  // AI自動応答の有効/無効をチェック
+  let aiEnabled = true;
+  try {
+    const { data: aiSettings } = await supabase
+      .from('ai_settings')
+      .select('enabled')
+      .limit(1)
+      .maybeSingle();
+    if (aiSettings && aiSettings.enabled === false) {
+      aiEnabled = false;
+    }
+  } catch (err) {
+    console.error('[line-webhook] ai_settings check error:', err.message);
+  }
+
   for (const event of events) {
     if (event?.type !== 'message' || event?.message?.type !== 'text') continue;
     const userMessage = event.message.text;
+
+    if (!aiEnabled) {
+      // AI無効時はメッセージの記録のみ行い、返信しない
+      logWebhookMessage(event, userMessage, null);
+      continue;
+    }
+
     let aiReply;
     try {
       aiReply = await generateFITPEAKReply(userMessage);
