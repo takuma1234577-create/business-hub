@@ -198,13 +198,10 @@ export default function AiSettings() {
                 onChange={e => setSettings({ ...settings, model: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
               >
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="gpt-4o-mini">GPT-4o mini</option>
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="claude-3-opus">Claude 3 Opus</option>
-                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                <option value="claude-3-haiku">Claude 3 Haiku</option>
+                <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+                <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+                <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
               </select>
             </div>
             <div>

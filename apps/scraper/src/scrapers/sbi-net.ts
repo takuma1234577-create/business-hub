@@ -64,11 +64,20 @@ export class SbiNetScraper extends BaseScraper {
       await userEl.type(credentials.userId, { delay: 80 }).catch(() => {});
       await this.randomDelay(500, 1000);
 
-      // パスワード入力
-      const passEl = await this.safeQuery('input[type="password"]');
+      // パスワード入力（SPAの再レンダリングを待つ）
+      await this.sleep(2000);
+      let passEl = await this.safeQuery('input[type="password"]');
       if (!passEl) {
-        await this.captureScreenshot('sbi-no-pass-field');
-        return { status: 'error', message: 'パスワードフィールドが見つかりません' };
+        // SBIが2段階フォームの場合: 次のページを待つ
+        console.log('[SBI] パスワードフィールドが見つからない。再レンダリングを待機中...');
+        await this.sleep(5000);
+        passEl = await this.safeQuery('input[type="password"]');
+      }
+      if (!passEl) {
+        // ページ内容を取得してデバッグ
+        const bodyText = await this.safeEval(() => document.body?.innerText?.substring(0, 500) || '', '');
+        console.log('[SBI] ページ内容:', bodyText);
+        return { status: 'error', message: `パスワードフィールドが見つかりません。ページ内容: ${bodyText.substring(0, 100)}` };
       }
       await passEl.click({ clickCount: 3 }).catch(() => {});
       await this.sleep(300);

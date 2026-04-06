@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, MessageCircle, Zap, Megaphone, Bot, BookOpen, FileText, LayoutGrid, Sparkles } from 'lucide-react'
+import { ArrowLeft, Users, MessageCircle, Zap, Megaphone, Bot, BookOpen, FileText, LayoutGrid, Sparkles, Mail } from 'lucide-react'
 import FriendList from './line-crm/FriendList'
 import ChatThreads from './line-crm/ChatThreads'
 import ChatView from './line-crm/ChatView'
@@ -11,9 +11,10 @@ import KnowledgeChunks from './line-crm/KnowledgeChunks'
 import MessageTemplates from './line-crm/MessageTemplates'
 import RichMenus from './line-crm/RichMenus'
 import GreetingSettings from './line-crm/GreetingSettings'
+import EmailAutoReply from './line-crm/EmailAutoReply'
 import type { Friend } from './line-crm/types'
 
-type TabId = 'friends' | 'threads' | 'chat' | 'auto-responses' | 'broadcasts' | 'ai-settings' | 'knowledge' | 'templates' | 'rich-menus' | 'greeting'
+type TabId = 'friends' | 'threads' | 'chat' | 'auto-responses' | 'broadcasts' | 'ai-settings' | 'knowledge' | 'templates' | 'rich-menus' | 'greeting' | 'email-auto-reply'
 
 interface TabDef {
   id: TabId
@@ -38,6 +39,7 @@ export default function LineCrm() {
     { id: 'broadcasts', label: '一斉配信', icon: <Megaphone size={18} /> },
     { id: 'ai-settings', label: 'AI設定', icon: <Bot size={18} /> },
     { id: 'knowledge', label: 'RAGナレッジ', icon: <BookOpen size={18} /> },
+    { id: 'email-auto-reply', label: 'メール自動返信', icon: <Mail size={18} /> },
   ]
 
   const handleSelectFriend = (friend: Friend) => {
@@ -129,6 +131,9 @@ export default function LineCrm() {
         )}
         {activeTab === 'greeting' && (
           <GreetingSettings />
+        )}
+        {activeTab === 'email-auto-reply' && (
+          <EmailAutoReply />
         )}
       </main>
     </div>

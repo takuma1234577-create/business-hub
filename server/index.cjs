@@ -28,12 +28,14 @@ const bankScraperRoutes = require(path.join(__dirname, 'bank-scraper.cjs'));
 const accountingCoreRoutes = require(path.join(__dirname, 'accounting-core.cjs'));
 const fiscalAnalysisRoutes = require(path.join(__dirname, 'fiscal-analysis.cjs'));
 const settingsRoutes = require(path.join(__dirname, 'settings.cjs'));
+const emailAutoReplyRoutes = require(path.join(__dirname, 'email-autoresponder.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm', lineCrmRoutes);
+app.use('/api/line-crm/email-auto-reply', emailAutoReplyRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/accounting/bank-sync', bankScraperRoutes);
 app.use('/api/accounting/core', accountingCoreRoutes);

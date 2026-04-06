@@ -484,7 +484,7 @@ router.get('/chat/:friendId/messages', async (req, res) => {
   }
 });
 
-// POST /chat/:friendId/send - Send message (insert into chat_messages)
+// POST /chat/:friendId/send - Send message (push to LINE + insert into chat_messages)
 router.post('/chat/:friendId/send', async (req, res) => {
   try {
     const { friendId } = req.params;
@@ -494,10 +494,10 @@ router.post('/chat/:friendId/send', async (req, res) => {
       return res.status(400).json({ error: 'content is required' });
     }
 
-    // Resolve channel_id from the friend (chat_messages.channel_id is required)
+    // Resolve channel_id and line_user_id from the friend
     const { data: friend, error: friendErr } = await supabase
       .from('friends')
-      .select('channel_id')
+      .select('channel_id, line_user_id')
       .eq('id', friendId)
       .maybeSingle();
 
@@ -506,6 +506,31 @@ router.post('/chat/:friendId/send', async (req, res) => {
     }
     if (!friend) {
       return res.status(404).json({ error: 'friend not found' });
+    }
+
+    // LINE Push API でメッセージを送信
+    if (friend.line_user_id && message_type === 'text') {
+      const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      if (token) {
+        const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            to: friend.line_user_id,
+            messages: [{ type: 'text', text: content }],
+          }),
+        });
+        if (!pushRes.ok) {
+          const body = await pushRes.text().catch(() => '');
+          console.error('[chat/send] LINE push failed:', pushRes.status, body);
+          return res.status(502).json({ error: `LINE送信に失敗しました (${pushRes.status})` });
+        }
+      } else {
+        console.warn('[chat/send] LINE_CHANNEL_ACCESS_TOKEN が未設定のため LINE に送信できません');
+      }
     }
 
     const { data, error } = await supabase
@@ -1636,7 +1661,7 @@ async function logWebhookMessage(event, userMessage, aiReply) {
     if (!friend) return;
 
     const now = new Date().toISOString();
-    await supabase.from('chat_messages').insert([
+    const rows = [
       {
         channel_id: friend.channel_id,
         friend_id: friend.id,
@@ -1646,15 +1671,18 @@ async function logWebhookMessage(event, userMessage, aiReply) {
         line_message_id: event?.message?.id ?? null,
         created_at: now,
       },
-      {
+    ];
+    if (aiReply) {
+      rows.push({
         channel_id: friend.channel_id,
         friend_id: friend.id,
         direction: 'outgoing',
         message_type: 'text',
         content: { text: aiReply, source: 'fitpeak_rag' },
         created_at: now,
-      },
-    ]);
+      });
+    }
+    await supabase.from('chat_messages').insert(rows);
   } catch (err) {
     console.error('[line-webhook] logWebhookMessage error:', err.message);
   }
