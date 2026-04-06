@@ -170,7 +170,7 @@ router.post('/trigger/:credentialId', async (req, res) => {
       const axios = require('axios');
       await axios.post(`${SCRAPER_URL}/scrape`, { jobId: job.id }, {
         headers: { Authorization: `Bearer ${process.env.SCRAPER_API_SECRET || ''}` },
-        timeout: 10000,
+        timeout: 55000,
       });
 
       await supabase.from('bank_credentials').update({

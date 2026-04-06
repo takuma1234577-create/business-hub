@@ -19,7 +19,14 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
 
 // ヘルスチェック（認証不要）
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'bank-scraper' });
+  const encKey = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || '';
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'bank-scraper',
+    encKeyFirst8: encKey.substring(0, 8),
+    encKeyLength: encKey.length,
+  });
 });
 
 app.use(authMiddleware);
