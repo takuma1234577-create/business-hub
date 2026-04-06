@@ -18,7 +18,17 @@ const { generateFITPEAKReply } = require('./fitpeak-rag.cjs');
 const router = express.Router();
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 
-// ── Gmail クライアント取得 ──
+// このモジュール専用のOAuthトークンID（他ツールと独立）
+const OAUTH_TOKEN_ID = 'email_auto_reply';
+
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+];
+
+// ── Gmail クライアント取得（専用トークン使用）──
 async function getGmailClient() {
   const oauth2Client = getGoogleOAuth2();
   if (!oauth2Client) throw new Error('Google OAuth未設定');
@@ -26,9 +36,9 @@ async function getGmailClient() {
   const { data: tokenData, error: tokenErr } = await supabase
     .from('oauth_tokens')
     .select('*')
-    .eq('id', 'gmail')
+    .eq('id', OAUTH_TOKEN_ID)
     .single();
-  if (tokenErr || !tokenData) throw new Error('Gmail未認証。設定画面からGmail認証を行ってください。');
+  if (tokenErr || !tokenData) throw new Error('Gmail未認証。メール自動返信の設定画面からGmail認証を行ってください。');
 
   oauth2Client.setCredentials({
     access_token: tokenData.access_token,
@@ -41,7 +51,7 @@ async function getGmailClient() {
   oauth2Client.on('tokens', async (tokens) => {
     const updates = { access_token: tokens.access_token, updated_at: new Date().toISOString() };
     if (tokens.refresh_token) updates.refresh_token = tokens.refresh_token;
-    await supabase.from('oauth_tokens').update(updates).eq('id', 'gmail');
+    await supabase.from('oauth_tokens').update(updates).eq('id', OAUTH_TOKEN_ID);
   });
 
   return google.gmail({ version: 'v1', auth: oauth2Client });
@@ -296,6 +306,62 @@ async function processEmails() {
 
   return { processed: results.length, results };
 }
+
+// ===========================================================================
+// Gmail OAuth (このツール専用)
+// ===========================================================================
+
+// 既存コールバックURL（Google Cloud Consoleに登録済み）を再利用
+const getCallbackUrl = (req) => `${req.protocol}://${req.get('host')}/api/invoice/auth/callback`;
+
+// GET /auth/status - 認証状態を確認
+router.get('/auth/status', async (_req, res) => {
+  try {
+    const hasCredentials = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const { data } = await supabase
+      .from('oauth_tokens')
+      .select('id, scope, expiry_date, updated_at')
+      .eq('id', OAUTH_TOKEN_ID)
+      .maybeSingle();
+    return res.json({
+      hasCredentials,
+      hasToken: !!data,
+      tokenInfo: data ? {
+        scope: data.scope,
+        expiryDate: data.expiry_date,
+        updatedAt: data.updated_at,
+        isExpired: data.expiry_date ? Date.now() > Number(data.expiry_date) : false,
+      } : null,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /auth/login - Google OAuth URLを取得
+router.get('/auth/login', (req, res) => {
+  const callbackUrl = getCallbackUrl(req);
+  const oauth2Client = getGoogleOAuth2(callbackUrl);
+  if (!oauth2Client) return res.status(400).json({ error: 'Google OAuth未設定 (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)' });
+
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: GMAIL_SCOPES,
+    prompt: 'consent',
+    state: OAUTH_TOKEN_ID, // コールバックでこのIDで保存される
+  });
+  return res.json({ url });
+});
+
+// DELETE /auth/disconnect - 認証を解除
+router.delete('/auth/disconnect', async (_req, res) => {
+  try {
+    await supabase.from('oauth_tokens').delete().eq('id', OAUTH_TOKEN_ID);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // ===========================================================================
 // API Routes

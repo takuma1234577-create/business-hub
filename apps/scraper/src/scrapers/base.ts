@@ -46,35 +46,56 @@ export abstract class BaseScraper implements BankScraper {
   }
 
   protected async initBrowser(): Promise<void> {
-    const puppeteer = require('puppeteer-core');
+    let puppeteer: any;
 
-    // Chromiumパスを検出
+    // puppeteer-extra + stealth plugin でbot検知回避
+    try {
+      puppeteer = require('puppeteer-extra');
+      const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+      puppeteer.use(StealthPlugin());
+      console.log('[Browser] puppeteer-extra + stealth plugin loaded');
+    } catch {
+      puppeteer = require('puppeteer-core');
+      console.log('[Browser] puppeteer-core (no stealth)');
+    }
+
     let execPath: string;
-    const args = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
+    const args = [
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+      '--disable-gpu', '--disable-blink-features=AutomationControlled',
+      '--window-size=1280,800',
+    ];
 
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
       execPath = process.env.PUPPETEER_EXECUTABLE_PATH;
     } else if (process.platform === 'darwin') {
       execPath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
     } else {
-      // Linux (Railway)
-      execPath = '/usr/bin/google-chrome-stable';
+      execPath = '/usr/bin/chromium';
     }
 
     this.browser = await puppeteer.launch({
       executablePath: execPath,
-      headless: true,
+      headless: 'new',
       args,
       defaultViewport: { width: 1280, height: 800 },
     });
 
     this.page = await this.browser.newPage();
 
-    // Bot検知回避
+    // Bot検知回避: User-Agent
     await this.page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
     );
+
+    // Bot検知回避: webdriver フラグを除去
+    await this.page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+
+    // JavaScript有効を明示
+    await this.page.setJavaScriptEnabled(true);
   }
 
   protected async safeContent(): Promise<string> {
