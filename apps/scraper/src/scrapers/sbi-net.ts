@@ -28,17 +28,23 @@ export class SbiNetScraper extends BaseScraper {
     try {
       console.log('[SBI] ログインページに移動中...');
 
-      // page.goto自体がリダイレクトでコンテキスト破壊する可能性があるため、catchで対応
+      // まずトップページでCookieを取得
+      try {
+        await this.page.goto('https://www.netbk.co.jp/', { waitUntil: 'networkidle0', timeout: 30000 });
+      } catch { console.log('[SBI] トップページ読み込み（タイムアウト）'); }
+      await this.sleep(3000);
+
+      // ログインページに遷移
       try {
         await this.page.goto('https://www.netbk.co.jp/contents/pages/wpl010101/i010101CT/DI/nb_login', {
-          waitUntil: 'load', timeout: 45000,
+          waitUntil: 'networkidle0', timeout: 45000,
         });
       } catch {
-        // リダイレクトでタイムアウトしても続行
-        console.log('[SBI] 初期ページ読み込み完了（タイムアウトまたはリダイレクト）');
+        console.log('[SBI] ログインページ読み込み（タイムアウト）');
       }
 
-      await this.sleep(8000);
+      // SPAレンダリングを十分に待つ
+      await this.sleep(10000);
 
       // 現在のURLを確認
       const currentUrl = this.page.url();

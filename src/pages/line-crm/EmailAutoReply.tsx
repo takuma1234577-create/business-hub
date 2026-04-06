@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, Link, Unlink } from 'lucide-react'
 import axios from 'axios'
 
 interface EmailSettings {
@@ -9,6 +9,17 @@ interface EmailSettings {
   max_emails_per_run: number
   reply_prefix: string
   reply_suffix: string
+}
+
+interface AuthStatus {
+  hasCredentials: boolean
+  hasToken: boolean
+  tokenInfo: {
+    scope: string
+    expiryDate: string
+    updatedAt: string
+    isExpired: boolean
+  } | null
 }
 
 interface EmailLog {
@@ -33,6 +44,8 @@ interface LogPagination {
 const api = axios.create({ baseURL: '/api/line-crm/email-auto-reply' })
 
 export default function EmailAutoReply() {
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
+  const [connecting, setConnecting] = useState(false)
   const [settings, setSettings] = useState<EmailSettings>({
     enabled: false,
     gmail_query: 'from:noreply@shopify.com is:unread',
@@ -48,6 +61,15 @@ export default function EmailAutoReply() {
   const [triggering, setTriggering] = useState(false)
   const [triggerResult, setTriggerResult] = useState<string | null>(null)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
+
+  const fetchAuthStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/status')
+      setAuthStatus(res.data)
+    } catch (err) {
+      console.error('Failed to fetch auth status:', err)
+    }
+  }, [])
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -70,8 +92,41 @@ export default function EmailAutoReply() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([fetchSettings(), fetchLogs()]).finally(() => setLoading(false))
-  }, [fetchSettings, fetchLogs])
+    Promise.all([fetchAuthStatus(), fetchSettings(), fetchLogs()]).finally(() => setLoading(false))
+  }, [fetchAuthStatus, fetchSettings, fetchLogs])
+
+  // OAuth完了のメッセージを受け取る
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'oauth_complete' && e.data?.service === 'email_auto_reply') {
+        fetchAuthStatus()
+        setConnecting(false)
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [fetchAuthStatus])
+
+  const handleConnect = async () => {
+    setConnecting(true)
+    try {
+      const res = await api.get('/auth/login')
+      window.open(res.data.url, 'gmail_auth', 'width=600,height=700')
+    } catch (err) {
+      console.error('Failed to get auth URL:', err)
+      setConnecting(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!confirm('Gmail連携を解除しますか？自動返信が停止します。')) return
+    try {
+      await api.delete('/auth/disconnect')
+      setAuthStatus(prev => prev ? { ...prev, hasToken: false, tokenInfo: null } : null)
+    } catch (err) {
+      console.error('Failed to disconnect:', err)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -136,6 +191,50 @@ export default function EmailAutoReply() {
 
   return (
     <div className="space-y-8">
+      {/* Gmail Auth Section */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+              <Mail size={20} className="text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Gmail連携</h2>
+              <p className="text-sm text-slate-500">
+                {authStatus?.hasToken
+                  ? authStatus.tokenInfo?.isExpired
+                    ? 'トークンが期限切れです。再認証してください。'
+                    : `認証済み（最終更新: ${authStatus.tokenInfo?.updatedAt ? new Date(authStatus.tokenInfo.updatedAt).toLocaleString('ja-JP') : '-'}）`
+                  : 'メール自動返信に使用するGmailアカウントを認証してください'}
+              </p>
+            </div>
+          </div>
+          {authStatus?.hasToken ? (
+            <button
+              onClick={handleDisconnect}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium transition-colors cursor-pointer"
+            >
+              <Unlink size={16} />
+              連携解除
+            </button>
+          ) : (
+            <button
+              onClick={handleConnect}
+              disabled={connecting || !authStatus?.hasCredentials}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <Link size={16} />
+              {connecting ? '認証中...' : 'Gmailを認証'}
+            </button>
+          )}
+        </div>
+        {authStatus && !authStatus.hasCredentials && (
+          <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+            Google OAuth未設定です。API設定画面で GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET を設定してください。
+          </p>
+        )}
+      </div>
+
       {/* Settings Section */}
       <div>
         <div className="flex items-center justify-between mb-6">
