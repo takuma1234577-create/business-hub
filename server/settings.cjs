@@ -569,4 +569,152 @@ router.post('/channels/:id/test', async (req, res) => {
   }
 });
 
+// =====================
+// APIキー管理
+// =====================
+
+const API_KEY_SERVICES = [
+  { id: 'anthropic', label: 'Anthropic (Claude AI)', envVar: 'ANTHROPIC_API_KEY', placeholder: 'sk-ant-...' },
+  { id: 'google_client_id', label: 'Google Client ID', envVar: 'GOOGLE_CLIENT_ID', placeholder: '...apps.googleusercontent.com' },
+  { id: 'google_client_secret', label: 'Google Client Secret', envVar: 'GOOGLE_CLIENT_SECRET', placeholder: 'GOCSPX-...' },
+  { id: 'chatwork', label: 'Chatwork API Token', envVar: 'CHATWORK_API_TOKEN', placeholder: '' },
+  { id: 'bank_encryption', label: '銀行認証暗号化キー', envVar: 'BANK_CREDENTIAL_ENCRYPTION_KEY', placeholder: '64文字の16進数' },
+];
+
+// APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）
+function encryptApiKey(value) {
+  const crypto = require('crypto');
+  const secret = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || process.env.SUPABASE_ANON_KEY || 'default-key';
+  const key = crypto.scryptSync(secret, 'api-keys-salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let encrypted = cipher.update(value, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const tag = cipher.getAuthTag().toString('hex');
+  return JSON.stringify({ iv: iv.toString('hex'), data: encrypted, tag });
+}
+
+function decryptApiKey(ciphertext) {
+  const crypto = require('crypto');
+  const secret = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || process.env.SUPABASE_ANON_KEY || 'default-key';
+  const key = crypto.scryptSync(secret, 'api-keys-salt', 32);
+  const { iv, data, tag } = JSON.parse(ciphertext);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+  decipher.setAuthTag(Buffer.from(tag, 'hex'));
+  let decrypted = decipher.update(data, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// サービス一覧
+router.get('/api-keys/services', (_req, res) => {
+  res.json(API_KEY_SERVICES.map(s => ({ id: s.id, label: s.label, placeholder: s.placeholder })));
+});
+
+// 設定済みキー一覧（値はマスク）
+router.get('/api-keys', async (_req, res) => {
+  try {
+    const { data: keys } = await supabase.from('api_keys').select('id, label, is_active, updated_at').order('id');
+
+    const result = API_KEY_SERVICES.map(service => {
+      const dbKey = (keys || []).find(k => k.id === service.id);
+      const envSet = !!process.env[service.envVar];
+      return {
+        id: service.id,
+        label: service.label,
+        placeholder: service.placeholder,
+        source: dbKey ? 'database' : envSet ? 'env' : 'none',
+        isSet: !!(dbKey || envSet),
+        maskedValue: dbKey ? '••••••••' + (dbKey.label || '') : envSet ? '(環境変数)' : '',
+        updatedAt: dbKey?.updated_at || null,
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// キー設定
+router.post('/api-keys/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { apiKey } = req.body;
+    if (!apiKey) return res.status(400).json({ error: 'APIキーは必須です' });
+
+    const service = API_KEY_SERVICES.find(s => s.id === id);
+    if (!service) return res.status(404).json({ error: '不明なサービス' });
+
+    const encrypted = encryptApiKey(apiKey);
+    const maskedLabel = apiKey.length > 8 ? '...' + apiKey.slice(-4) : '****';
+
+    const { error } = await supabase.from('api_keys').upsert({
+      id,
+      api_key_encrypted: encrypted,
+      label: maskedLabel,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+
+    // 環境変数にもランタイムで反映（現プロセス内のみ）
+    process.env[service.envVar] = apiKey;
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// キー削除
+router.delete('/api-keys/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('api_keys').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// キーテスト（Anthropicのみ）
+router.post('/api-keys/:id/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const key = await getActiveApiKey(id);
+    if (!key) return res.status(400).json({ error: 'APIキーが設定されていません' });
+
+    if (id === 'anthropic') {
+      const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey: key });
+      const resp = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      res.json({ success: true, message: `接続成功 (model: ${resp.model})` });
+    } else {
+      res.json({ success: true, message: 'キーが設定されています' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: `テスト失敗: ${err.message}` });
+  }
+});
+
+// ヘルパー: DB優先でAPIキーを取得
+async function getActiveApiKey(serviceId) {
+  const service = API_KEY_SERVICES.find(s => s.id === serviceId);
+  if (!service) return null;
+
+  // DB優先
+  try {
+    const { data } = await supabase.from('api_keys').select('api_key_encrypted').eq('id', serviceId).eq('is_active', true).single();
+    if (data) return decryptApiKey(data.api_key_encrypted);
+  } catch { /* fallthrough to env */ }
+
+  // 環境変数フォールバック
+  return process.env[service.envVar] || null;
+}
+
 module.exports = router;
+module.exports.getActiveApiKey = getActiveApiKey;

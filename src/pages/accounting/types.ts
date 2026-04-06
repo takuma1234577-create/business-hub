@@ -93,3 +93,103 @@ export const COMMON_ACCOUNT_TITLES = [
   '地代家賃', '保険料', '租税公課', '減価償却費', '雑費',
   '売上高', '受取利息', '雑収入',
 ]
+
+// =====================
+// 金融口座・取引関連
+// =====================
+
+export type AccountType = 'bank' | 'credit_card'
+export type TransactionSource = 'csv_import' | 'manual' | 'api'
+
+export interface FinancialAccount {
+  id: string
+  accountType: AccountType
+  accountName: string
+  institutionName: string
+  accountNumberMasked: string | null
+  branchName: string | null
+  balance: number
+  currency: string
+  isActive: boolean
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FinancialTransaction {
+  id: string
+  accountId: string
+  transactionDate: string
+  description: string
+  amount: number
+  balanceAfter: number | null
+  category: string | null
+  accountTitle: string | null
+  counterparty: string | null
+  isMatched: boolean
+  matchedDocumentId: string | null
+  memo: string | null
+  source: TransactionSource
+  rawData: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+}
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  bank: '銀行口座',
+  credit_card: 'クレジットカード',
+}
+
+export const TRANSACTION_SOURCE_LABELS: Record<TransactionSource, string> = {
+  csv_import: 'CSV取り込み',
+  manual: '手動入力',
+  api: 'API連携',
+}
+
+// =====================
+// 銀行スクレイピング関連
+// =====================
+
+export type SyncStatus = 'idle' | 'running' | 'success' | 'error' | 'awaiting_2fa'
+
+export interface BankCredential {
+  id: string
+  accountId: string
+  institutionCode: string
+  institutionName: string
+  lastSyncAt: string | null
+  syncStatus: SyncStatus
+  syncError: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ScrapingJob {
+  id: string
+  credentialId: string
+  accountId: string
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  transactionsFound: number
+  transactionsImported: number
+  transactionsSkipped: number
+  errorMessage: string | null
+  createdAt: string
+}
+
+export interface SupportedInstitution {
+  code: string
+  name: string
+  type: 'bank' | 'credit_card'
+  status: 'supported' | 'planned'
+}
+
+export const SYNC_STATUS_LABELS: Record<SyncStatus, string> = {
+  idle: '未実行',
+  running: '同期中',
+  success: '成功',
+  error: 'エラー',
+  awaiting_2fa: '2FA待ち',
+}

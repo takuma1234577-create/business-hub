@@ -24,6 +24,9 @@ const tasksRoutes = require(path.join(__dirname, 'tasks.cjs'));
 const amazonRoutes = require(path.join(__dirname, 'amazon.cjs'));
 const lineCrmRoutes = require(path.join(__dirname, 'line-crm.cjs'));
 const accountingRoutes = require(path.join(__dirname, 'accounting.cjs'));
+const bankScraperRoutes = require(path.join(__dirname, 'bank-scraper.cjs'));
+const accountingCoreRoutes = require(path.join(__dirname, 'accounting-core.cjs'));
+const fiscalAnalysisRoutes = require(path.join(__dirname, 'fiscal-analysis.cjs'));
 const settingsRoutes = require(path.join(__dirname, 'settings.cjs'));
 
 // Mount each tool at its prefix
@@ -32,6 +35,9 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm', lineCrmRoutes);
 app.use('/api/accounting', accountingRoutes);
+app.use('/api/accounting/bank-sync', bankScraperRoutes);
+app.use('/api/accounting/core', accountingCoreRoutes);
+app.use('/api/accounting/fiscal', fiscalAnalysisRoutes);
 app.use('/api/settings', settingsRoutes);
 
 // Global health check

@@ -23,6 +23,11 @@ const SNAKE_MAP = {
   lastFetchedAt: 'last_fetched_at', sourceId: 'source_id', startedAt: 'started_at',
   completedAt: 'completed_at', documentsFound: 'documents_found',
   documentsSaved: 'documents_saved', documentsSkipped: 'documents_skipped',
+  accountType: 'account_type', accountName: 'account_name', institutionName: 'institution_name',
+  accountNumberMasked: 'account_number_masked', branchName: 'branch_name',
+  accountId: 'account_id', transactionDate: 'transaction_date', balanceAfter: 'balance_after',
+  counterparty: 'counterparty', isMatched: 'is_matched', matchedDocumentId: 'matched_document_id',
+  rawData: 'raw_data', institutionType: 'institution_type', nameKana: 'name_kana',
 };
 const CAMEL_MAP = Object.fromEntries(Object.entries(SNAKE_MAP).map(([k, v]) => [v, k]));
 
@@ -544,6 +549,364 @@ router.post('/gmail/scan', async (req, res) => {
     }
 
     res.json({ found, saved, skipped });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// FINANCIAL INSTITUTIONS & BRANCHES (MASTER)
+// =====================
+
+// GET /institutions/search?q=xxx&type=bank|credit_card
+router.get('/institutions/search', async (req, res) => {
+  try {
+    const { q = '', type } = req.query;
+    let query = supabase.from('financial_institutions')
+      .select('id, code, name, name_kana, institution_type')
+      .eq('is_active', true)
+      .order('code');
+
+    if (type === 'credit_card') {
+      query = query.eq('institution_type', 'credit_card');
+    } else if (type) {
+      query = query.in('institution_type', ['bank', 'credit_union', 'securities', 'other']);
+    }
+
+    if (q.trim()) {
+      query = query.or(`name.ilike.%${q}%,name_kana.ilike.%${q}%,code.ilike.%${q}%`);
+    }
+
+    query = query.limit(30);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(toCamelArray(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /institutions/:id/branches/search?q=xxx
+router.get('/institutions/:id/branches/search', async (req, res) => {
+  try {
+    const { q = '' } = req.query;
+    let query = supabase.from('financial_branches')
+      .select('id, code, name, name_kana')
+      .eq('institution_id', req.params.id)
+      .eq('is_active', true)
+      .order('code');
+
+    if (q.trim()) {
+      query = query.or(`name.ilike.%${q}%,name_kana.ilike.%${q}%,code.ilike.%${q}%`);
+    }
+
+    query = query.limit(30);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(toCamelArray(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// FINANCIAL ACCOUNTS CRUD
+// =====================
+
+router.get('/financial-accounts', async (_req, res) => {
+  try {
+    const { data, error } = await supabase.from('financial_accounts')
+      .select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(toCamelArray(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/financial-accounts/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('financial_accounts')
+      .select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/financial-accounts', async (req, res) => {
+  try {
+    const row = toSnake(req.body);
+    row.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from('financial_accounts').insert(row).select().single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/financial-accounts/:id', async (req, res) => {
+  try {
+    const row = toSnake(req.body);
+    row.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from('financial_accounts')
+      .update(row).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/financial-accounts/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('financial_accounts').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// TRANSACTIONS CRUD
+// =====================
+
+router.get('/transactions', async (req, res) => {
+  try {
+    const { accountId, dateFrom, dateTo, search, isMatched, page = '1', limit = '50' } = req.query;
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const from = (pageNum - 1) * limitNum;
+    const to = from + limitNum - 1;
+
+    let query = supabase.from('financial_transactions').select('*', { count: 'exact' });
+
+    if (accountId) query = query.eq('account_id', accountId);
+    if (dateFrom) query = query.gte('transaction_date', dateFrom);
+    if (dateTo) query = query.lte('transaction_date', dateTo);
+    if (isMatched === 'true') query = query.eq('is_matched', true);
+    if (isMatched === 'false') query = query.eq('is_matched', false);
+    if (search) query = query.or(`description.ilike.%${search}%,counterparty.ilike.%${search}%,memo.ilike.%${search}%`);
+
+    query = query.order('transaction_date', { ascending: false }).range(from, to);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    res.json({ transactions: toCamelArray(data), total: count || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/transactions/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('financial_transactions')
+      .select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/transactions', async (req, res) => {
+  try {
+    const row = toSnake(req.body);
+    row.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from('financial_transactions').insert(row).select().single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/transactions/:id', async (req, res) => {
+  try {
+    const row = toSnake(req.body);
+    row.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from('financial_transactions')
+      .update(row).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(toCamel(data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/transactions/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('financial_transactions').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// CSV IMPORT
+// =====================
+
+// CSVパースプリセット（日本の銀行・カード会社向け）
+const CSV_PRESETS = {
+  // 汎用（日付, 摘要, 出金, 入金, 残高）
+  generic: { dateCol: 0, descCol: 1, withdrawCol: 2, depositCol: 3, balanceCol: 4, encoding: 'utf-8', skipRows: 1 },
+  // 三菱UFJ銀行
+  mufg: { dateCol: 0, descCol: 1, withdrawCol: 2, depositCol: 3, balanceCol: 4, encoding: 'shift_jis', skipRows: 1 },
+  // 三井住友銀行
+  smbc: { dateCol: 0, descCol: 1, withdrawCol: 2, depositCol: 3, balanceCol: 4, encoding: 'shift_jis', skipRows: 1 },
+  // みずほ銀行
+  mizuho: { dateCol: 0, descCol: 1, withdrawCol: 3, depositCol: 2, balanceCol: 4, encoding: 'shift_jis', skipRows: 1 },
+  // 楽天銀行
+  rakuten_bank: { dateCol: 0, descCol: 1, withdrawCol: 2, depositCol: 3, balanceCol: 4, encoding: 'utf-8', skipRows: 1 },
+  // クレジットカード汎用（日付, 摘要, 金額）
+  credit_card_generic: { dateCol: 0, descCol: 1, amountCol: 2, encoding: 'utf-8', skipRows: 1 },
+  // 楽天カード
+  rakuten_card: { dateCol: 0, descCol: 1, amountCol: 4, encoding: 'utf-8', skipRows: 1 },
+  // Amazon Mastercard
+  amazon_card: { dateCol: 0, descCol: 1, amountCol: 4, encoding: 'utf-8', skipRows: 1 },
+};
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { current += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function parseDate(val) {
+  if (!val) return null;
+  // YYYY/MM/DD, YYYY-MM-DD, YYYY年MM月DD日 対応
+  const cleaned = val.replace(/年|月/g, '-').replace(/日/g, '').replace(/\//g, '-').trim();
+  const m = cleaned.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return null;
+  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+
+function parseAmount(val) {
+  if (!val || val.trim() === '' || val.trim() === '-') return 0;
+  return parseFloat(val.replace(/[,¥￥\s]/g, '')) || 0;
+}
+
+router.post('/transactions/import-csv', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'CSVファイルが必要です' });
+
+    const { accountId, mappingPreset = 'generic' } = req.body;
+    if (!accountId) return res.status(400).json({ error: '口座IDが必要です' });
+
+    // 口座存在確認
+    const { data: account, error: accErr } = await supabase.from('financial_accounts')
+      .select('account_type').eq('id', accountId).single();
+    if (accErr) return res.status(404).json({ error: '口座が見つかりません' });
+
+    const preset = CSV_PRESETS[mappingPreset] || CSV_PRESETS.generic;
+    const isCreditCard = account.account_type === 'credit_card' || mappingPreset.includes('card');
+
+    // Shift_JIS対応
+    let csvText;
+    if (preset.encoding === 'shift_jis') {
+      const { TextDecoder: TD } = require('util');
+      try {
+        const decoder = new TD('shift_jis');
+        csvText = decoder.decode(req.file.buffer);
+      } catch {
+        csvText = req.file.buffer.toString('utf-8');
+      }
+    } else {
+      csvText = req.file.buffer.toString('utf-8');
+    }
+
+    // BOM除去
+    if (csvText.charCodeAt(0) === 0xFEFF) csvText = csvText.slice(1);
+
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim());
+    const dataLines = lines.slice(preset.skipRows);
+
+    let imported = 0, skipped = 0;
+    const rows = [];
+
+    for (const line of dataLines) {
+      const cols = parseCsvLine(line);
+      const date = parseDate(cols[preset.dateCol]);
+      const desc = (cols[preset.descCol] || '').trim();
+      if (!date || !desc) { skipped++; continue; }
+
+      let amount;
+      if (isCreditCard && preset.amountCol !== undefined) {
+        // カード: 金額列 (支出はマイナス)
+        amount = -Math.abs(parseAmount(cols[preset.amountCol]));
+      } else {
+        // 銀行: 出金/入金
+        const withdraw = parseAmount(cols[preset.withdrawCol]);
+        const deposit = parseAmount(cols[preset.depositCol]);
+        amount = deposit > 0 ? deposit : -withdraw;
+      }
+
+      if (amount === 0) { skipped++; continue; }
+
+      const balanceAfter = preset.balanceCol !== undefined ? parseAmount(cols[preset.balanceCol]) || null : null;
+
+      rows.push({
+        account_id: accountId,
+        transaction_date: date,
+        description: desc,
+        amount,
+        balance_after: balanceAfter,
+        source: 'csv_import',
+        raw_data: { columns: cols, preset: mappingPreset },
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // バッチインサート (100件ずつ)
+    for (let i = 0; i < rows.length; i += 100) {
+      const batch = rows.slice(i, i + 100);
+      const { error } = await supabase.from('financial_transactions').insert(batch);
+      if (error) {
+        console.error('Batch insert error:', error.message);
+        skipped += batch.length;
+      } else {
+        imported += batch.length;
+      }
+    }
+
+    // 口座残高を最新取引から更新
+    if (imported > 0) {
+      const { data: latest } = await supabase.from('financial_transactions')
+        .select('balance_after')
+        .eq('account_id', accountId)
+        .not('balance_after', 'is', null)
+        .order('transaction_date', { ascending: false })
+        .limit(1);
+      if (latest && latest.length > 0 && latest[0].balance_after != null) {
+        await supabase.from('financial_accounts')
+          .update({ balance: latest[0].balance_after, updated_at: new Date().toISOString() })
+          .eq('id', accountId);
+      }
+    }
+
+    res.json({ imported, skipped });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

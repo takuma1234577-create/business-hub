@@ -13,11 +13,8 @@ import {
   Calendar,
   FileSpreadsheet,
   HardDrive,
-  Database,
-  MessageSquare,
   Bot,
   Package,
-  MessageCircle,
   ShoppingBag,
   Store,
   Pencil,
@@ -56,15 +53,6 @@ interface ChannelStore {
   inventory_sync_enabled: boolean
   last_synced_at: string | null
   created_at: string
-}
-
-interface EnvStatus {
-  google: boolean
-  supabase: boolean
-  chatwork: boolean
-  anthropic: boolean
-  amazonSupabase: boolean
-  linecrmSupabase: boolean
 }
 
 interface GoogleService {
@@ -111,18 +99,11 @@ const googleServices: GoogleService[] = [
   },
 ]
 
-const envServices = [
-  { key: 'supabase', name: 'Supabase (メイン)', icon: <Database size={20} />, usedBy: '全ツール共通' },
-  { key: 'chatwork', name: 'Chatwork', icon: <MessageSquare size={20} />, usedBy: 'AI秘書' },
-  { key: 'anthropic', name: 'Claude AI', icon: <Bot size={20} />, usedBy: 'AI秘書 / 会計書類管理' },
-  { key: 'amazonSupabase', name: 'Supabase (Amazon)', icon: <Package size={20} />, usedBy: 'Amazon自動出荷' },
-  { key: 'linecrmSupabase', name: 'Supabase (LINE CRM)', icon: <MessageCircle size={20} />, usedBy: 'LINE CRM' },
-]
+// envServicesは APIキー設定セクションに統合済み
 
 export default function ApiSettings() {
   const navigate = useNavigate()
   const [connections, setConnections] = useState<Connection[]>([])
-  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
   const [amazonAccounts, setAmazonAccounts] = useState<AmazonAccount[]>([])
   const [channelStores, setChannelStores] = useState<ChannelStore[]>([])
   const [showChannelForm, setShowChannelForm] = useState(false)
@@ -139,17 +120,25 @@ export default function ApiSettings() {
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // APIキー管理
+  const [apiKeys, setApiKeys] = useState<{ id: string; label: string; placeholder: string; source: string; isSet: boolean; maskedValue: string; updatedAt: string | null }[]>([])
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [keyInput, setKeyInput] = useState('')
+  const [keySaving, setKeySaving] = useState(false)
+  const [keyTesting, setKeyTesting] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     try {
-      const [connRes, amazonRes, channelRes] = await Promise.all([
+      const [connRes, amazonRes, channelRes, keysRes] = await Promise.all([
         api.get('/connections'),
         api.get('/amazon/accounts'),
         api.get('/channels'),
+        api.get('/api-keys'),
       ])
       setConnections(connRes.data.connections)
-      setEnvStatus(connRes.data.envStatus)
       setAmazonAccounts(amazonRes.data.accounts || [])
       setChannelStores(channelRes.data.stores || [])
+      setApiKeys(keysRes.data)
     } catch {
       setMessage({ type: 'error', text: 'API設定の取得に失敗しました' })
     }
@@ -772,38 +761,108 @@ export default function ApiSettings() {
           )}
         </section>
 
-        {/* Environment Variables (server-side) */}
+        {/* APIキー設定 */}
         <section>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">サーバー設定</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Vercel環境変数で設定されたAPI接続の状態です。</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">APIキー設定</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">各サービスのAPIキーを設定・管理します。暗号化して保存されます。</p>
 
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
-            {envServices.map(service => {
-              const isActive = envStatus?.[service.key as keyof EnvStatus]
-              return (
-                <div key={service.key} className="flex items-center gap-4 px-4 py-3.5">
-                  <div className={`p-2 rounded-lg ${isActive ? 'bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
-                    {service.icon}
+            {apiKeys.map(key => (
+              <div key={key.id} className="px-4 py-3.5">
+                <div className="flex items-center gap-4">
+                  <div className={`p-2 rounded-lg ${key.isSet ? 'bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                    <Bot size={20} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm font-medium text-slate-900 dark:text-white">{service.name}</h3>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">使用: {service.usedBy}</p>
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-white">{key.label}</h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      {key.isSet ? (
+                        <span>{key.source === 'database' ? `DB保存 ${key.maskedValue}` : key.maskedValue}</span>
+                      ) : '未設定'}
+                    </p>
                   </div>
-                  {isActive ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400">
-                      <CheckCircle2 size={14} /> 設定済み
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-                      <XCircle size={14} /> 未設定
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {key.isSet && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400">
+                        <CheckCircle2 size={14} />
+                      </span>
+                    )}
+                    {key.id === 'anthropic' && key.isSet && (
+                      <button
+                        onClick={async () => {
+                          setKeyTesting(key.id)
+                          try {
+                            const res = await api.post(`/api-keys/${key.id}/test`)
+                            setMessage({ type: 'success', text: res.data.message })
+                          } catch (err: unknown) {
+                            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'テスト失敗'
+                            setMessage({ type: 'error', text: msg })
+                          } finally { setKeyTesting(null) }
+                        }}
+                        disabled={keyTesting === key.id}
+                        className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950 dark:text-blue-400"
+                      >
+                        {keyTesting === key.id ? 'テスト中...' : 'テスト'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setEditingKey(editingKey === key.id ? null : key.id); setKeyInput('') }}
+                      className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                      {editingKey === key.id ? 'キャンセル' : key.isSet ? '変更' : '設定'}
+                    </button>
+                    {key.isSet && key.source === 'database' && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`${key.label} のキーを削除しますか？`)) return
+                          await api.delete(`/api-keys/${key.id}`)
+                          fetchData()
+                          setMessage({ type: 'success', text: `${key.label} を削除しました` })
+                        }}
+                        className="text-xs px-2 py-1 text-red-500 hover:bg-red-50 rounded dark:hover:bg-red-950"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )
-            })}
+
+                {/* 入力フォーム */}
+                {editingKey === key.id && (
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="password"
+                      value={keyInput}
+                      onChange={e => setKeyInput(e.target.value)}
+                      placeholder={key.placeholder || 'APIキーを入力...'}
+                      className="flex-1 text-sm border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!keyInput) return
+                        setKeySaving(true)
+                        try {
+                          await api.post(`/api-keys/${key.id}`, { apiKey: keyInput })
+                          setEditingKey(null); setKeyInput('')
+                          fetchData()
+                          setMessage({ type: 'success', text: `${key.label} を保存しました` })
+                        } catch (err: unknown) {
+                          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || '保存失敗'
+                          setMessage({ type: 'error', text: msg })
+                        } finally { setKeySaving(false) }
+                      }}
+                      disabled={keySaving || !keyInput}
+                      className="px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      {keySaving ? '保存中...' : '保存'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-            ※ サーバー設定はVercelダッシュボードの環境変数から変更できます
+            APIキーはAES-256-GCMで暗号化してデータベースに保存されます。環境変数に設定済みのキーはそちらが優先されます。
           </p>
         </section>
       </main>

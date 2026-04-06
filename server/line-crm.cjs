@@ -324,9 +324,18 @@ router.get('/chat-threads', async (req, res) => {
     const threads = (friends || [])
       .map((f) => {
         const last = latestByFriend.get(f.id);
+        const normalizedLast = last
+          ? {
+              friend_id: last.friend_id,
+              content: extractTextFromContent(last.content),
+              direction: normalizeDirection(last.direction),
+              message_type: last.message_type,
+              created_at: last.created_at,
+            }
+          : null;
         return {
           friend: f,
-          last_message: last,
+          last_message: normalizedLast,
         };
       })
       .sort((a, b) => {
