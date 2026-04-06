@@ -44,6 +44,18 @@ export class SbiNetScraper extends BaseScraper {
       const currentUrl = this.page.url();
       console.log('[SBI] 現在のURL:', currentUrl);
 
+      // ページ構造をログ出力
+      const pageHtml = await this.safeEval(() => document.documentElement?.outerHTML?.substring(0, 3000) || '', '');
+      console.log('[SBI] ページHTML(先頭3000):', pageHtml);
+
+      // input要素を全て列挙
+      const allInputs = await this.safeEval(() => {
+        return Array.from(document.querySelectorAll('input')).map(el => ({
+          type: el.type, name: el.name, id: el.id, placeholder: el.placeholder,
+        }));
+      }, [] as { type: string; name: string; id: string; placeholder: string }[]);
+      console.log('[SBI] 全input要素:', JSON.stringify(allInputs));
+
       // ユーザー名入力
       console.log('[SBI] 認証情報を入力中...');
       let userEl = await this.safeQuery('input[type="text"]');
