@@ -19,13 +19,13 @@ export class SbiNetScraper extends BaseScraper {
 
     console.log('[SBI] ログインページに移動中...');
     await this.page.goto('https://www.netbk.co.jp/contents/pages/wpl010101/i010101CT/DI/nb_login', {
-      waitUntil: 'networkidle2', timeout: 20000,
+      waitUntil: 'domcontentloaded', timeout: 45000,
     });
     await this.randomDelay();
 
     // ユーザー名入力
     console.log('[SBI] 認証情報を入力中...');
-    await this.page.waitForSelector(SELECTORS.userInput, { timeout: 10000 });
+    await this.page.waitForSelector(SELECTORS.userInput, { timeout: 30000 });
     const userEl = await this.page.$(SELECTORS.userInput);
     if (!userEl) return { status: 'error', message: 'ユーザー名フィールドが見つかりません' };
     await userEl.click({ clickCount: 3 });
@@ -48,7 +48,7 @@ export class SbiNetScraper extends BaseScraper {
 
     // ページ遷移待ち
     await Promise.race([
-      this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }),
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 }),
       new Promise(r => setTimeout(r, 20000)),
     ]).catch(() => {});
     await this.randomDelay(2000, 3000);
@@ -95,7 +95,7 @@ export class SbiNetScraper extends BaseScraper {
     }
 
     await Promise.race([
-      this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }),
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 }),
       new Promise(r => setTimeout(r, 20000)),
     ]).catch(() => {});
     await this.randomDelay(2000, 3000);
@@ -121,7 +121,7 @@ export class SbiNetScraper extends BaseScraper {
     let navigated = false;
     for (const url of historyUrls) {
       try {
-        await this.page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+        await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
         await this.randomDelay(2000, 3000);
         const content = await this.safeContent();
         if (/入出金|明細|取引履歴|日付/.test(content)) {
@@ -140,7 +140,7 @@ export class SbiNetScraper extends BaseScraper {
           const text = await this.page.evaluate(el => el.textContent, link).catch(() => '');
           if (text && /入出金|明細|取引履歴/.test(text)) {
             await link.click();
-            await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+            await this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
             await this.randomDelay(2000, 3000);
             navigated = true;
             break;

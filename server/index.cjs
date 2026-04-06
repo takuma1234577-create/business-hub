@@ -42,10 +42,13 @@ app.use('/api/settings', settingsRoutes);
 
 // Global health check
 app.get('/api/health', (_req, res) => {
+  const ek = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || '';
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     tools: ['invoice', 'tasks', 'amazon', 'line-crm', 'accounting'],
+    encKeyFirst8: ek.substring(0, 8),
+    encKeyLen: ek.length,
   });
 });
 
