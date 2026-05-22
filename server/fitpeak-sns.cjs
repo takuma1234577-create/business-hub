@@ -230,10 +230,9 @@ function buildMovie(script, assets, apiKeys) {
       }
     }
 
-    // ナレーション
+    // ナレーション（JSON2Video組み込みElevenLabsを使用）
     if (part.narration) {
       const voice = { type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId };
-      if (connectionId) voice.connection = connectionId;
       elements.push(voice);
     }
 
@@ -264,7 +263,7 @@ function buildMovie(script, assets, apiKeys) {
       }
     }
 
-    scenes.push({ elements, duration: PART_DURATIONS[partKey] || 5 });
+    scenes.push({ elements, duration: -1 });
   }
 
   const movie = { resolution: 'custom', width: 1080, height: 1920, scenes, elements: [] };
