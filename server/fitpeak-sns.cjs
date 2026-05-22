@@ -200,14 +200,25 @@ router.get('/videos', async (_req, res) => {
   }
 });
 
-// ── 動画定義組み立て ──
+// テロップサイズ（パートごと）
+const SUBTITLE_SIZES = {
+  hook: 80, problem: 64, step1: 64, step2: 64, step3: 64, product: 64, cta: 72,
+};
+
+// 背景色（商品パート以外）
+const SCENE_BG_COLORS = {
+  hook: '#1A1A1A', problem: '#1A1A1A', step1: '#1A1A1A',
+  step2: '#1A1A1A', step3: '#1A1A1A', cta: '#D72638',
+};
+
+// ── 動画定義組み立て（テキスト重視フォーマット）──
+// 教育パート: ダーク背景 + 大テロップ + 音声
+// 商品パート: 実写PV + テロップ（下部）
+// CTA: ブランドレッド背景 + テロップ
 function buildMovie(script, assets, apiKeys) {
   const voiceId = apiKeys.elevenlabs_voice_id || '';
-
-  const bgAssets = assets.filter(a => a.category === 'background').sort((a, b) => a.file_name.localeCompare(b.file_name));
   const productAssets = assets.filter(a => a.category === 'product' && a.product_key === script.product);
   const bgmAssets = assets.filter(a => a.category === 'bgm');
-  const educationParts = ['hook', 'problem', 'step1', 'step2', 'step3'];
 
   const scenes = [];
   for (const partKey of PART_ORDER) {
@@ -216,46 +227,41 @@ function buildMovie(script, assets, apiKeys) {
 
     const elements = [];
 
-    // 背景 or 商品クリップ（duration:-2 でナレーション尺に合わせる）
-    if (partKey === 'product') {
-      if (productAssets.length > 0) {
-        elements.push({ type: 'video', src: productAssets[0].file_url, resize: 'cover', muted: true, duration: -2 });
-      }
-    } else {
-      const idx = educationParts.indexOf(partKey);
-      if (bgAssets.length > 0) {
-        const bg = bgAssets[(idx >= 0 ? idx : 0) % bgAssets.length];
-        elements.push({ type: 'video', src: bg.file_url, resize: 'cover', muted: true, duration: -2 });
-      }
+    // 商品パートのみ実写PV
+    if (partKey === 'product' && productAssets.length > 0) {
+      elements.push({ type: 'video', src: productAssets[0].file_url, resize: 'cover', muted: true, duration: -2 });
     }
 
-    // ナレーション（シーン尺はこの音声が決める）
+    // ナレーション（シーン尺を決定）
     if (part.narration) {
       elements.push({ type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId });
     }
 
-    // テロップ
+    // テロップ（STEP番号は字幕テキストに統合して台本側で管理）
     if (part.subtitle && part.subtitle.length > 0) {
+      const fontSize = SUBTITLE_SIZES[partKey] || 64;
       elements.push({
         type: 'text',
         text: part.subtitle.join('\n'),
         settings: {
-          'font-family': 'Noto Sans JP', 'font-size': 64, 'font-weight': 800,
+          'font-family': 'Noto Sans JP', 'font-size': fontSize, 'font-weight': 800,
           color: BRAND_COLOR_WHITE, 'text-align': 'center',
           'text-shadow': '2px 2px 8px rgba(0,0,0,0.9)',
         },
-        position: 'bottom',
+        position: partKey === 'product' ? 'bottom' : 'center',
         duration: -2,
       });
     }
 
-    // シーン尺: -1 = 最長の要素に合わせる（voice要素が決定）
-    scenes.push({ elements, duration: -1 });
+    const scene = { elements, duration: -1 };
+    const bgColor = SCENE_BG_COLORS[partKey];
+    if (bgColor) scene['background-color'] = bgColor;
+    scenes.push(scene);
   }
 
   const movie = { resolution: 'custom', width: 1080, height: 1920, scenes, elements: [] };
 
-  // BGM（動画全体に流す）
+  // BGM
   if (bgmAssets.length > 0) {
     movie.elements.push({ type: 'audio', src: bgmAssets[0].file_url, volume: 0.15, duration: -2 });
   }
