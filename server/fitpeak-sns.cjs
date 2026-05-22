@@ -232,7 +232,7 @@ function buildMovie(script, assets, apiKeys) {
 
     // ナレーション
     if (part.narration) {
-      const voice = { type: 'voice', model: 'eleven_multilingual_v2', text: part.narration, voice: voiceId };
+      const voice = { type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId };
       if (connectionId) voice.connection = connectionId;
       elements.push(voice);
     }
