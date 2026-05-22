@@ -3,7 +3,7 @@ import axios from 'axios'
 import { LayoutGrid, Plus, Pencil, Trash2, X, Upload, CheckCircle } from 'lucide-react'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 // ── LINE Rich Menu types ──
 interface Bounds { x: number; y: number; width: number; height: number }
 type RMAction =
@@ -601,7 +601,8 @@ function ImageUpload({ value, onChange, targetHeight = 1686 }: { value: string; 
       const compressedFile = new File([blob], 'richmenu.jpg', { type: 'image/jpeg' })
       const fd = new FormData()
       fd.append('file', compressedFile)
-      const r = await axios.post<{ url: string }>('/api/line-crm/media/upload', fd, {
+      const r = await api.post<{ url: string }>('/media/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: e => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
       })
       onChange(r.data.url)

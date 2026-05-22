@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><title>Bar Test</title></head>
+<body>
+<h1>Bar Render Test</h1>
+<div id="test"></div>
+<script>
+function makeBar(label, count, total) {
+  var pct = total ? Math.round(count / total * 100) : 0;
+  var row = document.createElement('div');
+  row.setAttribute('style', 'display:flex !important;align-items:center !important;gap:8px !important;margin-bottom:4px !important;font-size:12px !important;color:#666 !important');
+  var lbl = document.createElement('span');
+  lbl.setAttribute('style', 'min-width:10px !important;text-align:right !important');
+  lbl.textContent = String(label);
+  row.appendChild(lbl);
+  var track = document.createElement('div');
+  track.setAttribute('style', 'flex:1 1 auto !important;height:10px !important;border-radius:5px !important;min-width:120px !important;background:linear-gradient(to right, #f59e0b ' + pct + '%, #d1d5db ' + pct + '%) !important');
+  row.appendChild(track);
+  var cnt = document.createElement('span');
+  cnt.setAttribute('style', 'min-width:20px !important');
+  cnt.textContent = String(count);
+  row.appendChild(cnt);
+  return row;
+}
+var container = document.getElementById('test');
+container.appendChild(makeBar(5, 58, 81));
+container.appendChild(makeBar(4, 17, 81));
+container.appendChild(makeBar(3, 3, 81));
+container.appendChild(makeBar(2, 1, 81));
+container.appendChild(makeBar(1, 2, 81));
+</script>
+</body></html>

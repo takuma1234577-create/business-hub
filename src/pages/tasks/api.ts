@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import axios from 'axios';
 
 const api = axios.create({ baseURL: '/api/tasks' });
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export function useApi<T>() {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);

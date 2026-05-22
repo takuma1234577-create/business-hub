@@ -154,7 +154,7 @@ async function reviewWithAI(images, reason, reasonDetail, settings) {
     };
   }
 
-  const anthropic = getAnthropicClient();
+  const anthropic = await getAnthropicClient();
   const reasonLabel = REASON_MAP[reason] || reason;
 
   // Build image content blocks
@@ -180,7 +180,7 @@ async function reviewWithAI(images, reason, reasonDetail, settings) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       system: `あなたは返品審査AIです。以下のルールに従い、JSONのみで返答してください。前置き・バッククォート・説明は不要です。
 

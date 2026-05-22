@@ -1,7 +1,83 @@
 import { useState, useEffect } from 'react'
-import { sourceApi, fetchLogApi, gmailFetchApi } from './api'
+import { sourceApi, fetchLogApi, gmailFetchApi, fiscalYearApi } from './api'
 import type { AccountingSource, AccountingFetchLog } from './types'
-import { Plus, Trash2, Globe, Mail, Play, Loader2, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Plus, Trash2, Globe, Mail, Play, Loader2, CheckCircle, XCircle, Clock, Building2, Save } from 'lucide-react'
+
+const MONTHS = [1,2,3,4,5,6,7,8,9,10,11,12]
+
+function CompanyProfile() {
+  const [endMonth, setEndMonth] = useState<number>(3)
+  const [firstStart, setFirstStart] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState<{ generated: number; total: number } | null>(null)
+
+  useEffect(() => {
+    fiscalYearApi.getProfile().then(p => {
+      if (p.fiscal_end_month) setEndMonth(p.fiscal_end_month)
+      if (p.first_period_start) setFirstStart(p.first_period_start)
+    }).catch(console.error).finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    if (!firstStart) return alert('第1期開始日を入力してください')
+    setSaving(true); setResult(null)
+    try {
+      const res = await fiscalYearApi.saveProfile({ fiscalEndMonth: endMonth, firstPeriodStart: firstStart })
+      setResult(res)
+    } catch (err: any) {
+      alert('保存に失敗しました: ' + (err?.response?.data?.error || err.message))
+    } finally { setSaving(false) }
+  }
+
+  if (loading) return <div className="p-4 text-center text-gray-400 text-sm">読み込み中...</div>
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-violet-50 rounded-lg">
+          <Building2 size={20} className="text-violet-500" />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-gray-900">決算期プロフィール</h3>
+          <p className="text-xs text-gray-500">決算月と第1期開始日を設定すると、事業年度が自動生成されます</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">決算月 *</label>
+          <select value={endMonth} onChange={e => setEndMonth(Number(e.target.value))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            {MONTHS.map(m => (
+              <option key={m} value={m}>{m}月</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">例: 3月決算なら「3月」、12月決算なら「12月」</p>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">第1期 開始日 *</label>
+          <input type="date" value={firstStart} onChange={e => setFirstStart(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <p className="text-xs text-gray-400 mt-1">会社設立日（法人）/ 開業日（個人）</p>
+        </div>
+        <div className="flex items-end">
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 disabled:opacity-50">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? '保存中...' : '保存して年度生成'}
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div className="mt-3 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+          事業年度を{result.generated > 0 ? `${result.generated}件新規生成` : '確認'}しました（全{result.total}期分）
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function SourceSettings() {
   const [sources, setSources] = useState<AccountingSource[]>([])
@@ -43,6 +119,9 @@ export function SourceSettings() {
 
   return (
     <div className="space-y-6">
+      {/* 決算期プロフィール */}
+      <CompanyProfile />
+
       {/* Gmail スキャン */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="flex items-center justify-between mb-4">

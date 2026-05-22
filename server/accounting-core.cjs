@@ -141,6 +141,107 @@ router.delete('/journal-entries/:id', async (req, res) => {
 });
 
 // =====================
+// 仕訳データの日付範囲
+// =====================
+
+router.get('/date-range', async (req, res) => {
+  try {
+    const { data: earliest } = await supabase.from('journal_entries')
+      .select('entry_date').order('entry_date', { ascending: true }).limit(1).single();
+    const { data: latest } = await supabase.from('journal_entries')
+      .select('entry_date').order('entry_date', { ascending: false }).limit(1).single();
+    res.json({
+      earliest: earliest?.entry_date || null,
+      latest: latest?.entry_date || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// 年度サマリー (Dashboard用)
+// =====================
+
+router.get('/fiscal-summary', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate, endDate が必要です' });
+
+    // 当期の仕訳を取得
+    const { data: entries } = await supabase.from('journal_entries')
+      .select('id').gte('entry_date', startDate).lte('entry_date', endDate);
+    const entryIds = (entries || []).map(e => e.id);
+
+    const { data: accounts } = await supabase.from('account_titles').select('*').eq('is_active', true);
+    const accountMap = {};
+    for (const a of (accounts || [])) accountMap[a.id] = a;
+
+    // 当期のP/L集計
+    let totalRevenue = 0, totalExpenses = 0;
+    const plItems = {};
+    if (entryIds.length > 0) {
+      const { data: lines } = await supabase.from('journal_entry_lines')
+        .select('debit_amount, credit_amount, account_title_id')
+        .in('journal_entry_id', entryIds);
+      for (const line of (lines || [])) {
+        const acct = accountMap[line.account_title_id];
+        if (!acct) continue;
+        if (acct.category === 'revenue') {
+          const amt = (Number(line.credit_amount) || 0) - (Number(line.debit_amount) || 0);
+          totalRevenue += amt;
+          if (!plItems[acct.subcategory]) plItems[acct.subcategory] = 0;
+          plItems[acct.subcategory] += amt;
+        } else if (acct.category === 'expense') {
+          const amt = (Number(line.debit_amount) || 0) - (Number(line.credit_amount) || 0);
+          totalExpenses += amt;
+          if (!plItems[acct.subcategory]) plItems[acct.subcategory] = 0;
+          plItems[acct.subcategory] += amt;
+        }
+      }
+    }
+
+    // B/S: endDate時点の全残高
+    const { data: allEntries } = await supabase.from('journal_entries')
+      .select('id').lte('entry_date', endDate);
+    const allIds = (allEntries || []).map(e => e.id);
+    let totalAssets = 0, totalLiabilities = 0, totalEquity = 0;
+    if (allIds.length > 0) {
+      const { data: allLines } = await supabase.from('journal_entry_lines')
+        .select('debit_amount, credit_amount, account_title_id')
+        .in('journal_entry_id', allIds);
+      for (const line of (allLines || [])) {
+        const acct = accountMap[line.account_title_id];
+        if (!acct) continue;
+        if (acct.category === 'asset') {
+          totalAssets += (Number(line.debit_amount) || 0) - (Number(line.credit_amount) || 0);
+        } else if (acct.category === 'liability') {
+          totalLiabilities += (Number(line.credit_amount) || 0) - (Number(line.debit_amount) || 0);
+        } else if (acct.category === 'equity') {
+          totalEquity += (Number(line.credit_amount) || 0) - (Number(line.debit_amount) || 0);
+        }
+      }
+    }
+
+    const netIncome = totalRevenue - totalExpenses;
+    const salesRevenue = plItems['売上高'] || 0;
+    const costOfSales = plItems['売上原価'] || 0;
+    const grossProfit = salesRevenue - costOfSales;
+    const sgaExpenses = plItems['販売費及び一般管理費'] || 0;
+    const operatingIncome = grossProfit - sgaExpenses;
+
+    res.json({
+      totalRevenue, totalExpenses, netIncome,
+      salesRevenue, costOfSales, grossProfit, sgaExpenses, operatingIncome,
+      totalAssets, totalLiabilities, totalEquity: totalEquity + netIncome,
+      journalCount: entryIds.length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
 // 貸借対照表 (B/S)
 // =====================
 
@@ -307,10 +408,10 @@ router.post('/import-financial-statement', upload.single('file'), async (req, re
   try {
     if (!req.file) return res.status(400).json({ error: 'ファイルが必要です' });
 
-    const { fiscalPeriodId, statementType } = req.body;
+    const { fiscalPeriodId, statementType, sourceDocumentId } = req.body;
     // statementType: 'bs' (貸借対照表), 'pl' (損益計算書), 'journal' (仕訳帳), 'tax_return' (決算書/確定申告)
 
-    const anthropic = getAnthropicClient();
+    const anthropic = await getAnthropicClient();
     const base64 = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
 
@@ -354,7 +455,7 @@ router.post('/import-financial-statement', upload.single('file'), async (req, re
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       messages: [{ role: 'user', content }],
     });
@@ -390,6 +491,7 @@ router.post('/import-financial-statement', upload.single('file'), async (req, re
           entry_date: entry.date || new Date().toISOString().split('T')[0],
           description: entry.description || '決算書取り込み',
           source: 'ai_import',
+          fiscal_document_id: sourceDocumentId || null,
           fiscal_period_id: fiscalPeriodId || null,
           updated_at: new Date().toISOString(),
         }).select().single();
@@ -412,9 +514,14 @@ router.post('/import-financial-statement', upload.single('file'), async (req, re
 
     res.json({ created, skipped, total: parsed.length });
   } catch (err) {
-    let msg = err.message;
+    const rawMsg = typeof err.message === 'string' ? err.message : JSON.stringify(err.message || err.error || err);
+    console.error('[import-financial-statement] Error:', rawMsg);
+    let msg = rawMsg;
     if (msg.includes('credit balance') || msg.includes('billing')) {
       msg = 'Anthropic APIのクレジット残高が不足しています。Plans & Billingからチャージしてください。';
+    }
+    if (msg.includes('Could not process image') || msg.includes('too many pages') || msg.includes('max_tokens')) {
+      msg = 'PDFが大きすぎます。ページ数を減らして再度アップロードしてください。';
     }
     res.status(500).json({ error: msg });
   }

@@ -11,7 +11,7 @@ router.get('/connections', async (req, res) => {
   try {
     const { data: tokens } = await supabase
       .from('oauth_tokens')
-      .select('id, scope, token_type, expiry_date, updated_at')
+      .select('id, scope, token_type, expiry_date, updated_at, refresh_token')
       .order('id');
 
     const connections = (tokens || []).map(t => ({
@@ -20,7 +20,8 @@ router.get('/connections', async (req, res) => {
       tokenType: t.token_type,
       expiryDate: t.expiry_date,
       updatedAt: t.updated_at,
-      isExpired: t.expiry_date ? Date.now() > Number(t.expiry_date) : false,
+      // refresh_tokenがあれば自動更新可能なので期限切れとしない
+      isExpired: !t.refresh_token,
     }));
 
     // Check env-based credentials
@@ -651,10 +652,20 @@ router.delete('/channels/:id/gmail/disconnect', async (req, res) => {
 
 const API_KEY_SERVICES = [
   { id: 'anthropic', label: 'Anthropic (Claude AI)', envVar: 'ANTHROPIC_API_KEY', placeholder: 'sk-ant-...' },
+  { id: 'openai', label: 'OpenAI (Whisper文字起こし)', envVar: 'OPENAI_API_KEY', placeholder: 'sk-...' },
+  { id: 'gemini', label: 'Google Gemini API Key', envVar: 'GEMINI_API_KEY', placeholder: 'AIzaSy...' },
   { id: 'google_client_id', label: 'Google Client ID', envVar: 'GOOGLE_CLIENT_ID', placeholder: '...apps.googleusercontent.com' },
   { id: 'google_client_secret', label: 'Google Client Secret', envVar: 'GOOGLE_CLIENT_SECRET', placeholder: 'GOCSPX-...' },
   { id: 'chatwork', label: 'Chatwork API Token', envVar: 'CHATWORK_API_TOKEN', placeholder: '' },
+  { id: 'slack_webhook', label: 'Slack Webhook URL（エスカレーション通知用）', envVar: 'SLACK_WEBHOOK_URL', placeholder: 'https://hooks.slack.com/services/...' },
+  { id: 'slack_bot_token', label: 'Slack Bot Token (xoxb-...)', envVar: 'SLACK_BOT_TOKEN', placeholder: 'xoxb-...' },
+  { id: 'slack_signing_secret', label: 'Slack Signing Secret', envVar: 'SLACK_SIGNING_SECRET', placeholder: 'Slackアプリの署名シークレット' },
+  { id: 'slack_channel_id', label: 'Slack チャンネルID (エスカレーション先)', envVar: 'SLACK_CHANNEL_ID', placeholder: 'C0123456789' },
   { id: 'bank_encryption', label: '銀行認証暗号化キー', envVar: 'BANK_CREDENTIAL_ENCRYPTION_KEY', placeholder: '64文字の16進数' },
+  { id: 'google_maps', label: 'Google Maps API Key (Places API)', envVar: 'GOOGLE_MAPS_API_KEY', placeholder: 'AIzaSy...' },
+  { id: 'json2video', label: 'JSON2Video API Key', envVar: 'JSON2VIDEO_API_KEY', placeholder: '' },
+  { id: 'elevenlabs_voice_id', label: 'ElevenLabs Voice ID', envVar: 'ELEVENLABS_VOICE_ID', placeholder: '' },
+  { id: 'elevenlabs_connection_id', label: 'ElevenLabs Connection ID (JSON2Video)', envVar: 'ELEVENLABS_CONNECTION_ID', placeholder: '' },
 ];
 
 // APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）
@@ -754,7 +765,7 @@ router.delete('/api-keys/:id', async (req, res) => {
   }
 });
 
-// キーテスト（Anthropicのみ）
+// キーテスト（Anthropic / OpenAI）
 router.post('/api-keys/:id/test', async (req, res) => {
   try {
     const { id } = req.params;
@@ -765,10 +776,22 @@ router.post('/api-keys/:id/test', async (req, res) => {
       const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
       const client = new Anthropic({ apiKey: key });
       const resp = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 10,
+        model: 'claude-sonnet-4-6', max_tokens: 10,
         messages: [{ role: 'user', content: 'Hi' }],
       });
       res.json({ success: true, message: `接続成功 (model: ${resp.model})` });
+    } else if (id === 'openai') {
+      const OpenAI = require('openai');
+      const client = new OpenAI({ apiKey: key });
+      const models = await client.models.list();
+      const hasWhisper = models.data.some(m => m.id === 'whisper-1');
+      res.json({ success: true, message: `接続成功 (Whisper: ${hasWhisper ? '利用可能' : '未確認'})` });
+    } else if (id === 'gemini') {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      const data = await resp.json();
+      const modelCount = data.models?.length || 0;
+      res.json({ success: true, message: `接続成功 (${modelCount} models available)` });
     } else {
       res.json({ success: true, message: 'キーが設定されています' });
     }
@@ -791,6 +814,34 @@ async function getActiveApiKey(serviceId) {
   // 環境変数フォールバック
   return process.env[service.envVar] || null;
 }
+
+// === Google Sheets append ===
+router.post('/sheets/append', async (req, res) => {
+  try {
+    const { spreadsheetId, range, row } = req.body;
+    if (!spreadsheetId || !row) {
+      return res.status(400).json({ error: 'spreadsheetId and row are required' });
+    }
+
+    const shared = require('./shared.cjs');
+    const auth = await shared.getGoogleAuthClient('sheets');
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: range || 'Sheet1!A:Z',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [Array.isArray(row) ? row : Object.values(row)],
+      },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Sheets append error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
 module.exports.getActiveApiKey = getActiveApiKey;

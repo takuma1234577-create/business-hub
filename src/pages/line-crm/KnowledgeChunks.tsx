@@ -18,7 +18,7 @@ interface SearchResult extends Chunk {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export default function KnowledgeChunks() {
   const [chunks, setChunks] = useState<Chunk[]>([])
   const [stats, setStats] = useState<{ total: number; bySource: Record<string, number>; byCategory: Record<string, number> } | null>(null)

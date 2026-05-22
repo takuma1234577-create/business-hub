@@ -116,6 +116,7 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
             {threads.map(t => {
               const text = extractText(t.last_message?.content)
               const isOut = t.last_message?.direction === 'outgoing'
+              const unread = t.friend.unread_count || 0
               return (
                 <li key={t.friend.id}>
                   <button
@@ -142,10 +143,17 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
                           {formatTime(t.last_message?.created_at)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                        {isOut && <span className="text-slate-400">自分: </span>}
-                        {text || `(${t.last_message?.message_type || 'メッセージ'})`}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className={`text-sm truncate ${unread > 0 ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                          {isOut && <span className="text-slate-400">自分: </span>}
+                          {text || `(${t.last_message?.message_type || 'メッセージ'})`}
+                        </p>
+                        {unread > 0 && (
+                          <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-[#06C755] text-white text-xs font-bold rounded-full flex items-center justify-center">
+                            {unread > 99 ? '99+' : unread}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 </li>

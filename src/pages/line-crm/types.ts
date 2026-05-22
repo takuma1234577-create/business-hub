@@ -30,7 +30,7 @@ export interface ChatMessage {
   id: string
   friend_id: string
   direction: 'incoming' | 'outgoing'
-  message_type: 'text' | 'image' | 'sticker' | 'video' | 'audio' | 'file'
+  message_type: 'text' | 'image' | 'sticker' | 'video' | 'audio' | 'file' | 'postback'
   content: string
   sent_at: string
   created_at?: string
@@ -54,6 +54,7 @@ export interface Broadcast {
   message_content: string
   status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed'
   target_tags: string[] | null
+  target_filters: Record<string, unknown> | null
   sent_count: number
   scheduled_at: string | null
   created_at?: string

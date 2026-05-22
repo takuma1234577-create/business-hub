@@ -13,7 +13,36 @@
 
 const express = require('express');
 const { getSupabase, getGoogleOAuth2, google } = require('./shared.cjs');
-const { generateFITPEAKReply } = require('./fitpeak-rag.cjs');
+const { generateFITPEAKReply, embedText } = require('./fitpeak-rag.cjs');
+const { notifyLineAboutEmail } = require('./cross-channel-notify.cjs');
+
+// ── メール内容をナレッジベースに同期 ──
+async function syncEmailToKnowledge({ gmailMessageId, customerEmail, subject, customerMessage, aiReply }) {
+  try {
+    if (!customerMessage || !aiReply) return;
+    const content = `質問: ${customerMessage}\n\n回答: ${aiReply}`;
+    const title = (subject || 'Email inquiry').slice(0, 200);
+    const embedding = await embedText(content, 'document');
+
+    await supabase.from('knowledge_chunks').upsert({
+      source: 'shopify_email',
+      source_id: gmailMessageId,
+      category: 'message',
+      title,
+      content,
+      metadata: {
+        customer_email: customerEmail || null,
+        subject: subject || null,
+        synced_from: 'email_auto_reply',
+      },
+      embedding,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'source,source_id' });
+    console.log(`[email→knowledge] synced: ${gmailMessageId}`);
+  } catch (err) {
+    console.error('[email→knowledge] sync failed:', err.message);
+  }
+}
 
 const router = express.Router();
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
@@ -98,13 +127,27 @@ function getHeader(message, name) {
 
 // ── メール本文からお客様のメッセージを抽出 ──
 function extractCustomerMessage(body, subject) {
-  // Shopifyの問い合わせフォーム経由の場合、本文にメッセージが含まれる
-  // 一般的なパターンを処理
-  let message = body;
+  // Shopifyの問い合わせフォーム: 構造化されたフィールドを抽出
+  // フォーマット例:
+  //   名前:\n木下拓郎\n\nメール:\nxxx@gmail.com\n\nコメント:\nメッセージ本文
+  const shopifyMatch = body.match(
+    /名前[:\s：]\s*\n?(.+?)(?:\n\n|\n).*?(?:メール|Email)[:\s：]\s*\n?(.+?)(?:\n\n|\n).*?(?:コメント|Comment|メッセージ|Message)[:\s：]\s*\n?([\s\S]+?)$/im
+  );
 
-  // Shopify通知メールのパターン: 「メッセージ:」以降を抽出
+  if (shopifyMatch) {
+    const name = shopifyMatch[1].trim();
+    const email = shopifyMatch[2].trim();
+    const comment = shopifyMatch[3]
+      .replace(/--\s*\n[\s\S]*$/m, '')
+      .replace(/\*この(メール|email)[\s\S]*/i, '')
+      .trim();
+    return `お客様名: ${name}\nメール: ${email}\n\nお問い合わせ内容:\n${comment}`;
+  }
+
+  // 一般的なパターン
+  let message = body;
   const patterns = [
-    /(?:メッセージ|Message|Body|本文|内容)[:\s：]\s*([\s\S]+?)(?:\n\n---|\n\n--|$)/i,
+    /(?:メッセージ|Message|Body|本文|内容|コメント|Comment)[:\s：]\s*([\s\S]+?)(?:\n\n---|\n\n--|$)/i,
     /(?:お問い合わせ内容|inquiry|question)[:\s：]\s*([\s\S]+?)(?:\n\n---|\n\n--|$)/i,
   ];
 
@@ -116,7 +159,7 @@ function extractCustomerMessage(body, subject) {
     }
   }
 
-  // フッター（署名、免責事項等）を除去
+  // フッター除去
   message = message
     .replace(/--\s*\n[\s\S]*$/m, '')
     .replace(/_{3,}[\s\S]*$/m, '')
@@ -157,6 +200,7 @@ async function getSettings() {
   if (error || !data) {
     return {
       enabled: false,
+      mode: 'draft',
       gmail_query: 'from:noreply@shopify.com is:unread',
       max_emails_per_run: 10,
       reply_prefix: '',
@@ -166,12 +210,39 @@ async function getSettings() {
   return data;
 }
 
+// ── DBからAnthropicキーを最新に更新 ──
+async function refreshAnthropicKey() {
+  try {
+    const { data } = await supabase
+      .from('api_keys')
+      .select('api_key_encrypted')
+      .eq('id', 'anthropic')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!data) return;
+    const crypto = require('crypto');
+    const secret = process.env.BANK_CREDENTIAL_ENCRYPTION_KEY || process.env.SUPABASE_ANON_KEY || 'default-key';
+    const key = crypto.scryptSync(secret, 'api-keys-salt', 32);
+    const { iv, data: enc, tag } = JSON.parse(data.api_key_encrypted);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+    decipher.setAuthTag(Buffer.from(tag, 'hex'));
+    let decrypted = decipher.update(enc, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    process.env.ANTHROPIC_API_KEY = decrypted;
+  } catch (err) {
+    console.error('[email-autoresponder] refreshAnthropicKey error:', err.message);
+  }
+}
+
 // ── Cron / 手動トリガー: 未読メールを処理して自動返信 ──
 async function processEmails() {
   const settings = await getSettings();
   if (!settings.enabled) {
     return { skipped: true, reason: 'Email auto-reply is disabled' };
   }
+
+  // DBから最新のAPIキーをロード（環境変数の古いキーを上書き）
+  await refreshAnthropicKey();
 
   const gmail = await getGmailClient();
   const query = settings.gmail_query || 'from:noreply@shopify.com is:unread';
@@ -235,7 +306,7 @@ async function processEmails() {
       // RAGでAI返信を生成
       let aiReply;
       try {
-        aiReply = await generateFITPEAKReply(customerMessage);
+        aiReply = await generateFITPEAKReply(customerMessage, { channel: 'Email', customerName: customerEmail, email: customerEmail });
       } catch (err) {
         console.error('[email-autoresponder] RAG error:', err.message);
         await supabase.from('email_auto_reply_logs').insert({
@@ -259,7 +330,7 @@ async function processEmails() {
         .filter(Boolean)
         .join('\n\n');
 
-      // Gmailで返信を送信
+      // Gmail返信メールを構成
       const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
       const threadId = detail.data.threadId;
       const messageId = getHeader(detail.data, 'Message-ID');
@@ -276,13 +347,26 @@ async function processEmails() {
       ];
       const rawEmail = Buffer.from(emailLines.join('\r\n')).toString('base64url');
 
-      await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: {
-          raw: rawEmail,
-          threadId,
-        },
-      });
+      const mode = settings.mode || 'draft'; // 'draft' or 'send'
+      let resultStatus;
+
+      if (mode === 'send') {
+        // 直接送信
+        await gmail.users.messages.send({
+          userId: 'me',
+          requestBody: { raw: rawEmail, threadId },
+        });
+        resultStatus = 'sent';
+      } else {
+        // 下書きとして保存
+        await gmail.users.drafts.create({
+          userId: 'me',
+          requestBody: {
+            message: { raw: rawEmail, threadId },
+          },
+        });
+        resultStatus = 'draft';
+      }
 
       // 元のメールを既読にする
       await gmail.users.messages.modify({
@@ -300,10 +384,24 @@ async function processEmails() {
         subject,
         customer_message: customerMessage.slice(0, 2000),
         ai_reply: fullReply.slice(0, 2000),
-        status: 'sent',
+        status: resultStatus,
       });
 
-      results.push({ id: msg.id, status: 'sent', to: customerEmail });
+      // ナレッジベースに同期（非同期・失敗してもメイン処理は続行）
+      syncEmailToKnowledge({
+        gmailMessageId: msg.id,
+        customerEmail,
+        subject,
+        customerMessage,
+        aiReply: fullReply,
+      }).catch(() => {});
+
+      // メールで対応した旨をLINEに通知（同一顧客がLINEにもいる場合）
+      const customerNameMatch = customerMessage.match(/お客様名[:：]\s*(.+)/);
+      const custName = customerNameMatch ? customerNameMatch[1].trim() : '';
+      notifyLineAboutEmail(customerEmail, custName).catch(() => {});
+
+      results.push({ id: msg.id, status: resultStatus, to: customerEmail });
     } catch (err) {
       console.error('[email-autoresponder] Error processing message:', msg.id, err.message);
       results.push({ id: msg.id, status: 'error', error: err.message });
@@ -316,6 +414,56 @@ async function processEmails() {
 // ===========================================================================
 // API Routes
 // ===========================================================================
+
+// POST /preview - Gmailを検索してマッチするメールをプレビュー（処理はしない）
+router.post('/preview', async (req, res) => {
+  try {
+    const { query } = req.body;
+    const gmail = await getGmailClient();
+    const searchQuery = query || 'is:unread';
+
+    const listRes = await gmail.users.messages.list({
+      userId: 'me',
+      q: searchQuery,
+      maxResults: 10,
+    });
+
+    const messages = listRes.data.messages || [];
+    if (messages.length === 0) {
+      return res.json({ query: searchQuery, count: 0, emails: [] });
+    }
+
+    const emails = [];
+    for (const msg of messages.slice(0, 10)) {
+      try {
+        const detail = await gmail.users.messages.get({
+          userId: 'me',
+          id: msg.id,
+          format: 'full',
+        });
+        const subject = getHeader(detail.data, 'Subject');
+        const from = getHeader(detail.data, 'From');
+        const date = getHeader(detail.data, 'Date');
+        const body = extractEmailBody(detail.data);
+        emails.push({
+          id: msg.id,
+          subject,
+          from,
+          date,
+          snippet: body.slice(0, 300),
+          customerEmail: getCustomerEmail(detail.data),
+        });
+      } catch (err) {
+        emails.push({ id: msg.id, error: err.message });
+      }
+    }
+
+    return res.json({ query: searchQuery, count: listRes.data.resultSizeEstimate || messages.length, emails });
+  } catch (err) {
+    console.error('POST /email-auto-reply/preview error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /settings - 設定を取得
 router.get('/settings', async (_req, res) => {
@@ -331,7 +479,7 @@ router.get('/settings', async (_req, res) => {
 // PUT /settings - 設定を更新
 router.put('/settings', async (req, res) => {
   try {
-    const { enabled, gmail_query, max_emails_per_run, reply_prefix, reply_suffix } = req.body;
+    const { enabled, mode, gmail_query, max_emails_per_run, reply_prefix, reply_suffix } = req.body;
 
     const { data: existing } = await supabase
       .from('email_auto_reply_settings')
@@ -341,6 +489,7 @@ router.put('/settings', async (req, res) => {
 
     const payload = { updated_at: new Date().toISOString() };
     if (enabled !== undefined) payload.enabled = enabled;
+    if (mode !== undefined) payload.mode = mode;
     if (gmail_query !== undefined) payload.gmail_query = gmail_query;
     if (max_emails_per_run !== undefined) payload.max_emails_per_run = max_emails_per_run;
     if (reply_prefix !== undefined) payload.reply_prefix = reply_prefix;
@@ -432,6 +581,40 @@ router.get('/logs', async (req, res) => {
   }
 });
 
+// POST /sync-knowledge - 既存ログを一括でナレッジベースに同期
+router.post('/sync-knowledge', async (_req, res) => {
+  try {
+    // 成功したログのみ対象
+    const { data: logs, error } = await supabase
+      .from('email_auto_reply_logs')
+      .select('gmail_message_id, customer_email, subject, customer_message, ai_reply')
+      .in('status', ['sent', 'draft'])
+      .not('ai_reply', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) return res.status(500).json({ error: error.message });
+
+    let synced = 0, failed = 0;
+    for (const log of (logs || [])) {
+      try {
+        await syncEmailToKnowledge({
+          gmailMessageId: log.gmail_message_id,
+          customerEmail: log.customer_email,
+          subject: log.subject,
+          customerMessage: log.customer_message,
+          aiReply: log.ai_reply,
+        });
+        synced++;
+        // Voyage APIレート制限対策
+        await new Promise(r => setTimeout(r, 22000));
+      } catch { failed++; }
+    }
+    return res.json({ total: logs?.length || 0, synced, failed });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /logs/:id - ログを削除
 router.delete('/logs/:id', async (req, res) => {
   try {
@@ -444,6 +627,103 @@ router.delete('/logs/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /email-auto-reply/logs/:id error:', err);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /compose/ai - AIでメール本文を生成
+router.post('/compose/ai', async (req, res) => {
+  try {
+    const { to, subject, context, tone } = req.body;
+    if (!context) return res.status(400).json({ error: 'メールの内容・目的を入力してください' });
+
+    await refreshAnthropicKey();
+    const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const toneMap = {
+      formal: '丁寧でフォーマルなビジネス敬語',
+      friendly: '丁寧だが親しみやすいビジネス調',
+      casual: 'カジュアルで親しみやすい口調',
+    };
+    const toneDesc = toneMap[tone] || toneMap.formal;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      system: `あなたはFITPEAKのカスタマーサポート担当です。以下のルールでメールを作成してください：
+- 文体: ${toneDesc}
+- 署名は含めない（別途追加されます）
+- 件名と本文をJSON形式で返す: { "subject": "件名", "body": "本文" }
+- 件名が既に指定されている場合はそれを使用
+- メール本文のみを出力。余計な説明は不要`,
+      messages: [{
+        role: 'user',
+        content: `宛先: ${to || '未指定'}\n${subject ? `件名: ${subject}\n` : ''}目的・内容:\n${context}`,
+      }],
+    });
+
+    const text = response.content.filter(c => c.type === 'text').map(c => c.text).join('');
+    const jsonMatch = text.match(/\{[\s\S]*"subject"[\s\S]*"body"[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.json({ subject: subject || '', body: text });
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    res.json({ subject: parsed.subject || subject || '', body: parsed.body });
+  } catch (err) {
+    console.error('POST /compose/ai error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /compose/send - メールを作成して送信 or 下書き保存
+router.post('/compose/send', async (req, res) => {
+  try {
+    const { to, subject, body, mode } = req.body;
+    if (!to || !subject || !body) {
+      return res.status(400).json({ error: '宛先、件名、本文を入力してください' });
+    }
+
+    const gmail = await getGmailClient();
+
+    const emailLines = [
+      `To: ${to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      body,
+    ];
+    const rawEmail = Buffer.from(emailLines.join('\r\n')).toString('base64url');
+
+    let resultStatus;
+    if (mode === 'send') {
+      await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw: rawEmail },
+      });
+      resultStatus = 'sent';
+    } else {
+      await gmail.users.drafts.create({
+        userId: 'me',
+        requestBody: { message: { raw: rawEmail } },
+      });
+      resultStatus = 'draft';
+    }
+
+    // ログに記録
+    await supabase.from('email_auto_reply_logs').insert({
+      gmail_message_id: `compose_${Date.now()}`,
+      customer_email: to,
+      subject,
+      customer_message: '（手動作成メール）',
+      ai_reply: body,
+      status: resultStatus,
+    });
+
+    res.json({ status: resultStatus, to, subject });
+  } catch (err) {
+    console.error('POST /compose/send error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

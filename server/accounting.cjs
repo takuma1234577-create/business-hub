@@ -358,7 +358,7 @@ router.post('/documents/:id/analyze', async (req, res) => {
 
 async function analyzeDocument(docId, buffer, mimeType, filename) {
   try {
-    const anthropic = getAnthropicClient();
+    const anthropic = await getAnthropicClient();
 
     // PDFの場合はbase64エンコード
     const base64 = buffer.toString('base64');
@@ -404,7 +404,7 @@ JSONのみを返してください。説明は不要です。`,
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [{ role: 'user', content }],
     });
@@ -1055,7 +1055,7 @@ router.post('/transactions/classify-ai', async (req, res) => {
     const { accountId, transactionIds } = req.body;
     if (!accountId) return res.status(400).json({ error: '口座IDが必要です' });
 
-    const anthropic = getAnthropicClient();
+    const anthropic = await getAnthropicClient();
 
     // 分類対象の取引を取得
     let query = supabase.from('financial_transactions').select('*').eq('account_id', accountId);
@@ -1090,7 +1090,7 @@ router.post('/transactions/classify-ai', async (req, res) => {
       }));
 
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         messages: [{
           role: 'user',

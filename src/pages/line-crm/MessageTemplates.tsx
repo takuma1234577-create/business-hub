@@ -1,11 +1,28 @@
 import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import axios from 'axios'
+import { createClient } from '@supabase/supabase-js'
 import {
   FileText, Plus, Pencil, Trash2, X, ArrowUp, ArrowDown,
   Type, Image as ImageIcon, Video, Music, LayoutGrid, Upload, Eye, FolderInput,
-  GalleryHorizontal, ChevronLeft, ChevronRight, Copy,
+  GalleryHorizontal, ChevronLeft, ChevronRight, Copy, Send,
 } from 'lucide-react'
 import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+
+async function uploadToStorage(file: File): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const path = `templates/${filename}`
+  const { error } = await supabaseClient.storage
+    .from('line-media')
+    .upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false })
+  if (error) throw new Error(error.message)
+  const { data } = supabaseClient.storage.from('line-media').getPublicUrl(path)
+  return data.publicUrl
+}
 
 // ── Message block types ──
 type TextBlock = { type: 'text'; text: string }
@@ -60,7 +77,7 @@ interface Template {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 // UI上のブロック種別（LINEの `template` を panel / carousel に細分化）
 type UIBlockKind = 'text' | 'image' | 'video' | 'audio' | 'panel' | 'carousel'
 
@@ -135,6 +152,56 @@ export default function MessageTemplates() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewMessages, setPreviewMessages] = useState<MessageBlock[]>([])
   const [previewName, setPreviewName] = useState('')
+  const [testFriendId, setTestFriendId] = useState('')
+  const [testFriendName, setTestFriendName] = useState('')
+  const [friendResults, setFriendResults] = useState<{ id: string; display_name: string }[]>([])
+  const [testSending, setTestSending] = useState(false)
+  const [friendSearch, setFriendSearch] = useState('')
+  const [friendDropdownOpen, setFriendDropdownOpen] = useState(false)
+  const [friendSearching, setFriendSearching] = useState(false)
+  const friendDropdownRef = useRef<HTMLDivElement>(null)
+  const friendSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const searchFriends = useCallback(async (query: string) => {
+    setFriendSearching(true)
+    try {
+      const r = await api.get('/friends', { params: { search: query, per_page: 20 } })
+      const list = (r.data?.data || r.data || []) as { id: string; display_name: string }[]
+      setFriendResults(list)
+    } catch (err) {
+      console.error('search friends:', err)
+    } finally {
+      setFriendSearching(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (friendDropdownRef.current && !friendDropdownRef.current.contains(e.target as Node)) {
+        setFriendDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleTestSend = async () => {
+    if (!testFriendId || blocks.length === 0) return
+    setTestSending(true)
+    try {
+      const res = await api.post('/message-templates/test-send', {
+        friend_id: testFriendId,
+        messages: blocks,
+      })
+      const sentTo = res.data?.sent_to || ''
+      alert(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`)
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : 'テスト配信に失敗しました'
+      alert('テスト配信失敗: ' + msg)
+    } finally {
+      setTestSending(false)
+    }
+  }
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true)
@@ -495,6 +562,76 @@ export default function MessageTemplates() {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">テスト配信:</span>
+                <div ref={friendDropdownRef} className="relative flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={friendDropdownOpen ? friendSearch : testFriendName}
+                    onChange={e => {
+                      const q = e.target.value
+                      setFriendSearch(q)
+                      setFriendDropdownOpen(true)
+                      if (friendSearchTimer.current) clearTimeout(friendSearchTimer.current)
+                      friendSearchTimer.current = setTimeout(() => {
+                        if (q.trim()) searchFriends(q.trim())
+                        else setFriendResults([])
+                      }, 300)
+                    }}
+                    onFocus={() => {
+                      setFriendSearch('')
+                      setFriendDropdownOpen(true)
+                      if (testFriendName) searchFriends(testFriendName)
+                    }}
+                    placeholder="名前で検索..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                  />
+                  {testFriendId && !friendDropdownOpen && (
+                    <button
+                      onClick={() => { setTestFriendId(''); setTestFriendName('') }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  {friendDropdownOpen && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {friendSearching ? (
+                        <p className="px-3 py-3 text-xs text-slate-400 text-center">検索中...</p>
+                      ) : friendResults.length > 0 ? (
+                        friendResults.map(f => (
+                          <button
+                            key={f.id}
+                            onClick={() => {
+                              setTestFriendId(f.id)
+                              setTestFriendName(f.display_name)
+                              setFriendSearch('')
+                              setFriendDropdownOpen(false)
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer ${f.id === testFriendId ? 'bg-[#06C755]/10 text-[#06C755] font-medium' : 'text-slate-700 dark:text-slate-300'}`}
+                          >
+                            {f.display_name}
+                          </button>
+                        ))
+                      ) : friendSearch.trim() ? (
+                        <p className="px-3 py-3 text-xs text-slate-400 text-center">該当する友だちがいません</p>
+                      ) : (
+                        <p className="px-3 py-3 text-xs text-slate-400 text-center">名前を入力して検索</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleTestSend}
+                  disabled={testSending || !testFriendId || blocks.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                >
+                  <Send size={14} />
+                  {testSending ? '送信中...' : 'テスト送信'}
+                </button>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
@@ -1025,16 +1162,12 @@ function DropUpload({
     setUploading(true)
     setProgress(0)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const r = await axios.post<{ url: string }>('/api/line-crm/media/upload', fd, {
-        onUploadProgress: e => {
-          if (e.total) setProgress(Math.round((e.loaded / e.total) * 100))
-        },
-      })
-      onChange(r.data.url)
+      setProgress(30)
+      const url = await uploadToStorage(file)
+      setProgress(100)
+      onChange(url)
     } catch (err) {
-      alert('アップロード失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1105,14 +1238,12 @@ function ThumbDropUpload({ value, onChange, aspect = 'rectangle' }: { value: str
     setUploading(true)
     setProgress(0)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const r = await axios.post<{ url: string }>('/api/line-crm/media/upload', fd, {
-        onUploadProgress: e => { if (e.total) setProgress(Math.round((e.loaded / e.total) * 100)) },
-      })
-      onChange(r.data.url)
+      setProgress(30)
+      const url = await uploadToStorage(file)
+      setProgress(100)
+      onChange(url)
     } catch (err) {
-      alert('アップロード失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
     } finally {
       setUploading(false)
       setProgress(0)

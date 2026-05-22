@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, PenLine, Send, Sparkles, X, RefreshCw } from 'lucide-react'
 import axios from 'axios'
 
 interface EmailSettings {
   id?: string
   enabled: boolean
+  mode: 'draft' | 'send'
   gmail_query: string
   max_emails_per_run: number
   reply_prefix: string
@@ -18,7 +19,7 @@ interface EmailLog {
   subject: string
   customer_message: string
   ai_reply: string | null
-  status: 'sent' | 'skipped' | 'error'
+  status: 'sent' | 'draft' | 'skipped' | 'error'
   error: string | null
   created_at: string
 }
@@ -31,10 +32,11 @@ interface LogPagination {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm/email-auto-reply' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export default function EmailAutoReply() {
   const [settings, setSettings] = useState<EmailSettings>({
     enabled: false,
+    mode: 'draft',
     gmail_query: 'from:noreply@shopify.com is:unread',
     max_emails_per_run: 10,
     reply_prefix: '',
@@ -48,6 +50,30 @@ export default function EmailAutoReply() {
   const [triggering, setTriggering] = useState(false)
   const [triggerResult, setTriggerResult] = useState<string | null>(null)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
+  const [syncingKnowledge, setSyncingKnowledge] = useState(false)
+
+  // Compose
+  const [showCompose, setShowCompose] = useState(false)
+  const [composeTo, setComposeTo] = useState('')
+  const [composeSubject, setComposeSubject] = useState('')
+  const [composeBody, setComposeBody] = useState('')
+  const [composeContext, setComposeContext] = useState('')
+  const [composeTone, setComposeTone] = useState<'formal' | 'friendly' | 'casual'>('formal')
+  const [composeMode, setComposeMode] = useState<'draft' | 'send'>('draft')
+  const [composing, setComposing] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [composeResult, setComposeResult] = useState<string | null>(null)
+
+  const handleSyncKnowledge = async () => {
+    if (!confirm('既存の返信ログをナレッジベースに同期します。数分かかる場合があります。続行しますか？')) return
+    setSyncingKnowledge(true)
+    try {
+      const res = await api.post('/sync-knowledge')
+      setTriggerResult(`ナレッジベースに ${res.data.synced}/${res.data.total} 件同期しました`)
+    } catch (err: any) {
+      setTriggerResult('エラー: ' + (err?.response?.data?.error || err.message))
+    } finally { setSyncingKnowledge(false) }
+  }
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -97,7 +123,11 @@ export default function EmailAutoReply() {
         setTriggerResult('自動返信が無効です。有効にしてから実行してください。')
       } else {
         const sent = data.results?.filter((r: { status: string }) => r.status === 'sent').length || 0
-        setTriggerResult(`完了: ${data.processed}件処理、${sent}件返信済み`)
+        const drafted = data.results?.filter((r: { status: string }) => r.status === 'draft').length || 0
+        const parts = [`${data.processed}件処理`]
+        if (drafted > 0) parts.push(`${drafted}件下書き作成`)
+        if (sent > 0) parts.push(`${sent}件送信済み`)
+        setTriggerResult(`完了: ${parts.join('、')}`)
         fetchLogs()
       }
     } catch (err: unknown) {
@@ -108,9 +138,63 @@ export default function EmailAutoReply() {
     }
   }
 
+  const handleGenerateEmail = async () => {
+    if (!composeContext.trim()) return
+    setGenerating(true)
+    try {
+      const res = await api.post('/compose/ai', {
+        to: composeTo,
+        subject: composeSubject,
+        context: composeContext,
+        tone: composeTone,
+      })
+      if (res.data.subject && !composeSubject) setComposeSubject(res.data.subject)
+      setComposeBody(res.data.body)
+    } catch (err: any) {
+      setComposeResult('AI生成エラー: ' + (err?.response?.data?.error || err.message))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleSendCompose = async () => {
+    if (!composeTo || !composeSubject || !composeBody) return
+    setComposing(true)
+    setComposeResult(null)
+    try {
+      const res = await api.post('/compose/send', {
+        to: composeTo,
+        subject: composeSubject,
+        body: composeBody,
+        mode: composeMode,
+      })
+      setComposeResult(res.data.status === 'sent' ? `${composeTo} にメールを送信しました` : `下書きを保存しました`)
+      fetchLogs()
+      // フォームリセット
+      setComposeTo('')
+      setComposeSubject('')
+      setComposeBody('')
+      setComposeContext('')
+    } catch (err: any) {
+      setComposeResult('エラー: ' + (err?.response?.data?.error || err.message))
+    } finally {
+      setComposing(false)
+    }
+  }
+
+  const resetCompose = () => {
+    setShowCompose(false)
+    setComposeTo('')
+    setComposeSubject('')
+    setComposeBody('')
+    setComposeContext('')
+    setComposeResult(null)
+  }
+
   const statusIcon = (status: string) => {
     switch (status) {
       case 'sent': return <CheckCircle size={16} className="text-green-500" />
+      case 'draft': return <Mail size={16} className="text-blue-500" />
       case 'skipped': return <AlertTriangle size={16} className="text-yellow-500" />
       case 'error': return <XCircle size={16} className="text-red-500" />
       default: return <Clock size={16} className="text-slate-400" />
@@ -120,6 +204,7 @@ export default function EmailAutoReply() {
   const statusLabel = (status: string) => {
     switch (status) {
       case 'sent': return '送信済み'
+      case 'draft': return '下書き'
       case 'skipped': return 'スキップ'
       case 'error': return 'エラー'
       default: return status
@@ -149,6 +234,21 @@ export default function EmailAutoReply() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCompose(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors cursor-pointer"
+            >
+              <PenLine size={16} />
+              メール作成
+            </button>
+            <button
+              onClick={handleSyncKnowledge}
+              disabled={syncingKnowledge}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
+              title="過去の返信ログをナレッジベースに反映"
+            >
+              {syncingKnowledge ? '同期中...' : 'ナレッジ同期'}
+            </button>
             <button
               onClick={handleTrigger}
               disabled={triggering}
@@ -199,6 +299,37 @@ export default function EmailAutoReply() {
                 <ToggleLeft size={36} className="text-slate-300 dark:text-slate-600" />
               )}
             </button>
+          </div>
+
+          <hr className="border-slate-200 dark:border-slate-700" />
+
+          {/* Mode */}
+          <div>
+            <h3 className="font-medium text-slate-900 dark:text-white mb-2">動作モード</h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSettings({ ...settings, mode: 'draft' })}
+                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition cursor-pointer ${
+                  settings.mode === 'draft'
+                    ? 'border-[#06C755] bg-[#06C755]/5 text-[#06C755]'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                下書き作成
+                <p className="text-xs font-normal mt-0.5 opacity-70">Gmailに下書きを保存（送信前に確認可能）</p>
+              </button>
+              <button
+                onClick={() => setSettings({ ...settings, mode: 'send' })}
+                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition cursor-pointer ${
+                  settings.mode === 'send'
+                    ? 'border-orange-500 bg-orange-50 text-orange-600'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                自動送信
+                <p className="text-xs font-normal mt-0.5 opacity-70">AIの返信を直接送信（確認なし）</p>
+              </button>
+            </div>
           </div>
 
           <hr className="border-slate-200 dark:border-slate-700" />
@@ -298,9 +429,11 @@ export default function EmailAutoReply() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             log.status === 'sent'
                               ? 'bg-green-50 dark:bg-green-900/30 text-green-600'
-                              : log.status === 'error'
-                                ? 'bg-red-50 dark:bg-red-900/30 text-red-600'
-                                : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600'
+                              : log.status === 'draft'
+                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'
+                                : log.status === 'error'
+                                  ? 'bg-red-50 dark:bg-red-900/30 text-red-600'
+                                  : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600'
                           }`}>
                             {statusLabel(log.status)}
                           </span>
@@ -365,6 +498,129 @@ export default function EmailAutoReply() {
           )}
         </div>
       </div>
+
+      {/* Compose Modal */}
+      {showCompose && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <PenLine size={18} /> メール作成
+              </h3>
+              <button onClick={resetCompose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4">
+              {composeResult && (
+                <div className={`px-4 py-3 rounded-lg text-sm ${
+                  composeResult.startsWith('エラー') || composeResult.startsWith('AI生成エラー')
+                    ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                    : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                }`}>
+                  {composeResult}
+                </div>
+              )}
+
+              {/* To */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">宛先</label>
+                <input
+                  type="email" value={composeTo} onChange={e => setComposeTo(e.target.value)}
+                  placeholder="example@example.com"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">件名</label>
+                <input
+                  type="text" value={composeSubject} onChange={e => setComposeSubject(e.target.value)}
+                  placeholder="メールの件名"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                />
+              </div>
+
+              {/* AI Generation */}
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 space-y-3">
+                <h4 className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                  <Sparkles size={12} /> AI本文生成
+                </h4>
+                <textarea
+                  value={composeContext} onChange={e => setComposeContext(e.target.value)}
+                  placeholder="メールの目的・伝えたい内容を入力してください（例: 商品の発送遅延のお詫びと到着予定日の案内）"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 resize-y"
+                />
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1.5">
+                    {([['formal', 'フォーマル'], ['friendly', '親しみやすい'], ['casual', 'カジュアル']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => setComposeTone(val)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition cursor-pointer ${
+                          composeTone === val
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >{label}</button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleGenerateEmail} disabled={generating || !composeContext.trim()}
+                    className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium disabled:opacity-50 cursor-pointer transition-colors"
+                  >
+                    {generating ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {generating ? '生成中...' : 'AIで生成'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">本文</label>
+                <textarea
+                  value={composeBody} onChange={e => setComposeBody(e.target.value)}
+                  placeholder="メール本文を入力またはAIで生成してください"
+                  rows={10}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 resize-y leading-relaxed"
+                />
+                <p className="text-xs text-slate-400 mt-1">{composeBody.length} 文字</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex gap-2">
+                <button onClick={() => setComposeMode('draft')}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    composeMode === 'draft' ? 'bg-blue-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}>
+                  下書き保存
+                </button>
+                <button onClick={() => setComposeMode('send')}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    composeMode === 'send' ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}>
+                  直接送信
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={resetCompose} className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleSendCompose}
+                  disabled={composing || !composeTo || !composeSubject || !composeBody}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-medium disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  {composing ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                  {composing ? '処理中...' : composeMode === 'send' ? '送信する' : '下書き保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

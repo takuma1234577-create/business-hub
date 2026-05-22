@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Sparkles, Save, ToggleLeft, ToggleRight, Eye, X } from 'lucide-react'
+import TestSendWidget from './TestSendWidget'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 interface Template {
   id: string
   name: string
@@ -152,6 +153,14 @@ export default function GreetingSettings() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {selectedTemplate && (
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+            <TestSendWidget
+              getMessages={() => selectedTemplate?.content?.messages || null}
+            />
           </div>
         )}
 

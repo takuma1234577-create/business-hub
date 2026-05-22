@@ -7,7 +7,7 @@ import type {
 } from './types'
 
 const api = axios.create({ baseURL: '/api/accounting' })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export const documentApi = {
   list: (params?: {
     status?: string
@@ -152,7 +152,7 @@ export const transactionApi = {
 // =====================
 
 const coreApi = axios.create({ baseURL: '/api/accounting/core' })
-
+coreApi.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export const accountTitleApi = {
   list: (category?: string) =>
     coreApi.get('/account-titles', { params: { category } }).then(r => r.data),
@@ -200,6 +200,23 @@ export const journalEntryApi = {
   delete: (id: string) => coreApi.delete(`/journal-entries/${id}`).then(r => r.data),
 }
 
+export const dateRangeApi = {
+  get: () => coreApi.get<{ earliest: string | null; latest: string | null }>('/date-range').then(r => r.data),
+}
+
+export interface FiscalSummary {
+  totalRevenue: number; totalExpenses: number; netIncome: number
+  salesRevenue: number; costOfSales: number; grossProfit: number
+  sgaExpenses: number; operatingIncome: number
+  totalAssets: number; totalLiabilities: number; totalEquity: number
+  journalCount: number
+}
+
+export const fiscalSummaryApi = {
+  get: (startDate: string, endDate: string) =>
+    coreApi.get<FiscalSummary>('/fiscal-summary', { params: { startDate, endDate } }).then(r => r.data),
+}
+
 export const balanceSheetApi = {
   get: (asOfDate: string) =>
     coreApi.get('/balance-sheet', { params: { asOfDate } }).then(r => r.data),
@@ -211,11 +228,12 @@ export const profitLossApi = {
 }
 
 export const importStatementApi = {
-  upload: (file: File, statementType: string, fiscalPeriodId?: string) => {
+  upload: (file: File, statementType: string, fiscalPeriodId?: string, sourceDocumentId?: string) => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('statementType', statementType)
     if (fiscalPeriodId) formData.append('fiscalPeriodId', fiscalPeriodId)
+    if (sourceDocumentId) formData.append('sourceDocumentId', sourceDocumentId)
     return coreApi.post<{ created: number; skipped: number; total: number }>('/import-financial-statement', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
@@ -227,10 +245,10 @@ export const importStatementApi = {
 // =====================
 
 const fiscalApi = axios.create({ baseURL: '/api/accounting/fiscal' })
-
+fiscalApi.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export interface FiscalYear { id: string; year_label: string; start_date: string; end_date: string; is_current: boolean; notes: string | null }
-export interface FiscalDocument { id: string; fiscal_year_id: string; document_type: string; document_subtype: string | null; original_filename: string; ai_status: string; ai_extracted: Record<string, unknown> | null; ai_summary: string | null; ai_error: string | null; created_at: string }
-export interface FiscalMetric { id: string; fiscal_year_id: string; category: string; metric_key: string; metric_label: string; metric_value: number | null; metric_text: string | null }
+export interface FiscalDocument { id: string; fiscal_year_id: string; document_type: string; document_subtype: string | null; original_filename: string; ai_status: string; ai_extracted: Record<string, unknown> | null; ai_summary: string | null; ai_error: string | null; target_month: string | null; created_at: string }
+export interface FiscalMetric { id: string; fiscal_year_id: string; category: string; metric_key: string; metric_label: string; metric_value: number | null; metric_text: string | null; target_month: string | null }
 export interface DocumentType { id: string; label: string; category: string }
 
 export const fiscalYearApi = {
@@ -240,19 +258,28 @@ export const fiscalYearApi = {
     fiscalApi.post<FiscalYear>('/years', data).then(r => r.data),
   deleteYear: (id: string) => fiscalApi.delete(`/years/${id}`).then(r => r.data),
 
-  listDocuments: (fiscalYearId?: string) =>
-    fiscalApi.get<FiscalDocument[]>('/documents', { params: { fiscalYearId } }).then(r => r.data),
-  uploadDocument: (file: File, fiscalYearId: string, documentType: string, documentSubtype?: string) => {
+  listDocuments: (fiscalYearId?: string, targetMonth?: string) =>
+    fiscalApi.get<FiscalDocument[]>('/documents', { params: { fiscalYearId, targetMonth } }).then(r => r.data),
+  uploadDocument: (file: File, fiscalYearId: string, documentType: string, documentSubtype?: string, targetMonth?: string) => {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('fiscalYearId', fiscalYearId)
     fd.append('documentType', documentType)
     if (documentSubtype) fd.append('documentSubtype', documentSubtype)
+    if (targetMonth) fd.append('targetMonth', targetMonth)
     return fiscalApi.post<FiscalDocument>('/documents/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
   },
+  analyzeDocument: (docId: string) =>
+    fiscalApi.post<FiscalDocument>(`/documents/${docId}/analyze`).then(r => r.data),
   deleteDocument: (id: string) => fiscalApi.delete(`/documents/${id}`).then(r => r.data),
+  regenerateJournals: (docId: string) =>
+    fiscalApi.post<{ success: boolean; created: number; total: number }>(`/documents/${docId}/regenerate-journals`).then(r => r.data),
 
-  listMetrics: (fiscalYearId?: string) =>
-    fiscalApi.get<FiscalMetric[]>('/metrics', { params: { fiscalYearId } }).then(r => r.data),
+  listMetrics: (fiscalYearId?: string, targetMonth?: string) =>
+    fiscalApi.get<FiscalMetric[]>('/metrics', { params: { fiscalYearId, targetMonth } }).then(r => r.data),
   getComparison: () => fiscalApi.get('/comparison').then(r => r.data),
+
+  getProfile: () => fiscalApi.get<{ fiscal_end_month: number | null; first_period_start: string | null }>('/profile').then(r => r.data),
+  saveProfile: (data: { fiscalEndMonth: number; firstPeriodStart: string }) =>
+    fiscalApi.post<{ success: boolean; generated: number; total: number }>('/profile', data).then(r => r.data),
 }

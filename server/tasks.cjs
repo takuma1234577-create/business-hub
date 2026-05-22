@@ -34,14 +34,14 @@ const router = Router();
 // Claude AI Service
 // ============================================================
 
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
-function getClaudeClient() {
-  return getAnthropicClient();
+async function getClaudeClient() {
+  return await getAnthropicClient();
 }
 
 async function extractTasksFromMessages(context) {
-  const client = getClaudeClient();
+  const client = await getClaudeClient();
 
   const chatworkText = context.chatworkMessages.map(room => {
     const msgs = room.messages.map(m => {
@@ -113,7 +113,7 @@ ${actionText || 'なし'}
 
 async function analyzeEmails(emails) {
   if (emails.length === 0) return [];
-  const client = getClaudeClient();
+  const client = await getClaudeClient();
 
   const emailText = emails.map((e, i) => `
 【メール${i + 1}】ID: ${e.gmail_id}
@@ -161,7 +161,7 @@ ${emailText}
 }
 
 async function analyzeMeetingNote(content, customerName) {
-  const client = getClaudeClient();
+  const client = await getClaudeClient();
 
   const prompt = `以下の議事録を分析して、サマリーとアクションアイテムを抽出してください。
 ${customerName ? `\n顧客名: ${customerName}` : ''}
@@ -201,7 +201,7 @@ ${content}
 }
 
 async function analyzeImage(imagePath, mimeType) {
-  const client = getClaudeClient();
+  const client = await getClaudeClient();
   const imageData = fs.readFileSync(imagePath);
   const base64 = imageData.toString('base64');
 
@@ -241,7 +241,7 @@ async function analyzeImage(imagePath, mimeType) {
 }
 
 async function generateDailyTaskSummary(tasks) {
-  const client = getClaudeClient();
+  const client = await getClaudeClient();
 
   const taskList = tasks.map((t, i) => {
     const priority = t.priority === 'high' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢';

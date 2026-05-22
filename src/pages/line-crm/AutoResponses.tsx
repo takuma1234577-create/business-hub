@@ -1,7 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { Plus, Pencil, Trash2, Zap, X, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, X, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
+import TestSendWidget from './TestSendWidget'
+
+interface TagAction {
+  action: 'add' | 'remove'
+  tag_id: string
+}
+
+interface TagItem {
+  id: string
+  name: string
+  color: string
+}
 
 interface AutoResponse {
   id: string
@@ -12,6 +24,7 @@ interface AutoResponse {
   is_active: boolean
   priority?: number
   folder: string | null
+  tag_actions?: TagAction[]
 }
 
 interface Template {
@@ -21,6 +34,8 @@ interface Template {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+type MessageBlock = { type: string; text?: string } & Record<string, unknown>
 
 type FormData = {
   name: string
@@ -31,6 +46,8 @@ type FormData = {
   response_text: string
   template_id: string
   is_active: boolean
+  tag_actions: TagAction[]
+  existing_messages: MessageBlock[]
 }
 
 const emptyForm: FormData = {
@@ -42,6 +59,8 @@ const emptyForm: FormData = {
   response_text: '',
   template_id: '',
   is_active: true,
+  tag_actions: [],
+  existing_messages: [],
 }
 
 const parseKeywordsRaw = (raw: string): string[] =>
@@ -58,6 +77,7 @@ const extractText = (msg: { type: string; text?: string }): string => {
 export default function AutoResponses() {
   const [responses, setResponses] = useState<AutoResponse[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [tags, setTags] = useState<TagItem[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -88,8 +108,18 @@ export default function AutoResponses() {
     }
   }, [])
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await api.get<TagItem[]>('/tags')
+      setTags(res.data)
+    } catch (err) {
+      console.error('Failed to fetch tags:', err)
+    }
+  }, [])
+
   useEffect(() => { fetchResponses() }, [fetchResponses])
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
+  useEffect(() => { fetchTags() }, [fetchTags])
 
   const openCreate = () => {
     const initialFolder = selectedFolder && selectedFolder !== '__uncategorized__' ? selectedFolder : ''
@@ -100,7 +130,6 @@ export default function AutoResponses() {
   }
 
   const openEdit = (resp: AutoResponse) => {
-    // 既存のresponse_messagesが単一textならtextモード、それ以外はtemplateモード（inline編集は未対応）
     const isSimpleText = resp.response_messages.length === 1 && resp.response_messages[0].type === 'text'
     setForm({
       name: resp.name || '',
@@ -111,6 +140,8 @@ export default function AutoResponses() {
       response_text: isSimpleText ? (resp.response_messages[0].text || '') : '',
       template_id: '',
       is_active: resp.is_active,
+      tag_actions: resp.tag_actions || [],
+      existing_messages: resp.response_messages || [],
     })
     setKeywordInput('')
     setEditingId(resp.id)
@@ -138,9 +169,15 @@ export default function AutoResponses() {
 
       let response_messages: unknown[]
       if (form.response_mode === 'template') {
-        const tmpl = templates.find(t => t.id === form.template_id)
-        if (!tmpl || !tmpl.content?.messages?.length) { alert('テンプレートを選択してください'); setSaving(false); return }
-        response_messages = tmpl.content.messages
+        if (form.template_id) {
+          const tmpl = templates.find(t => t.id === form.template_id)
+          if (!tmpl || !tmpl.content?.messages?.length) { alert('テンプレートを選択してください'); setSaving(false); return }
+          response_messages = tmpl.content.messages
+        } else if (form.existing_messages.length > 0) {
+          response_messages = form.existing_messages
+        } else {
+          alert('テンプレートを選択してください'); setSaving(false); return
+        }
       } else {
         if (!form.response_text.trim()) { alert('返信メッセージを入力してください'); setSaving(false); return }
         response_messages = [{ type: 'text', text: form.response_text }]
@@ -153,6 +190,7 @@ export default function AutoResponses() {
         match_type: form.match_type,
         response_messages,
         is_active: form.is_active,
+        tag_actions: form.tag_actions.filter(a => a.tag_id),
       }
 
       if (editingId) {
@@ -287,6 +325,18 @@ export default function AutoResponses() {
                     <p className="text-slate-700 dark:text-slate-300 truncate">
                       {(resp.response_messages || []).map(m => extractText(m)).join(' / ')}
                     </p>
+                    {(resp.tag_actions || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {resp.tag_actions!.map((ta, i) => {
+                          const tagName = tags.find(t => t.id === ta.tag_id)?.name || '?'
+                          return (
+                            <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${ta.action === 'add' ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'}`}>
+                              {ta.action === 'add' ? '+' : '-'}{tagName}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-center">
                     <button onClick={() => handleToggle(resp)} className="cursor-pointer inline-flex items-center">
@@ -431,18 +481,98 @@ export default function AutoResponses() {
                     className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm resize-none"
                   />
                 ) : (
-                  <select
-                    value={form.template_id}
-                    onChange={e => setForm(f => ({ ...f, template_id: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
-                  >
-                    <option value="">テンプレートを選択...</option>
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}（{t.content?.messages?.length || 0}件）</option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <select
+                      value={form.template_id}
+                      onChange={e => setForm(f => ({ ...f, template_id: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
+                    >
+                      <option value="">{editingId && form.existing_messages.length > 0 ? '現在のメッセージを維持（変更する場合は選択）' : 'テンプレートを選択...'}</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}（{t.content?.messages?.length || 0}件）</option>
+                      ))}
+                    </select>
+                    {!form.template_id && editingId && form.existing_messages.length > 0 && (
+                      <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                        <p className="font-medium text-slate-500 dark:text-slate-400 mb-1">現在の応答内容:</p>
+                        {form.existing_messages.map((m, i) => (
+                          <p key={i}>
+                            {m.type === 'text' ? m.text : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
+
+              {/* タグアクション設定 */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  <Tag size={14} />
+                  タグアクション <span className="text-xs text-slate-400 font-normal">（任意）</span>
+                </label>
+                <p className="text-xs text-slate-400 mb-2">自動応答マッチ時にタグを自動で付けたり外したりできます</p>
+                {form.tag_actions.map((ta, idx) => (
+                  <div key={idx} className="flex items-center gap-2 mb-2">
+                    <select
+                      value={ta.action}
+                      onChange={e => {
+                        const updated = [...form.tag_actions]
+                        updated[idx] = { ...updated[idx], action: e.target.value as 'add' | 'remove' }
+                        setForm(f => ({ ...f, tag_actions: updated }))
+                      }}
+                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                    >
+                      <option value="add">追加</option>
+                      <option value="remove">削除</option>
+                    </select>
+                    <select
+                      value={ta.tag_id}
+                      onChange={e => {
+                        const updated = [...form.tag_actions]
+                        updated[idx] = { ...updated[idx], tag_id: e.target.value }
+                        setForm(f => ({ ...f, tag_actions: updated }))
+                      }}
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                    >
+                      <option value="">タグを選択...</option>
+                      {tags.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, tag_actions: f.tag_actions.filter((_, i) => i !== idx) }))}
+                      className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, tag_actions: [...f.tag_actions, { action: 'add', tag_id: '' }] }))}
+                  className="flex items-center gap-1.5 text-sm text-[#06C755] hover:text-[#05b34c] font-medium transition-colors cursor-pointer"
+                >
+                  <Plus size={14} />
+                  タグアクションを追加
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <TestSendWidget
+                getMessages={() => {
+                  if (form.response_mode === 'template') {
+                    if (form.template_id) {
+                      const tmpl = templates.find(t => t.id === form.template_id)
+                      return tmpl?.content?.messages || null
+                    }
+                    return form.existing_messages.length > 0 ? form.existing_messages : null
+                  }
+                  return form.response_text.trim() ? [{ type: 'text', text: form.response_text }] : null
+                }}
+              />
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
               <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors cursor-pointer">

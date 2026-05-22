@@ -41,6 +41,123 @@ router.get('/document-types', (_req, res) => {
 });
 
 // =====================
+// 会社プロフィール（決算月・設立期）
+// =====================
+
+router.get('/profile', async (_req, res) => {
+  try {
+    const { data } = await supabase.from('company_profile').select('*').single();
+    res.json(data || { fiscal_end_month: null, first_period_start: null, period_count: null });
+  } catch {
+    res.json({ fiscal_end_month: null, first_period_start: null, period_count: null });
+  }
+});
+
+router.post('/profile', async (req, res) => {
+  try {
+    const { fiscalEndMonth, firstPeriodStart } = req.body;
+    if (!fiscalEndMonth || !firstPeriodStart) {
+      return res.status(400).json({ error: '決算月と第1期開始日を入力してください' });
+    }
+
+    // upsert profile
+    const { data: existing } = await supabase.from('company_profile').select('id').limit(1).single();
+    const profileData = {
+      fiscal_end_month: fiscalEndMonth,
+      first_period_start: firstPeriodStart,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await supabase.from('company_profile').update(profileData).eq('id', existing.id);
+    } else {
+      await supabase.from('company_profile').insert(profileData);
+    }
+
+    // 事業年度を自動生成
+    const startDate = new Date(firstPeriodStart);
+    const endMonth = fiscalEndMonth; // 1-12
+    const currentYear = new Date().getFullYear();
+    const generatedYears = [];
+
+    let periodNum = 1;
+    let periodStart = new Date(startDate);
+
+    while (true) {
+      // 期末日を計算
+      let endYear = periodStart.getFullYear();
+      let endMonthDate = endMonth;
+
+      // 第1期は開始日から次の決算月末まで（端数期間対応）
+      if (periodNum === 1) {
+        // 開始月が決算月より後なら翌年の決算月末
+        if (periodStart.getMonth() + 1 > endMonth) {
+          endYear = periodStart.getFullYear() + 1;
+        }
+      } else {
+        // 第2期以降は前期末+1日から12ヶ月後の決算月末
+        endYear = periodStart.getFullYear();
+        if (periodStart.getMonth() + 1 > endMonth) {
+          endYear += 1;
+        }
+      }
+
+      const lastDay = new Date(endYear, endMonthDate, 0).getDate();
+      const periodEnd = new Date(endYear, endMonthDate - 1, lastDay);
+
+      // 現在の日付を含む年度まで生成（未来の年度は作らない）
+      if (periodStart > new Date()) break;
+
+      generatedYears.push({
+        year_label: `第${periodNum}期（${periodEnd.getFullYear()}年${endMonthDate}月期）`,
+        start_date: periodStart.toISOString().split('T')[0],
+        end_date: periodEnd.toISOString().split('T')[0],
+        is_current: false,
+      });
+
+      // 次の期の開始日
+      periodStart = new Date(periodEnd);
+      periodStart.setDate(periodStart.getDate() + 1);
+      periodNum++;
+
+      if (periodNum > 30) break; // 安全弁
+    }
+
+    // 現在の期をマーク
+    const today = new Date().toISOString().split('T')[0];
+    for (const y of generatedYears) {
+      if (y.start_date <= today && y.end_date >= today) {
+        y.is_current = true;
+      }
+    }
+
+    // 既存の年度と照合して重複しないものだけ追加
+    const { data: existingYears } = await supabase.from('fiscal_years').select('start_date, end_date');
+    const existingRanges = new Set((existingYears || []).map(y => `${y.start_date}_${y.end_date}`));
+
+    const newYears = generatedYears.filter(y => !existingRanges.has(`${y.start_date}_${y.end_date}`));
+    if (newYears.length > 0) {
+      const { error } = await supabase.from('fiscal_years').insert(newYears);
+      if (error) throw error;
+    }
+
+    // is_current更新
+    await supabase.from('fiscal_years').update({ is_current: false }).neq('id', '');
+    const currentFY = generatedYears.find(y => y.is_current);
+    if (currentFY) {
+      await supabase.from('fiscal_years')
+        .update({ is_current: true })
+        .eq('start_date', currentFY.start_date)
+        .eq('end_date', currentFY.end_date);
+    }
+
+    res.json({ success: true, generated: newYears.length, total: generatedYears.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
 // 事業年度 CRUD
 // =====================
 router.get('/years', async (_req, res) => {
@@ -82,9 +199,10 @@ router.delete('/years/:id', async (req, res) => {
 // =====================
 router.get('/documents', async (req, res) => {
   try {
-    const { fiscalYearId } = req.query;
+    const { fiscalYearId, targetMonth } = req.query;
     let query = supabase.from('fiscal_documents').select('*').order('created_at', { ascending: false });
     if (fiscalYearId) query = query.eq('fiscal_year_id', fiscalYearId);
+    if (targetMonth) query = query.eq('target_month', targetMonth);
     const { data, error } = await query;
     if (error) throw error;
     res.json(data);
@@ -96,7 +214,7 @@ router.get('/documents', async (req, res) => {
 router.post('/documents/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'ファイルが必要です（最大30MB）' });
-    const { fiscalYearId, documentType, documentSubtype } = req.body;
+    const { fiscalYearId, documentType, documentSubtype, targetMonth } = req.body;
     if (!fiscalYearId) return res.status(400).json({ error: '事業年度が選択されていません' });
     if (!documentType) return res.status(400).json({ error: '書類種別が選択されていません' });
 
@@ -120,14 +238,51 @@ router.post('/documents/upload', upload.single('file'), async (req, res) => {
       supabase_storage_path: storagePath,
       file_hash: hash,
       ai_status: 'analyzing',
+      target_month: targetMonth || null,
     }).select().single();
     if (error) throw error;
 
-    // 非同期でAI解析
-    analyzeDocument(doc.id, req.file.buffer, req.file.mimetype, documentType, fiscalYearId)
-      .catch(err => console.error('Fiscal doc analysis failed:', err.message));
-
+    // ファイルをStorageに保存済みなので、解析は別エンドポイントで実行
+    // 小さいファイル（5MB以下）は同期で試みる
+    if (req.file.size < 5 * 1024 * 1024) {
+      try {
+        await analyzeDocument(doc.id, req.file.buffer, req.file.mimetype, documentType, fiscalYearId, targetMonth || null);
+        const { data: updatedDoc } = await supabase.from('fiscal_documents').select('*').eq('id', doc.id).single();
+        return res.json(updatedDoc || doc);
+      } catch (e) {
+        console.error('[fiscal-upload] sync analysis failed, will retry via analyze endpoint:', e.message);
+      }
+    }
+    // 大きいファイルはpendingで返し、フロントから/analyze を叩いてもらう
     res.json(doc);
+  } catch (err) {
+    const msg = typeof err.message === 'string' ? err.message : JSON.stringify(err.message || err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// 解析実行（大きいファイル用・Storageから取得して解析）
+router.post('/documents/:id/analyze', async (req, res) => {
+  try {
+    const docId = req.params.id;
+    const { data: doc } = await supabase.from('fiscal_documents')
+      .select('*').eq('id', docId).single();
+    if (!doc) return res.status(404).json({ error: '書類が見つかりません' });
+    if (doc.ai_status === 'done') return res.json(doc);
+
+    // Storageからファイル取得
+    const { data: fileData, error: dlErr } = await supabase.storage
+      .from('documents').download(doc.supabase_storage_path);
+    if (dlErr || !fileData) return res.status(500).json({ error: 'ファイルの取得に失敗しました' });
+
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    const mimeType = doc.supabase_storage_path.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+
+    await supabase.from('fiscal_documents').update({ ai_status: 'analyzing' }).eq('id', docId);
+    await analyzeDocument(docId, buffer, mimeType, doc.document_type, doc.fiscal_year_id, doc.target_month);
+
+    const { data: updated } = await supabase.from('fiscal_documents').select('*').eq('id', docId).single();
+    res.json(updated || doc);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -135,11 +290,15 @@ router.post('/documents/upload', upload.single('file'), async (req, res) => {
 
 router.delete('/documents/:id', async (req, res) => {
   try {
-    // 関連メトリクスも削除
-    await supabase.from('fiscal_year_metrics').delete().eq('source_document_id', req.params.id);
-    const { error } = await supabase.from('fiscal_documents').delete().eq('id', req.params.id);
+    const docId = req.params.id;
+    // 関連メトリクスを削除
+    await supabase.from('fiscal_year_metrics').delete().eq('source_document_id', docId);
+    // 関連仕訳を削除（journal_entry_linesはON DELETE CASCADEで自動削除）
+    const { data: deleted } = await supabase.from('journal_entries').delete().eq('fiscal_document_id', docId).select('id');
+    // 書類本体を削除
+    const { error } = await supabase.from('fiscal_documents').delete().eq('id', docId);
     if (error) throw error;
-    res.json({ success: true });
+    res.json({ success: true, deletedJournals: deleted?.length || 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -150,9 +309,10 @@ router.delete('/documents/:id', async (req, res) => {
 // =====================
 router.get('/metrics', async (req, res) => {
   try {
-    const { fiscalYearId } = req.query;
+    const { fiscalYearId, targetMonth } = req.query;
     let query = supabase.from('fiscal_year_metrics').select('*').order('display_order');
     if (fiscalYearId) query = query.eq('fiscal_year_id', fiscalYearId);
+    if (targetMonth) query = query.eq('target_month', targetMonth);
     const { data, error } = await query;
     if (error) throw error;
     res.json(data);
@@ -194,23 +354,22 @@ router.get('/comparison', async (req, res) => {
 // =====================
 // AI解析ロジック
 // =====================
-async function analyzeDocument(docId, buffer, mimeType, documentType, fiscalYearId) {
+async function analyzeDocument(docId, buffer, mimeType, documentType, fiscalYearId, targetMonth) {
   try {
-    const anthropic = getAnthropicClient();
+    const anthropic = await getAnthropicClient();
     const base64 = buffer.toString('base64');
     const typeLabel = DOCUMENT_TYPES.find(t => t.id === documentType)?.label || documentType;
 
-    const content = [];
+    const contentBlock = [];
     if (mimeType === 'application/pdf') {
-      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } });
+      contentBlock.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } });
     } else {
-      content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
+      contentBlock.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
     }
 
-    content.push({
+    contentBlock.push({
       type: 'text',
       text: `この「${typeLabel}」を詳細に読み取り、以下のJSON形式で全ての数値データを抽出してください。
-
 JSONのみを返してください。説明やコメントは不要です。
 
 {
@@ -226,33 +385,27 @@ JSONのみを返してください。説明やコメントは不要です。
   ]
 }
 
-カテゴリ分類ルール:
+メトリクスのカテゴリ分類:
 - 決算書(B/S): "資産", "負債", "純資産"
 - 決算書(P/L): "売上・収益", "売上原価", "販管費", "営業外損益", "特別損益", "税金・利益"
 - 法人税申告書: "法人税", "所得金額", "税額計算"
 - 消費税申告書: "消費税"
 - 地方税申告書: "地方税"
 - 納付税額一覧表: "納付税額"
-- 科目内訳明細書: "売掛金内訳", "買掛金内訳", "借入金内訳", "固定資産内訳" 等、科目名をカテゴリに
+- 科目内訳明細書: 科目名をカテゴリに
 - 事業概況説明書: "会社概要", "事業内容", "従業員", "取引状況"
 - 株主資本等変動計算書: "株主資本変動"
 - キャッシュフロー計算書: "営業CF", "投資CF", "財務CF"
 - 減価償却明細: "減価償却"
-- 給与台帳: "人件費"
-- その他: 適切なカテゴリ名を付与
+- その他: 適切なカテゴリ名
 
-全ての数値を漏れなく抽出してください。特に：
-- 金額は全て数値（整数）で返す
-- 合計、小計、差引なども含める
-- 税率・税額・所得金額なども含める
-- 従業員数、株数などの非金額数値も含める
-- 期首残高・期末残高がある場合は両方含める`,
+全ての数値を漏れなく抽出。金額は全て整数。合計・小計も含める。`,
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
-      messages: [{ role: 'user', content }],
+      model: 'claude-sonnet-4-6',
+      max_tokens: 16384,
+      messages: [{ role: 'user', content: contentBlock }],
     });
 
     const text = response.content[0]?.text || '';
@@ -279,14 +432,15 @@ JSONのみを返してください。説明やコメントは不要です。
         metric_label: m.label || m.key,
         metric_value: typeof m.value === 'number' ? m.value : null,
         metric_text: m.text || null,
+        target_month: targetMonth || null,
         display_order: i,
       }));
-
-      // 100件ずつバッチ挿入
       for (let i = 0; i < rows.length; i += 100) {
         await supabase.from('fiscal_year_metrics').insert(rows.slice(i, i + 100));
       }
     }
+
+    // B/S・P/LはメトリクスデータからUI側で直接表示（仕訳は生成しない）
   } catch (err) {
     console.error('Fiscal analysis error:', err.message);
     let errorMsg = err.message;

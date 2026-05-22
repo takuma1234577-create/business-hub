@@ -494,7 +494,7 @@ router.get('/shopify-products', async (req, res) => {
     if (!store) return res.status(400).json({ error: 'Shopifyストアが連携されていません' });
 
     const allProducts = [];
-    let url = `https://${store.shop_domain}/admin/api/2024-01/products.json?limit=250`;
+    let url = `https://${store.shop_domain}/admin/api/2025-01/products.json?limit=250`;
 
     while (url) {
       const prodRes = await axios.get(url, {
@@ -833,7 +833,7 @@ router.post('/sync-inventory', async (req, res) => {
 
     // 4. Get Shopify primary location (the one that fulfills online orders)
     const shopRes = await axios.get(
-      `https://${store.shop_domain}/admin/api/2024-01/shop.json`,
+      `https://${store.shop_domain}/admin/api/2025-01/shop.json`,
       { headers: { 'X-Shopify-Access-Token': store.access_token } }
     );
     const locationId = shopRes.data.shop?.primary_location_id;
@@ -860,7 +860,7 @@ router.post('/sync-inventory', async (req, res) => {
         if (mapping.channel_sku && !/^\d{10,}$/.test(mapping.channel_sku)) {
           // If channel_sku looks like a real SKU (not a variantId)
           const variantsRes = await axios.get(
-            `https://${store.shop_domain}/admin/api/2024-01/variants.json?query=sku:${encodeURIComponent(mapping.channel_sku)}`,
+            `https://${store.shop_domain}/admin/api/2025-01/variants.json?query=sku:${encodeURIComponent(mapping.channel_sku)}`,
             { headers: { 'X-Shopify-Access-Token': store.access_token } }
           ).catch(() => null);
           const v = variantsRes?.data?.variants?.[0];
@@ -870,7 +870,7 @@ router.post('/sync-inventory', async (req, res) => {
         // If SKU didn't work, try as variantId
         if (!variantId && /^\d{10,}$/.test(mapping.channel_sku)) {
           const vRes = await axios.get(
-            `https://${store.shop_domain}/admin/api/2024-01/variants/${mapping.channel_sku}.json`,
+            `https://${store.shop_domain}/admin/api/2025-01/variants/${mapping.channel_sku}.json`,
             { headers: { 'X-Shopify-Access-Token': store.access_token } }
           ).catch(() => null);
           const v = vRes?.data?.variant;
@@ -884,7 +884,7 @@ router.post('/sync-inventory', async (req, res) => {
 
         // Update Shopify inventory
         await axios.post(
-          `https://${store.shop_domain}/admin/api/2024-01/inventory_levels/set.json`,
+          `https://${store.shop_domain}/admin/api/2025-01/inventory_levels/set.json`,
           {
             location_id: locationId,
             inventory_item_id: inventoryItemId,
@@ -965,7 +965,7 @@ router.post('/hide-product', async (req, res) => {
 // Fetch all orders from Shopify with cursor-based pagination
 async function fetchAllShopifyOrders(shopDomain, accessToken, sinceDate) {
   const allOrders = [];
-  let url = `https://${shopDomain}/admin/api/2024-01/orders.json?status=any&limit=250${sinceDate ? '&created_at_min=' + sinceDate : ''}`;
+  let url = `https://${shopDomain}/admin/api/2025-01/orders.json?status=any&limit=250${sinceDate ? '&created_at_min=' + sinceDate : ''}`;
 
   while (url) {
     const res = await axios.get(url, {
@@ -1020,15 +1020,29 @@ router.post('/sync-orders', async (req, res) => {
       console.log(`[sync-orders] Found ${shopifyOrders.length} orders from ${store.store_name}`);
 
       for (const order of shopifyOrders) {
-        // Check if already imported
+        // ★強化された重複チェック: channel_order_idまたはShopify order numberで既存注文を検索
         const { data: existing } = await supabase
           .from('orders')
-          .select('id')
+          .select('id, status')
           .eq('channel_order_id', String(order.id))
           .eq('channel', 'SHOPIFY')
           .maybeSingle();
 
         if (existing) {
+          totalSkipped++;
+          continue;
+        }
+
+        // ★追加の重複チェック: 同じShopify注文番号の注文が既にないか（IDが変わるケース対策）
+        const { data: existingByNumber } = await supabase
+          .from('orders')
+          .select('id, status')
+          .eq('channel', 'SHOPIFY')
+          .like('id', `SHOP-${order.id}%`)
+          .maybeSingle();
+
+        if (existingByNumber) {
+          console.warn(`[sync-orders] DUPLICATE SKIP: Shopify order ${order.id} already exists as ${existingByNumber.id}`);
           totalSkipped++;
           continue;
         }
@@ -1125,6 +1139,40 @@ router.post('/orders/:id/fulfill', async (req, res) => {
       return res.status(400).json({ error: `注文ステータスが${order.status}のため、発送依頼できません` });
     }
 
+    // ★重複発送防止: 既にMCF注文IDがある場合は拒否
+    if (order.mcf_order_id) {
+      console.warn(`[fulfill] DUPLICATE BLOCKED: order ${id} already has mcf_order_id=${order.mcf_order_id}`);
+      return res.status(400).json({ error: `この注文は既に発送済みです (MCF: ${order.mcf_order_id})` });
+    }
+
+    // ★重複発送防止: 同じchannel_order_idで既にSUBMITTED/SHIPPED/DELIVEREDの注文がないかチェック
+    if (order.channel_order_id) {
+      const { data: duplicates } = await supabase
+        .from('orders')
+        .select('id, status, mcf_order_id')
+        .eq('channel_order_id', order.channel_order_id)
+        .in('status', ['SUBMITTED', 'SHIPPED', 'DELIVERED'])
+        .neq('id', id);
+      if (duplicates && duplicates.length > 0) {
+        console.warn(`[fulfill] DUPLICATE BLOCKED: channel_order_id=${order.channel_order_id} already fulfilled by order ${duplicates[0].id}`);
+        // この注文をDUPLICATEステータスに変更
+        await supabase.from('orders').update({ status: 'DUPLICATE', error_message: `重複注文: ${duplicates[0].id}が既に発送済み`, updated_at: new Date().toISOString() }).eq('id', id);
+        return res.status(400).json({ error: `同じ注文(${order.channel_order_id})が既に発送済みです (${duplicates[0].id})` });
+      }
+    }
+
+    // ★重複発送防止: fulfillment_logsでMCF_SUBMITTEDの履歴がないかチェック
+    const { data: existingLogs } = await supabase
+      .from('fulfillment_logs')
+      .select('id')
+      .eq('order_id', id)
+      .eq('event', 'MCF_SUBMITTED')
+      .limit(1);
+    if (existingLogs && existingLogs.length > 0) {
+      console.warn(`[fulfill] DUPLICATE BLOCKED: order ${id} already has MCF_SUBMITTED log`);
+      return res.status(400).json({ error: 'この注文は既にMCF発送依頼済みです' });
+    }
+
     // Check all items have amazon_sku
     const items = order.order_items || [];
     const unmapped = items.filter(i => !i.amazon_sku);
@@ -1145,7 +1193,7 @@ router.post('/orders/:id/fulfill', async (req, res) => {
       displayableOrderId: order.channel_order_id,
       displayableOrderDate: order.created_at,
       displayableOrderComment: `Shopify Order ${order.channel_order_id}`,
-      shippingSpeedCategory: order.shipping_speed || 'Standard',
+      shippingSpeedCategory: 'Standard',
       destinationAddress: {
         name: order.recipient_name,
         addressLine1: order.address_line1,
@@ -1237,6 +1285,42 @@ router.post('/fulfill-all', async (req, res) => {
         continue;
       }
 
+      // ★重複発送防止: 既にMCF注文IDがある場合はスキップ
+      if (order.mcf_order_id) {
+        console.warn(`[fulfill-all] SKIP: order ${order.id} already has mcf_order_id=${order.mcf_order_id}`);
+        skipped++;
+        continue;
+      }
+
+      // ★重複発送防止: 同じchannel_order_idで既に発送済みの注文がないかチェック
+      if (order.channel_order_id) {
+        const { data: duplicates } = await supabase
+          .from('orders')
+          .select('id, status')
+          .eq('channel_order_id', order.channel_order_id)
+          .in('status', ['SUBMITTED', 'SHIPPED', 'DELIVERED'])
+          .neq('id', order.id);
+        if (duplicates && duplicates.length > 0) {
+          console.warn(`[fulfill-all] DUPLICATE SKIP: channel_order_id=${order.channel_order_id} already fulfilled`);
+          await supabase.from('orders').update({ status: 'DUPLICATE', error_message: `重複注文: ${duplicates[0].id}が既に発送済み`, updated_at: new Date().toISOString() }).eq('id', order.id);
+          skipped++;
+          continue;
+        }
+      }
+
+      // ★重複発送防止: fulfillment_logsの履歴チェック
+      const { data: existingLogs } = await supabase
+        .from('fulfillment_logs')
+        .select('id')
+        .eq('order_id', order.id)
+        .eq('event', 'MCF_SUBMITTED')
+        .limit(1);
+      if (existingLogs && existingLogs.length > 0) {
+        console.warn(`[fulfill-all] DUPLICATE SKIP: order ${order.id} already has MCF_SUBMITTED log`);
+        skipped++;
+        continue;
+      }
+
       try {
         const { token, endpoint } = await getAccessToken();
         const mcfOrderId = `MCF-${order.id}-${Date.now()}`;
@@ -1248,7 +1332,7 @@ router.post('/fulfill-all', async (req, res) => {
             displayableOrderId: order.channel_order_id,
             displayableOrderDate: order.created_at,
             displayableOrderComment: `Auto-fulfillment: ${order.channel} Order ${order.channel_order_id}`,
-            shippingSpeedCategory: order.shipping_speed || 'Standard',
+            shippingSpeedCategory: 'Standard',
             destinationAddress: {
               name: order.recipient_name,
               addressLine1: order.address_line1,
@@ -1422,7 +1506,7 @@ router.post('/orders/:id/sync-to-shopify', async (req, res) => {
     // Create fulfillment in Shopify
     // First, get the order's fulfillment orders
     const foRes = await axios.get(
-      `https://${store.shop_domain}/admin/api/2024-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+      `https://${store.shop_domain}/admin/api/2025-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
       { headers: { 'X-Shopify-Access-Token': store.access_token } }
     );
 
@@ -1435,7 +1519,7 @@ router.post('/orders/:id/sync-to-shopify', async (req, res) => {
 
     // Create fulfillment
     const fulfillmentRes = await axios.post(
-      `https://${store.shop_domain}/admin/api/2024-01/fulfillments.json`,
+      `https://${store.shop_domain}/admin/api/2025-01/fulfillments.json`,
       {
         fulfillment: {
           line_items_by_fulfillment_order: [{
@@ -1497,7 +1581,7 @@ router.post('/sync-all-to-shopify', async (req, res) => {
     for (const order of orders || []) {
       try {
         const foRes = await axios.get(
-          `https://${store.shop_domain}/admin/api/2024-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+          `https://${store.shop_domain}/admin/api/2025-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
           { headers: { 'X-Shopify-Access-Token': store.access_token } }
         );
 
@@ -1505,7 +1589,7 @@ router.post('/sync-all-to-shopify', async (req, res) => {
         if (!openFO) continue; // Already fulfilled in Shopify
 
         await axios.post(
-          `https://${store.shop_domain}/admin/api/2024-01/fulfillments.json`,
+          `https://${store.shop_domain}/admin/api/2025-01/fulfillments.json`,
           {
             fulfillment: {
               line_items_by_fulfillment_order: [{ fulfillment_order_id: openFO.id }],
@@ -1652,7 +1736,7 @@ router.get('/cron/sync', async (req, res) => {
             displayableOrderId: order.channel_order_id,
             displayableOrderDate: order.created_at,
             displayableOrderComment: `Auto: ${order.channel} #${order.channel_order_id}`,
-            shippingSpeedCategory: order.shipping_speed || 'Standard',
+            shippingSpeedCategory: 'Standard',
             destinationAddress: {
               name: order.recipient_name,
               addressLine1: order.address_line1,
@@ -1702,7 +1786,7 @@ router.get('/cron/sync', async (req, res) => {
           nextTok = r.data.pagination?.nextToken || null;
         } while (nextTok);
 
-        const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
+        const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
         const locationId = shopRes2.data.shop?.primary_location_id;
 
         let invSynced = 0;
@@ -1712,15 +1796,15 @@ router.get('/cron/sync', async (req, res) => {
           try {
             let inventoryItemId = null;
             if (m.channel_sku && !/^\d{10,}$/.test(m.channel_sku)) {
-              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/variants.json?query=sku:${encodeURIComponent(m.channel_sku)}`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants.json?query=sku:${encodeURIComponent(m.channel_sku)}`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
               inventoryItemId = vRes?.data?.variants?.[0]?.inventory_item_id;
             }
             if (!inventoryItemId && /^\d{10,}$/.test(m.channel_sku)) {
-              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2024-01/variants/${m.channel_sku}.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants/${m.channel_sku}.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
               inventoryItemId = vRes?.data?.variant?.inventory_item_id;
             }
             if (!inventoryItemId) continue;
-            await axios.post(`https://${shopStore.shop_domain}/admin/api/2024-01/inventory_levels/set.json`, {
+            await axios.post(`https://${shopStore.shop_domain}/admin/api/2025-01/inventory_levels/set.json`, {
               location_id: locationId, inventory_item_id: inventoryItemId, available: amzQty,
             }, { headers: { 'X-Shopify-Access-Token': shopStore.access_token, 'Content-Type': 'application/json' } });
             invSynced++;
@@ -1733,6 +1817,129 @@ router.get('/cron/sync', async (req, res) => {
       console.error('[cron/sync] inventory sync error:', err.message);
     }
 
+    // 4. Check tracking info for SUBMITTED orders (Amazon MCF → DB)
+    try {
+      const { data: submittedOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .not('mcf_order_id', 'is', null)
+        .in('status', ['SUBMITTED', 'PENDING'])
+        .limit(50);
+
+      let trackingUpdated = 0;
+      if (submittedOrders && submittedOrders.length > 0) {
+        const { token: trkToken, endpoint: trkEndpoint } = await getAccessToken();
+        for (const order of submittedOrders) {
+          try {
+            const mcfRes = await axios.get(
+              `${trkEndpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${order.mcf_order_id}`,
+              { headers: { 'x-amz-access-token': trkToken, 'Content-Type': 'application/json' } }
+            );
+            const fulfillment = mcfRes.data.payload?.fulfillmentOrder;
+            const shipments = mcfRes.data.payload?.fulfillmentShipments || [];
+            const shipment = shipments[0];
+            const pkg = shipment?.fulfillmentShipmentPackage?.[0];
+            const mcfStatus = fulfillment?.fulfillmentOrderStatus || '';
+            const trackingNumber = pkg?.trackingNumber || null;
+            const carrier = pkg?.carrierCode || null;
+
+            const updateData = {};
+            if (mcfStatus === 'Complete' || mcfStatus === 'COMPLETE' || shipment?.fulfillmentShipmentStatus === 'SHIPPED') {
+              updateData.status = 'SHIPPED';
+              updateData.shipped_at = shipment?.shippingDate || new Date().toISOString();
+            }
+            if (trackingNumber && trackingNumber !== order.tracking_number) {
+              updateData.tracking_number = trackingNumber;
+              updateData.carrier = carrier;
+              updateData.tracking_updated_at = new Date().toISOString();
+              if (!updateData.status) updateData.status = 'TRACKING_UPDATED';
+            }
+            if (Object.keys(updateData).length > 0) {
+              updateData.updated_at = new Date().toISOString();
+              await supabase.from('orders').update(updateData).eq('id', order.id);
+              await supabase.from('fulfillment_logs').insert({
+                order_id: order.id,
+                event: trackingNumber ? 'TRACKING_UPDATED' : 'STATUS_CHECK',
+                message: `[自動] 追跡番号: ${trackingNumber || '-'} (${carrier || '-'}) / MCF: ${mcfStatus}`,
+                payload: JSON.stringify({ mcfStatus, trackingNumber, carrier }),
+              });
+              trackingUpdated++;
+            }
+          } catch (err) {
+            console.error(`[cron/sync] tracking check error for ${order.mcf_order_id}:`, err.message);
+          }
+        }
+      }
+      results.trackingCheck = { checked: submittedOrders?.length || 0, updated: trackingUpdated };
+      console.log(`[cron/sync] Tracking check: ${trackingUpdated} updated`);
+    } catch (err) {
+      console.error('[cron/sync] tracking check error:', err.message);
+      results.trackingCheck = { error: err.message };
+    }
+
+    // 5. Push tracking info to Shopify for SHIPPED/TRACKING_UPDATED orders
+    try {
+      const { data: shippedOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('channel', 'SHOPIFY')
+        .not('tracking_number', 'is', null)
+        .in('status', ['SHIPPED', 'TRACKING_UPDATED'])
+        .limit(50);
+
+      const { data: shopStoresForSync } = await supabase
+        .from('channel_stores')
+        .select('*')
+        .eq('channel', 'SHOPIFY')
+        .eq('is_active', true);
+      const shopStoreForSync = shopStoresForSync?.[0];
+
+      let shopifySynced = 0;
+      if (shippedOrders && shippedOrders.length > 0 && shopStoreForSync) {
+        for (const order of shippedOrders) {
+          try {
+            const foRes = await axios.get(
+              `https://${shopStoreForSync.shop_domain}/admin/api/2025-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+              { headers: { 'X-Shopify-Access-Token': shopStoreForSync.access_token } }
+            );
+            const openFO = (foRes.data.fulfillment_orders || []).find(fo => fo.status === 'open' || fo.status === 'in_progress');
+            if (!openFO) {
+              // Already fulfilled in Shopify, mark as COMPLETED
+              await supabase.from('orders').update({ status: 'TRACKING_UPDATED', updated_at: new Date().toISOString() }).eq('id', order.id);
+              continue;
+            }
+
+            await axios.post(
+              `https://${shopStoreForSync.shop_domain}/admin/api/2025-01/fulfillments.json`,
+              {
+                fulfillment: {
+                  line_items_by_fulfillment_order: [{ fulfillment_order_id: openFO.id }],
+                  tracking_info: { number: order.tracking_number, company: order.carrier || 'Amazon' },
+                  notify_customer: true,
+                },
+              },
+              { headers: { 'X-Shopify-Access-Token': shopStoreForSync.access_token, 'Content-Type': 'application/json' } }
+            );
+
+            await supabase.from('orders').update({ status: 'TRACKING_UPDATED', updated_at: new Date().toISOString() }).eq('id', order.id);
+            await supabase.from('fulfillment_logs').insert({
+              order_id: order.id,
+              event: 'SHOPIFY_SYNCED',
+              message: `[自動] Shopifyに配送情報反映: ${order.tracking_number} (${order.carrier || 'Amazon'})`,
+            });
+            shopifySynced++;
+          } catch (err) {
+            console.error(`[cron/sync] Shopify sync error for ${order.id}:`, err.message);
+          }
+        }
+      }
+      results.shopifySync = { synced: shopifySynced, total: shippedOrders?.length || 0 };
+      console.log(`[cron/sync] Shopify sync: ${shopifySynced} orders`);
+    } catch (err) {
+      console.error('[cron/sync] Shopify sync error:', err.message);
+      results.shopifySync = { error: err.message };
+    }
+
   } catch (err) {
     console.error('[cron/sync] error:', err.message);
     return res.status(500).json({ error: err.message, partial: results });
@@ -1742,3 +1949,4 @@ router.get('/cron/sync', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getAccessToken = getAccessToken;

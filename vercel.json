@@ -4,7 +4,7 @@
   "framework": "vite",
   "functions": {
     "api/index.js": {
-      "maxDuration": 60,
+      "maxDuration": 120,
       "memory": 1024
     }
   },
@@ -14,16 +14,8 @@
   ],
   "crons": [
     {
-      "path": "/api/invoice/cron",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/amazon/cron/sync",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/line-crm/email-auto-reply/cron",
-      "schedule": "0 9 * * *"
+      "path": "/api/daily-cron",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -97,7 +97,11 @@ export function JournalEntries() {
       const result = await importStatementApi.upload(importFile, importType)
       setImportResult(result)
       fetchEntries()
-    } catch (err) { console.error(err); alert('取り込みに失敗しました') }
+    } catch (err: any) {
+      console.error(err)
+      const msg = err?.response?.data?.error || err?.message || '不明なエラー'
+      alert('取り込みに失敗しました: ' + msg)
+    }
     finally { setImporting(false) }
   }
 

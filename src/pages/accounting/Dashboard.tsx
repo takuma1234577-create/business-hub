@@ -1,145 +1,187 @@
 import { useState, useEffect } from 'react'
-import { dashboardApi, documentApi } from './api'
-import type { DashboardStats, AccountingDocument } from './types'
-import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS } from './types'
-import { FileText, Clock, CheckCircle, BookOpen, TrendingUp, AlertCircle } from 'lucide-react'
+import { fiscalSummaryApi } from './api'
+import type { FiscalSummary } from './api'
+import { useFiscalYear } from '../AccountingTool'
+import {
+  TrendingUp, TrendingDown, DollarSign,
+  BookOpen, FileText, PieChart,
+} from 'lucide-react'
 
-const formatCurrency = (amount: number, currency = 'JPY') => {
-  if (currency === 'JPY') return `¥${amount.toLocaleString()}`
-  if (currency === 'USD') return `$${amount.toLocaleString()}`
-  return `${amount.toLocaleString()} ${currency}`
-}
-
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+const fmt = (n: number) => `¥${Math.round(n).toLocaleString()}`
+const fmtCompact = (n: number) => {
+  if (Math.abs(n) >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`
+  if (Math.abs(n) >= 10_000) return `${Math.round(n / 10_000).toLocaleString()}万`
+  return `¥${Math.round(n).toLocaleString()}`
 }
 
 export function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [recentDocs, setRecentDocs] = useState<AccountingDocument[]>([])
+  const { fiscalYear, allYears } = useFiscalYear()
+  const [summary, setSummary] = useState<FiscalSummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      dashboardApi.stats(),
-      documentApi.list({ limit: 10 }),
-    ]).then(([s, d]) => {
-      setStats(s)
-      setRecentDocs(d.documents)
-    }).catch(console.error).finally(() => setLoading(false))
-  }, [])
+    setLoading(true)
+    // 全期: 全年度の最古〜最新、個別期: 選択年度の期間
+    let startDate: string, endDate: string
+    if (fiscalYear) {
+      startDate = fiscalYear.start_date
+      endDate = fiscalYear.end_date
+    } else if (allYears.length > 0) {
+      startDate = allYears[allYears.length - 1].start_date
+      endDate = allYears[0].end_date
+    } else {
+      setLoading(false); return
+    }
+    fiscalSummaryApi.get(startDate, endDate)
+      .then(setSummary)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [fiscalYear, allYears])
 
   if (loading) {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+          <div key={i} className="h-28 bg-gray-100 rounded-lg animate-pulse" />
         ))}
       </div>
     )
   }
 
-  if (!stats) return <p className="text-gray-500">データの取得に失敗しました</p>
+  if (!summary) return <p className="text-gray-500">データの取得に失敗しました</p>
 
-  const statCards = [
-    { label: '総書類数', value: stats.totalDocuments, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: '未確認', value: stats.pendingCount, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: '確認済み', value: stats.confirmedCount, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: '仕訳済み', value: stats.journalizedCount, icon: BookOpen, color: 'text-purple-600', bg: 'bg-purple-50' },
-  ]
+  const profitMargin = summary.totalRevenue > 0 ? (summary.netIncome / summary.totalRevenue * 100) : 0
 
   return (
     <div className="space-y-6">
-      {/* サマリーカード */}
+      {/* KPIカード */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {statCards.map(card => (
-          <div key={card.label} className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${card.bg}`}>
-                <card.icon size={20} className={card.color} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-                <p className="text-xs text-gray-500">{card.label}</p>
-              </div>
-            </div>
-          </div>
-        ))}
+        <KPICard
+          label="売上高"
+          value={fmtCompact(summary.salesRevenue)}
+          icon={TrendingUp}
+          color="blue"
+        />
+        <KPICard
+          label="営業利益"
+          value={fmtCompact(summary.operatingIncome)}
+          icon={summary.operatingIncome >= 0 ? TrendingUp : TrendingDown}
+          color={summary.operatingIncome >= 0 ? 'emerald' : 'red'}
+        />
+        <KPICard
+          label="当期純利益"
+          value={fmtCompact(summary.netIncome)}
+          icon={DollarSign}
+          color={summary.netIncome >= 0 ? 'violet' : 'red'}
+          sub={summary.totalRevenue > 0 ? `利益率 ${profitMargin.toFixed(1)}%` : undefined}
+        />
+        <KPICard
+          label="仕訳件数"
+          value={`${summary.journalCount}件`}
+          icon={BookOpen}
+          color="gray"
+        />
       </div>
 
-      {/* 金額サマリー */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* ミニP/L */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={18} className="text-blue-500" />
-            <span className="text-sm text-gray-500">今月の合計金額</span>
+          <div className="flex items-center gap-2 mb-4">
+            <FileText size={16} className="text-violet-500" />
+            <h3 className="text-sm font-medium text-gray-700">損益計算書サマリー</h3>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.thisMonthTotal)}</p>
+          <div className="space-y-2">
+            <PLRow label="売上高" amount={summary.salesRevenue} bold />
+            <PLRow label="売上原価" amount={summary.costOfSales} indent />
+            <PLRow label="売上総利益" amount={summary.grossProfit} border />
+            <PLRow label="販売費及び一般管理費" amount={summary.sgaExpenses} indent />
+            <PLRow label="営業利益" amount={summary.operatingIncome} bold border />
+            <div className="pt-1" />
+            <PLRow label="経費合計" amount={summary.totalExpenses} indent />
+            <PLRow label="当期純利益" amount={summary.netIncome} bold highlight />
+          </div>
         </div>
+
+        {/* ミニB/S */}
         <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={18} className="text-emerald-500" />
-            <span className="text-sm text-gray-500">今年の合計金額</span>
+          <div className="flex items-center gap-2 mb-4">
+            <PieChart size={16} className="text-violet-500" />
+            <h3 className="text-sm font-medium text-gray-700">貸借対照表サマリー</h3>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.thisYearTotal)}</p>
-        </div>
-      </div>
-
-      {/* 書類種別内訳 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">書類種別内訳</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {(Object.entries(DOCUMENT_TYPE_LABELS) as [string, string][]).map(([key, label]) => (
-            <div key={key} className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="text-lg font-semibold text-gray-900">{stats.byType[key as keyof typeof stats.byType] || 0}</p>
-              <p className="text-xs text-gray-500">{label}</p>
+          <div className="space-y-3">
+            <BSBar label="資産合計" amount={summary.totalAssets} color="bg-blue-500" total={summary.totalAssets} />
+            <BSBar label="負債合計" amount={summary.totalLiabilities} color="bg-red-400" total={summary.totalAssets} />
+            <BSBar label="純資産合計" amount={summary.totalEquity} color="bg-emerald-500" total={summary.totalAssets} />
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>負債・純資産合計</span>
+              <span className="font-mono">{fmt(summary.totalLiabilities + summary.totalEquity)}</span>
             </div>
-          ))}
+            {Math.abs(summary.totalAssets - (summary.totalLiabilities + summary.totalEquity)) < 1 ? (
+              <p className="text-xs text-emerald-600 mt-1">貸借一致</p>
+            ) : (
+              <p className="text-xs text-red-500 mt-1">
+                貸借不一致: 差額 {fmt(Math.abs(summary.totalAssets - (summary.totalLiabilities + summary.totalEquity)))}
+              </p>
+            )}
+          </div>
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* 最近の書類 */}
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-medium text-gray-700">最近の書類</h3>
+function KPICard({ label, value, icon: Icon, color, sub }: {
+  label: string; value: string; icon: any; color: string; sub?: string
+}) {
+  const colorMap: Record<string, { bg: string; text: string }> = {
+    blue: { bg: 'bg-blue-50', text: 'text-blue-600' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+    violet: { bg: 'bg-violet-50', text: 'text-violet-600' },
+    red: { bg: 'bg-red-50', text: 'text-red-600' },
+    gray: { bg: 'bg-gray-50', text: 'text-gray-600' },
+  }
+  const c = colorMap[color] || colorMap.gray
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg ${c.bg}`}>
+          <Icon size={18} className={c.text} />
         </div>
-        {recentDocs.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            <AlertCircle size={24} className="mx-auto mb-2" />
-            <p>書類がまだありません</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {recentDocs.map(doc => (
-              <div key={doc.id} className="px-5 py-3 flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {doc.vendorName || doc.originalFilename || '不明'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {DOCUMENT_TYPE_LABELS[doc.documentType]} · {formatDate(doc.documentDate)}
-                  </p>
-                </div>
-                <div className="text-right ml-4">
-                  {doc.amountIncludingTax != null && (
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatCurrency(doc.amountIncludingTax, doc.currency)}
-                    </p>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    doc.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                    doc.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                    'bg-purple-100 text-purple-700'
-                  }`}>
-                    {DOCUMENT_STATUS_LABELS[doc.status]}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div>
+          <p className="text-xl font-bold text-gray-900">{value}</p>
+          <p className="text-xs text-gray-500">{label}</p>
+          {sub && <p className="text-xs text-gray-400">{sub}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PLRow({ label, amount, bold, indent, border, highlight }: {
+  label: string; amount: number; bold?: boolean; indent?: boolean; border?: boolean; highlight?: boolean
+}) {
+  return (
+    <div className={`flex justify-between py-1 text-sm ${border ? 'border-t border-gray-200 pt-2' : ''} ${highlight ? 'bg-violet-50 px-3 -mx-3 rounded py-2' : ''}`}>
+      <span className={`${bold ? 'font-medium text-gray-900' : 'text-gray-600'} ${indent ? 'pl-3' : ''}`}>{label}</span>
+      <span className={`font-mono ${bold ? 'font-medium' : ''} ${amount >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+        {fmt(amount)}
+      </span>
+    </div>
+  )
+}
+
+function BSBar({ label, amount, color, total }: { label: string; amount: number; color: string; total: number }) {
+  const pct = total > 0 ? Math.max((amount / total) * 100, 2) : 0
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="text-gray-700">{label}</span>
+        <span className="font-mono text-gray-900">{fmt(amount)}</span>
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   )

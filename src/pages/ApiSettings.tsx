@@ -22,6 +22,11 @@ import {
 import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api/settings' })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
 interface Connection {
   id: string
@@ -109,6 +114,54 @@ const googleServices: GoogleService[] = [
 
 export default function ApiSettings() {
   const navigate = useNavigate()
+
+  // ── API設定用の二段階認証ゲート ──
+  const [settingsAuth, setSettingsAuth] = useState<'pending' | 'code_sent' | 'verified'>('pending')
+  const [settingsCode, setSettingsCode] = useState('')
+  const [settingsAuthLoading, setSettingsAuthLoading] = useState(false)
+  const [settingsAuthError, setSettingsAuthError] = useState('')
+  const [settingsEmail, setSettingsEmail] = useState('')
+
+  const requestSettingsCode = async () => {
+    setSettingsAuthLoading(true)
+    setSettingsAuthError('')
+    try {
+      const res = await fetch('/api/auth/request-settings-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (data.settings_token) {
+        // Gmail未設定時は2FAスキップで直接認証
+        setSettingsAuth('verified')
+        return
+      }
+      setSettingsEmail(data.email?.replace(/(.{2})(.*)(@.*)/, '$1***$3') || '')
+      setSettingsAuth('code_sent')
+    } catch (err: unknown) {
+      setSettingsAuthError(err instanceof Error ? err.message : 'エラー')
+    } finally { setSettingsAuthLoading(false) }
+  }
+
+  const verifySettingsCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSettingsAuthLoading(true)
+    setSettingsAuthError('')
+    try {
+      const res = await fetch('/api/auth/verify-settings-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+        body: JSON.stringify({ code: settingsCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSettingsAuth('verified')
+    } catch (err: unknown) {
+      setSettingsAuthError(err instanceof Error ? err.message : 'エラー')
+    } finally { setSettingsAuthLoading(false) }
+  }
+
   const [connections, setConnections] = useState<Connection[]>([])
   const [amazonAccounts, setAmazonAccounts] = useState<AmazonAccount[]>([])
   const [channelStores, setChannelStores] = useState<ChannelStore[]>([])
@@ -402,6 +455,52 @@ export default function ApiSettings() {
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  // API設定用の認証ゲート
+  if (settingsAuth !== 'verified') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+              <Shield size={24} className="text-white" />
+            </div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">API設定 - 追加認証</h1>
+            <p className="text-sm text-slate-500 mt-1">セキュリティ保護のため、メール認証が必要です</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+            {settingsAuthError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-600">{settingsAuthError}</div>
+            )}
+            {settingsAuth === 'pending' ? (
+              <div className="text-center">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">登録メールアドレスに認証コードを送信します</p>
+                <button onClick={requestSettingsCode} disabled={settingsAuthLoading}
+                  className="w-full py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+                  {settingsAuthLoading ? '送信中...' : '認証コードを送信'}
+                </button>
+                <button onClick={() => navigate('/')} className="w-full mt-3 text-xs text-slate-400 hover:text-slate-600 cursor-pointer">戻る</button>
+              </div>
+            ) : (
+              <form onSubmit={verifySettingsCode}>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 text-center">
+                  <span className="font-semibold">{settingsEmail}</span> に認証コードを送信しました
+                </p>
+                <input type="text" value={settingsCode} onChange={e => setSettingsCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456" required maxLength={6} autoFocus
+                  className="w-full text-center text-2xl tracking-[0.5em] px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 font-mono" />
+                <button type="submit" disabled={settingsAuthLoading || settingsCode.length !== 6}
+                  className="w-full mt-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+                  {settingsAuthLoading ? '検証中...' : '認証する'}
+                </button>
+                <button type="button" onClick={() => navigate('/')} className="w-full mt-3 text-xs text-slate-400 hover:text-slate-600 cursor-pointer">戻る</button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
@@ -850,7 +949,7 @@ export default function ApiSettings() {
                         <CheckCircle2 size={14} />
                       </span>
                     )}
-                    {key.id === 'anthropic' && key.isSet && (
+                    {(key.id === 'anthropic' || key.id === 'openai') && key.isSet && (
                       <button
                         onClick={async () => {
                           setKeyTesting(key.id)

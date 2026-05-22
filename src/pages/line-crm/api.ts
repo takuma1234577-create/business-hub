@@ -16,7 +16,7 @@ const api = axios.create({
   baseURL: '/api/line-crm',
   headers: { 'Content-Type': 'application/json' },
 })
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 // Friends API
 export const friendApi = {
   list: (params?: FriendListParams) =>
@@ -49,6 +49,20 @@ export const chatApi = {
   send: (friendId: string, content: string) =>
     api.post<ChatMessage>(`/chat/${friendId}/send`, { content }).then(r => r.data),
 
+  upload: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<{ url: string; type: 'image' | 'video'; fileName: string }>('/chat/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+
+  sendMedia: (friendId: string, url: string, type: 'image' | 'video', previewUrl?: string) =>
+    api.post<ChatMessage>(`/chat/${friendId}/send-media`, { url, type, previewUrl }).then(r => r.data),
+
+  markAsRead: (friendId: string) =>
+    api.post(`/friends/${friendId}/read`).then(r => r.data),
+
   listThreads: (search?: string) =>
     api
       .get<{
@@ -58,6 +72,7 @@ export const chatApi = {
           display_name: string
           picture_url: string | null
           status: 'active' | 'blocked' | 'unfollowed'
+          unread_count?: number
         }
         last_message: {
           friend_id: string
@@ -93,11 +108,14 @@ export const broadcastApi = {
   list: () =>
     api.get<Broadcast[]>('/broadcasts').then(r => r.data),
 
-  create: (data: { name: string; message_content: string; target_tags: string[] | null; scheduled_at: string | null }) =>
+  create: (data: { name: string; message_content: string; messages?: Array<Record<string, unknown>>; target_tags: string[] | null; target_filters: Record<string, unknown> | null; scheduled_at: string | null }) =>
     api.post<Broadcast>('/broadcasts', data).then(r => r.data),
 
   send: (id: string) =>
     api.post<Broadcast>(`/broadcasts/${id}/send`).then(r => r.data),
+
+  previewCount: (filters: { include_tags?: string[]; exclude_tags?: string[]; tag_logic?: string; registered_from?: string; registered_to?: string }) =>
+    api.post<{ count: number }>('/broadcasts/preview-count', filters).then(r => r.data),
 }
 
 // Step Sequence API

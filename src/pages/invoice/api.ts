@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { Client, EmailTemplate, Schedule, HistoryItem, SenderSettings, AmazonAccount, FeeRule, CalculatedFees } from './types';
 
 const api = axios.create({ baseURL: '/api/invoice' });
-
+api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
 export const authApi = {
   status: () => api.get('/auth/status').then(r => r.data),
   login: () => api.get('/auth/login').then(r => r.data),
