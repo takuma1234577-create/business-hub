@@ -202,7 +202,6 @@ router.get('/videos', async (_req, res) => {
 
 // ── 動画定義組み立て ──
 function buildMovie(script, assets, apiKeys) {
-  const connectionId = apiKeys.elevenlabs_connection_id || '';
   const voiceId = apiKeys.elevenlabs_voice_id || '';
 
   const bgAssets = assets.filter(a => a.category === 'background').sort((a, b) => a.file_name.localeCompare(b.file_name));
@@ -217,23 +216,22 @@ function buildMovie(script, assets, apiKeys) {
 
     const elements = [];
 
-    // 背景 or 商品クリップ
+    // 背景 or 商品クリップ（duration:-2 でナレーション尺に合わせる）
     if (partKey === 'product') {
       if (productAssets.length > 0) {
-        elements.push({ type: 'video', src: productAssets[0].file_url, resize: 'cover', muted: true });
+        elements.push({ type: 'video', src: productAssets[0].file_url, resize: 'cover', muted: true, duration: -2 });
       }
     } else {
       const idx = educationParts.indexOf(partKey);
       if (bgAssets.length > 0) {
         const bg = bgAssets[(idx >= 0 ? idx : 0) % bgAssets.length];
-        elements.push({ type: 'video', src: bg.file_url, resize: 'cover', muted: true });
+        elements.push({ type: 'video', src: bg.file_url, resize: 'cover', muted: true, duration: -2 });
       }
     }
 
-    // ナレーション（JSON2Video組み込みElevenLabsを使用）
+    // ナレーション（シーン尺はこの音声が決める）
     if (part.narration) {
-      const voice = { type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId };
-      elements.push(voice);
+      elements.push({ type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId });
     }
 
     // テロップ
@@ -242,35 +240,24 @@ function buildMovie(script, assets, apiKeys) {
         type: 'text',
         text: part.subtitle.join('\n'),
         settings: {
-          'font-family': 'Noto Sans JP', 'font-size': 72, 'font-weight': 800,
+          'font-family': 'Noto Sans JP', 'font-size': 64, 'font-weight': 800,
           color: BRAND_COLOR_WHITE, 'text-align': 'center',
-          'text-shadow': '0 4px 12px rgba(0,0,0,0.8)',
-          'background-color': 'rgba(0,0,0,0.35)', padding: '16px 28px',
+          'text-shadow': '2px 2px 8px rgba(0,0,0,0.9)',
         },
-        position: 'custom', x: '50%', y: '42%', width: 918,
+        position: 'bottom',
+        duration: -2,
       });
     }
 
-    // 商品名テロップ
-    if (partKey === 'product') {
-      const prodInfo = PRODUCTS[script.product];
-      if (prodInfo) {
-        elements.push({
-          type: 'text', text: prodInfo.subtitle,
-          settings: { 'font-family': 'Noto Sans JP', 'font-size': 40, 'font-weight': 700, color: BRAND_COLOR_RED, 'text-align': 'left' },
-          position: 'custom', x: '6%', y: '10%', duration: 1.5,
-        });
-      }
-    }
-
+    // シーン尺: -1 = 最長の要素に合わせる（voice要素が決定）
     scenes.push({ elements, duration: -1 });
   }
 
   const movie = { resolution: 'custom', width: 1080, height: 1920, scenes, elements: [] };
 
-  // BGM
+  // BGM（動画全体に流す）
   if (bgmAssets.length > 0) {
-    movie.elements.push({ type: 'audio', src: bgmAssets[0].file_url, volume: 0.15, loop: 1 });
+    movie.elements.push({ type: 'audio', src: bgmAssets[0].file_url, volume: 0.15, duration: -2 });
   }
 
   return movie;
