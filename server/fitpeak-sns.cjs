@@ -52,7 +52,7 @@ async function getSnsApiKeys() {
   const key = crypto.scryptSync(secret, 'api-keys-salt', 32);
 
   for (const row of keys) {
-    if (['json2video', 'elevenlabs_voice_id', 'elevenlabs_connection_id'].includes(row.id)) {
+    if (['json2video', 'elevenlabs_voice_id', 'elevenlabs_connection_id', 'pexels'].includes(row.id)) {
       try {
         const { iv, data, tag } = JSON.parse(row.api_key_encrypted);
         const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
@@ -205,37 +205,115 @@ const SUBTITLE_SIZES = {
   hook: 80, problem: 64, step1: 64, step2: 64, step3: 64, product: 64, cta: 72,
 };
 
-// ── 動画定義組み立て（テキスト重視フォーマット）──
-// 教育パート: ジム映像（暗め）+ 大テロップ + 音声
+// ── Pexels API: ナレーションに合ったフリー動画を自動検索 ──
+async function searchPexelsVideo(query, pexelsKey) {
+  try {
+    const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&size=medium&per_page=5&min_duration=5&max_duration=30`;
+    const resp = await fetch(url, { headers: { Authorization: pexelsKey } });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const videos = data.videos || [];
+    if (videos.length === 0) return null;
+    // 最初の動画からHD品質のファイルURLを取得
+    const video = videos[0];
+    const file = video.video_files
+      .filter(f => f.quality === 'hd' || f.quality === 'sd')
+      .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+    return file ? file.link : null;
+  } catch { return null; }
+}
+
+// ── Claude AI: ナレーションから英語検索キーワードを生成 ──
+async function generateSearchQueries(script, anthropicClient) {
+  const partsText = PART_ORDER
+    .filter(k => k !== 'product' && k !== 'cta' && script.parts[k])
+    .map(k => `${k}: ${script.parts[k].narration}`)
+    .join('\n');
+
+  const resp = await anthropicClient.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `以下はフィットネス教育動画の各パートのナレーションです。各パートに合った背景映像をPexelsで検索するための英語キーワード（2-4語）を生成してください。
+
+${partsText}
+
+以下のJSON形式で出力してください（他のテキストは不要）：
+{"hook":"keyword","problem":"keyword","step1":"keyword","step2":"keyword","step3":"keyword"}`
+    }],
+  });
+
+  try {
+    const text = resp.content[0].text.trim();
+    const jsonMatch = text.match(/\{[^}]+\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+  } catch { return {}; }
+}
+
+// ── 動画定義組み立て ──
+// 教育パート: Pexelsのフリー動画（暗め）+ 大テロップ + 音声
 // 商品パート: 実写PV + テロップ（下部）
 // CTA: ブランドレッド背景 + テロップ
-function buildMovie(script, assets, apiKeys) {
+async function buildMovie(script, assets, apiKeys) {
   const voiceId = apiKeys.elevenlabs_voice_id || '';
-  const bgAssets = assets.filter(a => a.category === 'background').sort((a, b) => a.file_name.localeCompare(b.file_name));
   const productAssets = assets.filter(a => a.category === 'product' && a.product_key === script.product);
   const bgmAssets = assets.filter(a => a.category === 'bgm');
-  const educationParts = ['hook', 'problem', 'step1', 'step2', 'step3'];
+  const pexelsKey = apiKeys.pexels || '';
+
+  // Pexels自動検索: ナレーション内容に合った背景動画を取得
+  let pexelsUrls = {};
+  if (pexelsKey) {
+    try {
+      const { getAnthropicClient } = require('./shared.cjs');
+      const anthropic = await getAnthropicClient();
+      const queries = await generateSearchQueries(script, anthropic);
+      console.log('[SNS] Pexels search queries:', queries);
+
+      // 各パートの背景を並列検索
+      const entries = Object.entries(queries);
+      const results = await Promise.all(
+        entries.map(([key, query]) => searchPexelsVideo(query, pexelsKey).then(url => [key, url]))
+      );
+      for (const [key, url] of results) {
+        if (url) pexelsUrls[key] = url;
+      }
+      console.log('[SNS] Pexels found:', Object.keys(pexelsUrls).length, '/', entries.length);
+    } catch (err) {
+      console.error('[SNS] Pexels search error:', err.message);
+    }
+  }
+
+  // フォールバック: Supabaseにアップロード済みの背景素材
+  const bgAssets = assets.filter(a => a.category === 'background').sort((a, b) => a.file_name.localeCompare(b.file_name));
 
   const scenes = [];
+  const educationParts = ['hook', 'problem', 'step1', 'step2', 'step3'];
+
   for (const partKey of PART_ORDER) {
     const part = script.parts[partKey];
     if (!part) continue;
 
     const elements = [];
 
-    // 背景:
-    //  - 商品パート → 実写PV
-    //  - CTA → ブランドレッド単色（background-color）
-    //  - その他 → ジム映像を暗め（opacity:0.3）で雰囲気背景
+    // 背景
     if (partKey === 'product' && productAssets.length > 0) {
+      // 商品パート → 実写PV
       elements.push({ type: 'video', src: productAssets[0].file_url, resize: 'cover', muted: true, duration: -2 });
-    } else if (partKey !== 'cta' && bgAssets.length > 0) {
-      const idx = educationParts.indexOf(partKey);
-      const bg = bgAssets[(idx >= 0 ? idx : 0) % bgAssets.length];
-      elements.push({ type: 'video', src: bg.file_url, resize: 'cover', muted: true, duration: -2, opacity: 0.3 });
+    } else if (partKey !== 'cta') {
+      // 教育パート → Pexels動画 or アップロード済み背景
+      const pexelsUrl = pexelsUrls[partKey];
+      if (pexelsUrl) {
+        elements.push({ type: 'video', src: pexelsUrl, resize: 'cover', muted: true, duration: -2, opacity: 0.4 });
+      } else if (bgAssets.length > 0) {
+        const idx = educationParts.indexOf(partKey);
+        const bg = bgAssets[(idx >= 0 ? idx : 0) % bgAssets.length];
+        elements.push({ type: 'video', src: bg.file_url, resize: 'cover', muted: true, duration: -2, opacity: 0.3 });
+      }
     }
+    // CTA → background-color（下で設定）
 
-    // ナレーション（シーン尺を決定）
+    // ナレーション
     if (part.narration) {
       elements.push({ type: 'voice', model: 'elevenlabs', text: part.narration, voice: voiceId });
     }
@@ -290,7 +368,7 @@ router.post('/videos/render', async (req, res) => {
     if (!json2videoKey) return res.status(400).json({ error: 'JSON2VideoのAPIキーがAPI設定に登録されていません' });
 
     // 動画定義組み立て
-    const movie = buildMovie(script, assets || [], apiKeys);
+    const movie = await buildMovie(script, assets || [], apiKeys);
 
     // キャプション生成
     const tags = (script.hashtags || []).join(' ');

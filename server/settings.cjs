@@ -666,6 +666,7 @@ const API_KEY_SERVICES = [
   { id: 'json2video', label: 'JSON2Video API Key', envVar: 'JSON2VIDEO_API_KEY', placeholder: '' },
   { id: 'elevenlabs_voice_id', label: 'ElevenLabs Voice ID', envVar: 'ELEVENLABS_VOICE_ID', placeholder: '' },
   { id: 'elevenlabs_connection_id', label: 'ElevenLabs Connection ID (JSON2Video)', envVar: 'ELEVENLABS_CONNECTION_ID', placeholder: '' },
+  { id: 'pexels', label: 'Pexels API Key（フリー動画検索）', envVar: 'PEXELS_API_KEY', placeholder: '' },
 ];
 
 // APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）
