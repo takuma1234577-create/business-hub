@@ -9,6 +9,32 @@ const router = express.Router();
 const MAX_FULFILL_RETRIES = 5;          // ERROR注文の自動リトライ上限
 const RETRY_BACKOFF_MS = 30 * 60 * 1000; // 失敗後この時間が経過したら再試行（30分）
 const SYNC_TIME_BUDGET_MS = 90 * 1000;   // 在庫同期など重い処理をスキップする時間予算
+const LOCK_STALE_MS = 8 * 60 * 1000;     // 実行ロックの自動失効（クラッシュ時の復帰用・cron間隔より短く）
+
+// 実行ロック取得（cron/手動トリガの同時実行による二重出荷を防ぐ）
+async function acquireSyncLock() {
+  try {
+    const nowIso = new Date().toISOString();
+    const staleIso = new Date(Date.now() - LOCK_STALE_MS).toISOString();
+    // ロック行が無ければ作成（既存は壊さない）
+    await supabase.from('cron_runs').upsert({ id: 'amazon_sync' }, { onConflict: 'id', ignoreDuplicates: true });
+    // 未ロック or 失効したロックのみを原子的に取得
+    const { data } = await supabase
+      .from('cron_runs')
+      .update({ locked_at: nowIso })
+      .eq('id', 'amazon_sync')
+      .or(`locked_at.is.null,locked_at.lt.${staleIso}`)
+      .select();
+    return !!(data && data.length > 0);
+  } catch (e) {
+    console.error('[cron/sync] lock acquire error:', e.message);
+    return true; // ロック機構の障害で出荷自体を止めない（冪等キー＋事前存在チェックが二重出荷を防ぐ）
+  }
+}
+async function releaseSyncLock() {
+  try { await supabase.from('cron_runs').update({ locked_at: null }).eq('id', 'amazon_sync'); }
+  catch (e) { console.error('[cron/sync] lock release error:', e.message); }
+}
 
 // ---------------------------------------------------------------------------
 // Amazon SP-API auth helpers
@@ -1192,8 +1218,8 @@ router.post('/orders/:id/fulfill', async (req, res) => {
     // Get Amazon access token
     const { token, endpoint } = await getAccessToken();
 
-    // Create MCF fulfillment order
-    const mcfOrderId = `MCF-${id}-${Date.now()}`;
+    // Create MCF fulfillment order（冪等キー: Date.now()を使わずcron/一括と同一形式にしてAmazon側で重複排除）
+    const mcfOrderId = `MCF-${id}`;
     const mcfBody = {
       sellerFulfillmentOrderId: mcfOrderId,
       displayableOrderId: order.channel_order_id,
@@ -1215,6 +1241,20 @@ router.post('/orders/:id/fulfill', async (req, res) => {
         quantity: item.quantity,
       })),
     };
+
+    // 二重出荷ガード: Amazonに同IDの注文が既に存在すれば新規作成しない
+    try {
+      const existing = await axios.get(
+        `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${mcfOrderId}`,
+        { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+      );
+      if (existing.data?.payload?.fulfillmentOrder) {
+        await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, error_message: null, updated_at: new Date().toISOString() }).eq('id', id);
+        return res.json({ ok: true, alreadyExists: true, mcfOrderId, message: '既にAmazonに同一注文が存在するため新規作成しませんでした（二重出荷防止）' });
+      }
+    } catch (e) {
+      if (e.response?.status !== 404) throw e; // 404=未存在なら作成へ
+    }
 
     console.log('[fulfill] Creating MCF order:', mcfOrderId);
 
@@ -1331,6 +1371,21 @@ router.post('/fulfill-all', async (req, res) => {
         const { token, endpoint } = await getAccessToken();
         // 冪等キー: cronと同一形式。Date.now()を含めず二重出荷を防ぐ
         const mcfOrderId = `MCF-${order.id}`;
+
+        // 二重出荷ガード: Amazonに同IDの注文が既に存在すれば作成しない
+        try {
+          const existing = await axios.get(
+            `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${mcfOrderId}`,
+            { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+          );
+          if (existing.data?.payload?.fulfillmentOrder) {
+            await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, error_message: null, updated_at: new Date().toISOString() }).eq('id', order.id);
+            skipped++;
+            continue;
+          }
+        } catch (e) {
+          if (e.response?.status !== 404) throw e;
+        }
 
         await axios.post(
           `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
@@ -1641,6 +1696,7 @@ async function recordHeartbeat(success, summary) {
       ...(success ? { last_success_at: now } : {}),
       last_summary: (summary || '').slice(0, 2000),
       consecutive_failures: consecutive,
+      locked_at: null, // 実行ロックを解放
       updated_at: now,
     });
     if (!success && consecutive >= 3) {
@@ -1658,12 +1714,19 @@ router.get('/cron/sync', async (req, res) => {
   const results = { orderSync: null, autoFulfill: null };
   const alerts = []; // 人が対応すべき問題をまとめてSlack通知する
 
+  // 同時実行ロック: 既に別の実行が処理中ならスキップ（cron×手動トリガの競合による二重出荷を防ぐ）
+  if (!(await acquireSyncLock())) {
+    console.log('[cron/sync] another run holds the lock - skipping');
+    return res.json({ ok: true, skipped: 'locked' });
+  }
+
   try {
     // 1. Sync orders from Shopify
     const { data: stores } = await supabase
       .from('channel_stores')
       .select('*')
       .eq('is_active', true);
+    const shopifyStore = (stores || []).find(s => s.channel === 'SHOPIFY' && s.shop_domain && s.access_token);
 
     let totalSynced = 0;
     for (const store of stores || []) {
@@ -1754,7 +1817,7 @@ router.get('/cron/sync', async (req, res) => {
       .or(`status.eq.PENDING,and(status.eq.ERROR,retry_count.lt.${MAX_FULFILL_RETRIES})`)
       .limit(50);
 
-    let fulfilled = 0, skippedUnmapped = 0, failed = 0, stockWait = 0;
+    let fulfilled = 0, skippedUnmapped = 0, failed = 0, stockWait = 0, alreadyOnAmazon = 0, alreadyFulfilled = 0;
     for (const order of pendingOrders || []) {
       // ERROR注文はバックオフ期間が経過してから再試行（即時連打を防ぐ）
       if (order.status === 'ERROR' && order.updated_at && order.updated_at > retryThreshold) continue;
@@ -1785,6 +1848,39 @@ router.get('/cron/sync', async (req, res) => {
         const { token, endpoint } = await getAccessToken();
         // 冪等キー: Date.now()を含めない。再試行時も同じIDなのでAmazon側で重複排除され二重出荷を防ぐ
         const mcfOrderId = `MCF-${order.id}`;
+
+        // 二重出荷ガード1: Shopifyで既にフルフィル済みなら出荷しない（手動など別経路での出荷との重複防止）
+        if (order.channel === 'SHOPIFY' && shopifyStore && order.channel_order_id) {
+          try {
+            const foChk = await axios.get(
+              `https://${shopifyStore.shop_domain}/admin/api/2025-01/orders/${order.channel_order_id}/fulfillment_orders.json`,
+              { headers: { 'X-Shopify-Access-Token': shopifyStore.access_token } }
+            );
+            const fos = foChk.data.fulfillment_orders || [];
+            const hasOpen = fos.some(fo => ['open', 'in_progress', 'scheduled'].includes(fo.status));
+            if (fos.length > 0 && !hasOpen) {
+              await supabase.from('orders').update({ status: 'SHIPPED', error_message: '[スキップ] Shopifyで既にフルフィル済み（二重出荷防止）', updated_at: new Date().toISOString() }).eq('id', order.id);
+              await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'SKIP_ALREADY_FULFILLED', message: '[自動] Shopifyで既にフルフィル済みのため出荷スキップ（二重出荷防止）' });
+              alreadyFulfilled++;
+              continue;
+            }
+          } catch (e) { /* チェック不可時はAmazon存在チェックに委ねる */ }
+        }
+
+        // 二重出荷ガード2: Amazonに同IDの注文が既に存在すれば作成しない（冪等キーの上の最終防壁）
+        try {
+          const existing = await axios.get(
+            `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${mcfOrderId}`,
+            { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+          );
+          if (existing.data?.payload?.fulfillmentOrder) {
+            await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, error_message: null, updated_at: new Date().toISOString() }).eq('id', order.id);
+            alreadyOnAmazon++;
+            continue; // 既にAmazonに存在 → 二重作成しない
+          }
+        } catch (e) {
+          if (e.response?.status !== 404) throw e; // 404=未存在なら作成へ。それ以外は通常エラー処理へ
+        }
 
         await axios.post(
           `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
@@ -1834,8 +1930,8 @@ router.get('/cron/sync', async (req, res) => {
         }
       }
     }
-    results.autoFulfill = { fulfilled, skippedUnmapped, failed, stockWait };
-    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders (unmapped=${skippedUnmapped}, failed=${failed}, stockWait=${stockWait})`);
+    results.autoFulfill = { fulfilled, skippedUnmapped, failed, stockWait, alreadyOnAmazon, alreadyFulfilled };
+    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} (unmapped=${skippedUnmapped}, failed=${failed}, stockWait=${stockWait}, alreadyOnAmazon=${alreadyOnAmazon}, alreadyFulfilled=${alreadyFulfilled})`);
     if (skippedUnmapped > 0) {
       alerts.push(`SKU未紐付けのため出荷できない注文が ${skippedUnmapped} 件あります（sku_mappingsを設定してください）`);
     }
