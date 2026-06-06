@@ -133,4 +133,25 @@ async function postSlackThreadReply(channelId, threadTs, text) {
   }
 }
 
-module.exports = { sendSlackEscalation, postSlackThreadReply };
+/**
+ * 汎用Slackアラート送信（自動出荷パイプラインの異常通知などに使用）
+ * Bot Token優先、なければWebhook。未設定なら静かにスキップ（クラッシュさせない）。
+ */
+async function sendSlackAlert(text, blocks) {
+  const botToken = process.env.SLACK_BOT_TOKEN;
+  const channelId = process.env.SLACK_CHANNEL_ID;
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  try {
+    if (botToken && channelId) {
+      return await postViaBotToken(channelId, text, blocks);
+    } else if (webhookUrl) {
+      return await postViaWebhook(webhookUrl, text, blocks);
+    }
+    return { ok: false, reason: 'not_configured' };
+  } catch (err) {
+    console.error('[slack] alert error:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+module.exports = { sendSlackEscalation, postSlackThreadReply, sendSlackAlert };

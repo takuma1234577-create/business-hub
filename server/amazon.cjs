@@ -2,7 +2,13 @@ const express = require('express');
 const { getSupabase } = require('./shared.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const axios = require('axios');
+const { sendSlackAlert } = require('./slack-notify.cjs');
 const router = express.Router();
+
+// 自動出荷の信頼性パラメータ
+const MAX_FULFILL_RETRIES = 5;          // ERROR注文の自動リトライ上限
+const RETRY_BACKOFF_MS = 30 * 60 * 1000; // 失敗後この時間が経過したら再試行（30分）
+const SYNC_TIME_BUDGET_MS = 90 * 1000;   // 在庫同期など重い処理をスキップする時間予算
 
 // ---------------------------------------------------------------------------
 // Amazon SP-API auth helpers
@@ -1323,7 +1329,8 @@ router.post('/fulfill-all', async (req, res) => {
 
       try {
         const { token, endpoint } = await getAccessToken();
-        const mcfOrderId = `MCF-${order.id}-${Date.now()}`;
+        // 冪等キー: cronと同一形式。Date.now()を含めず二重出荷を防ぐ
+        const mcfOrderId = `MCF-${order.id}`;
 
         await axios.post(
           `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
@@ -1622,9 +1629,34 @@ router.post('/sync-all-to-shopify', async (req, res) => {
 // Cron: Auto sync orders every 3 hours
 // ---------------------------------------------------------------------------
 
+// 自動出荷cronのハートビート記録（"絶対に止まらない"ための自己監視）
+async function recordHeartbeat(success, summary) {
+  try {
+    const now = new Date().toISOString();
+    const { data: prev } = await supabase.from('cron_runs').select('consecutive_failures').eq('id', 'amazon_sync').maybeSingle();
+    const consecutive = success ? 0 : (prev?.consecutive_failures || 0) + 1;
+    await supabase.from('cron_runs').upsert({
+      id: 'amazon_sync',
+      last_run_at: now,
+      ...(success ? { last_success_at: now } : {}),
+      last_summary: (summary || '').slice(0, 2000),
+      consecutive_failures: consecutive,
+      updated_at: now,
+    });
+    if (!success && consecutive >= 3) {
+      await sendSlackAlert(`🚨 自動出荷cronが${consecutive}回連続で失敗しています。至急確認してください。\n${(summary || '').slice(0, 500)}`).catch(() => {});
+    }
+  } catch (e) {
+    console.error('[cron/sync] heartbeat error:', e.message);
+  }
+}
+
 router.get('/cron/sync', async (req, res) => {
+  const startedAt = Date.now();
+  const overBudget = () => Date.now() - startedAt > SYNC_TIME_BUDGET_MS;
   console.log('[cron/sync] Starting auto sync...');
   const results = { orderSync: null, autoFulfill: null };
+  const alerts = []; // 人が対応すべき問題をまとめてSlack通知する
 
   try {
     // 1. Sync orders from Shopify
@@ -1707,34 +1739,59 @@ router.get('/cron/sync', async (req, res) => {
           await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', store.id);
         } catch (err) {
           console.error(`[cron/sync] Shopify sync error for ${store.store_name}:`, err.message);
+          alerts.push(`Shopify注文取込に失敗 (${store.store_name}): ${err.message}`);
         }
       }
     }
     results.orderSync = { synced: totalSynced };
     console.log(`[cron/sync] Synced ${totalSynced} orders`);
 
-    // 2. Auto-fulfill pending orders with complete SKU mappings
+    // 2. Auto-fulfill: PENDING注文 ＋ リトライ可能なERROR注文（自動再試行）
+    const retryThreshold = new Date(Date.now() - RETRY_BACKOFF_MS).toISOString();
     const { data: pendingOrders } = await supabase
       .from('orders')
       .select('*, order_items(*)')
-      .eq('status', 'PENDING')
-      .limit(20);
+      .or(`status.eq.PENDING,and(status.eq.ERROR,retry_count.lt.${MAX_FULFILL_RETRIES})`)
+      .limit(50);
 
-    let fulfilled = 0;
+    let fulfilled = 0, skippedUnmapped = 0, failed = 0;
     for (const order of pendingOrders || []) {
+      // ERROR注文はバックオフ期間が経過してから再試行（即時連打を防ぐ）
+      if (order.status === 'ERROR' && order.updated_at && order.updated_at > retryThreshold) continue;
+
       const items = order.order_items || [];
-      if (items.length === 0 || !items.every(i => i.amazon_sku)) continue;
+      // 未紐付けの明細はsku_mappingsから動的に解決＆バックフィル
+      // （取込後にマッピングを追加しても、次回cronで自動的に出荷されるようにする＝自己修復）
+      for (const item of items) {
+        if (!item.amazon_sku && item.channel_sku) {
+          const { data: m } = await supabase.from('sku_mappings')
+            .select('amazon_sku')
+            .eq('channel', order.channel)
+            .eq('channel_sku', item.channel_sku)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (m?.amazon_sku) {
+            item.amazon_sku = m.amazon_sku;
+            await supabase.from('order_items').update({ amazon_sku: m.amazon_sku }).eq('id', item.id);
+          }
+        }
+      }
+      if (items.length === 0 || !items.every(i => i.amazon_sku)) {
+        skippedUnmapped++;
+        continue; // SKU未紐付け → 出荷不可（後でまとめてアラート）
+      }
 
       try {
         const { token, endpoint } = await getAccessToken();
-        const mcfOrderId = `MCF-${order.id}-${Date.now()}`;
+        // 冪等キー: Date.now()を含めない。再試行時も同じIDなのでAmazon側で重複排除され二重出荷を防ぐ
+        const mcfOrderId = `MCF-${order.id}`;
 
         await axios.post(
           `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
           {
             sellerFulfillmentOrderId: mcfOrderId,
             displayableOrderId: order.channel_order_id,
-            displayableOrderDate: order.created_at,
+            displayableOrderDate: order.ordered_at || order.created_at,
             displayableOrderComment: `Auto: ${order.channel} #${order.channel_order_id}`,
             shippingSpeedCategory: 'Standard',
             destinationAddress: {
@@ -1755,69 +1812,28 @@ router.get('/cron/sync', async (req, res) => {
           { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
         );
 
-        await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, updated_at: new Date().toISOString() }).eq('id', order.id);
+        await supabase.from('orders').update({ status: 'SUBMITTED', mcf_order_id: mcfOrderId, error_message: null, updated_at: new Date().toISOString() }).eq('id', order.id);
         await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'MCF_SUBMITTED', message: `[自動] Amazon MCF発送: ${mcfOrderId}` });
         fulfilled++;
       } catch (err) {
-        console.error(`[cron/sync] fulfill error for ${order.id}:`, err.message);
-        await supabase.from('orders').update({ status: 'ERROR', error_message: err.response?.data?.errors?.[0]?.message || err.message }).eq('id', order.id);
-      }
-    }
-    results.autoFulfill = { fulfilled };
-    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders`);
-
-    // 3. Sync Amazon FBA inventory to Shopify
-    try {
-      const { data: activeMappings } = await supabase.from('sku_mappings').select('*').eq('is_active', true);
-      const { data: shopStores } = await supabase.from('channel_stores').select('*').eq('channel', 'SHOPIFY').eq('is_active', true);
-      const shopStore = shopStores?.[0];
-
-      if (activeMappings && activeMappings.length > 0 && shopStore) {
-        const { token: amzToken, endpoint: amzEndpoint, marketplaceId } = await getAccessToken();
-        const amazonStock = {};
-        let nextTok = null;
-        do {
-          const params = new URLSearchParams({ details: 'true', granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId });
-          if (nextTok) params.set('nextToken', nextTok);
-          const r = await axios.get(`${amzEndpoint}/fba/inventory/v1/summaries?${params}`, { headers: { 'x-amz-access-token': amzToken, 'Content-Type': 'application/json' } });
-          for (const it of r.data.payload?.inventorySummaries || []) {
-            amazonStock[it.sellerSku] = it.inventoryDetails?.fulfillableQuantity ?? 0;
-          }
-          nextTok = r.data.pagination?.nextToken || null;
-        } while (nextTok);
-
-        const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
-        const locationId = shopRes2.data.shop?.primary_location_id;
-
-        let invSynced = 0;
-        for (const m of activeMappings) {
-          const amzQty = amazonStock[m.amazon_sku];
-          if (amzQty === undefined || !locationId) continue;
-          try {
-            let inventoryItemId = null;
-            if (m.channel_sku && !/^\d{10,}$/.test(m.channel_sku)) {
-              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants.json?query=sku:${encodeURIComponent(m.channel_sku)}`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
-              inventoryItemId = vRes?.data?.variants?.[0]?.inventory_item_id;
-            }
-            if (!inventoryItemId && /^\d{10,}$/.test(m.channel_sku)) {
-              const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants/${m.channel_sku}.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
-              inventoryItemId = vRes?.data?.variant?.inventory_item_id;
-            }
-            if (!inventoryItemId) continue;
-            await axios.post(`https://${shopStore.shop_domain}/admin/api/2025-01/inventory_levels/set.json`, {
-              location_id: locationId, inventory_item_id: inventoryItemId, available: amzQty,
-            }, { headers: { 'X-Shopify-Access-Token': shopStore.access_token, 'Content-Type': 'application/json' } });
-            invSynced++;
-          } catch (e) {}
+        failed++;
+        const msg = err.response?.data?.errors?.[0]?.message || err.message;
+        const newRetry = (order.retry_count || 0) + 1;
+        console.error(`[cron/sync] fulfill error for ${order.id} (retry ${newRetry}/${MAX_FULFILL_RETRIES}):`, msg);
+        await supabase.from('orders').update({ status: 'ERROR', retry_count: newRetry, error_message: msg, updated_at: new Date().toISOString() }).eq('id', order.id);
+        await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'ERROR', message: `[自動] 出荷失敗 (${newRetry}/${MAX_FULFILL_RETRIES}): ${msg}` });
+        if (newRetry >= MAX_FULFILL_RETRIES) {
+          alerts.push(`注文 ${order.id} がリトライ上限(${MAX_FULFILL_RETRIES}回)に到達し自動出荷できません: ${msg}`);
         }
-        results.inventorySync = { synced: invSynced, total: activeMappings.length };
-        console.log(`[cron/sync] Synced inventory for ${invSynced}/${activeMappings.length} mappings`);
       }
-    } catch (err) {
-      console.error('[cron/sync] inventory sync error:', err.message);
+    }
+    results.autoFulfill = { fulfilled, skippedUnmapped, failed };
+    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders (unmapped=${skippedUnmapped}, failed=${failed})`);
+    if (skippedUnmapped > 0) {
+      alerts.push(`SKU未紐付けのため出荷できない注文が ${skippedUnmapped} 件あります（sku_mappingsを設定してください）`);
     }
 
-    // 4. Check tracking info for SUBMITTED orders (Amazon MCF → DB)
+    // 3. Check tracking info for SUBMITTED orders (Amazon MCF → DB)
     try {
       const { data: submittedOrders } = await supabase
         .from('orders')
@@ -1877,7 +1893,7 @@ router.get('/cron/sync', async (req, res) => {
       results.trackingCheck = { error: err.message };
     }
 
-    // 5. Push tracking info to Shopify for SHIPPED/TRACKING_UPDATED orders
+    // 4. Push tracking info to Shopify for SHIPPED/TRACKING_UPDATED orders（配送番号書き戻し＋フルフィルメント）
     try {
       const { data: shippedOrders } = await supabase
         .from('orders')
@@ -1929,7 +1945,9 @@ router.get('/cron/sync', async (req, res) => {
             });
             shopifySynced++;
           } catch (err) {
-            console.error(`[cron/sync] Shopify sync error for ${order.id}:`, err.message);
+            const msg = err.response?.data?.errors?.[0]?.message || err.message;
+            console.error(`[cron/sync] Shopify sync error for ${order.id}:`, msg);
+            alerts.push(`Shopifyへの配送番号書き戻しに失敗 (注文 ${order.id}): ${msg}`);
           }
         }
       }
@@ -1940,12 +1958,78 @@ router.get('/cron/sync', async (req, res) => {
       results.shopifySync = { error: err.message };
     }
 
+    // 5. Sync Amazon FBA inventory to Shopify（最後に実行・時間予算超過ならスキップして出荷処理を優先）
+    if (overBudget()) {
+      results.inventorySync = { skipped: 'time_budget' };
+      console.log('[cron/sync] inventory sync skipped (time budget)');
+    } else {
+      try {
+        const { data: activeMappings } = await supabase.from('sku_mappings').select('*').eq('is_active', true);
+        const { data: shopStores } = await supabase.from('channel_stores').select('*').eq('channel', 'SHOPIFY').eq('is_active', true);
+        const shopStore = shopStores?.[0];
+
+        if (activeMappings && activeMappings.length > 0 && shopStore) {
+          const { token: amzToken, endpoint: amzEndpoint, marketplaceId } = await getAccessToken();
+          const amazonStock = {};
+          let nextTok = null;
+          do {
+            const params = new URLSearchParams({ details: 'true', granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId });
+            if (nextTok) params.set('nextToken', nextTok);
+            const r = await axios.get(`${amzEndpoint}/fba/inventory/v1/summaries?${params}`, { headers: { 'x-amz-access-token': amzToken, 'Content-Type': 'application/json' } });
+            for (const it of r.data.payload?.inventorySummaries || []) {
+              amazonStock[it.sellerSku] = it.inventoryDetails?.fulfillableQuantity ?? 0;
+            }
+            nextTok = r.data.pagination?.nextToken || null;
+          } while (nextTok && !overBudget());
+
+          const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
+          const locationId = shopRes2.data.shop?.primary_location_id;
+
+          let invSynced = 0;
+          for (const m of activeMappings) {
+            if (overBudget()) break;
+            const amzQty = amazonStock[m.amazon_sku];
+            if (amzQty === undefined || !locationId) continue;
+            try {
+              let inventoryItemId = null;
+              if (m.channel_sku && !/^\d{10,}$/.test(m.channel_sku)) {
+                const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants.json?query=sku:${encodeURIComponent(m.channel_sku)}`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+                inventoryItemId = vRes?.data?.variants?.[0]?.inventory_item_id;
+              }
+              if (!inventoryItemId && /^\d{10,}$/.test(m.channel_sku)) {
+                const vRes = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/variants/${m.channel_sku}.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } }).catch(() => null);
+                inventoryItemId = vRes?.data?.variant?.inventory_item_id;
+              }
+              if (!inventoryItemId) continue;
+              await axios.post(`https://${shopStore.shop_domain}/admin/api/2025-01/inventory_levels/set.json`, {
+                location_id: locationId, inventory_item_id: inventoryItemId, available: amzQty,
+              }, { headers: { 'X-Shopify-Access-Token': shopStore.access_token, 'Content-Type': 'application/json' } });
+              invSynced++;
+            } catch (e) {}
+          }
+          results.inventorySync = { synced: invSynced, total: activeMappings.length };
+          console.log(`[cron/sync] Synced inventory for ${invSynced}/${activeMappings.length} mappings`);
+        }
+      } catch (err) {
+        console.error('[cron/sync] inventory sync error:', err.message);
+        results.inventorySync = { error: err.message };
+      }
+    }
+
   } catch (err) {
     console.error('[cron/sync] error:', err.message);
+    await recordHeartbeat(false, `FATAL: ${err.message}`);
+    await sendSlackAlert(`🚨 自動出荷cronが異常終了しました: ${err.message}`).catch(() => {});
     return res.status(500).json({ error: err.message, partial: results });
   }
 
-  return res.json({ ok: true, results });
+  // 正常終了: ハートビート更新＋まとめてアラート
+  await recordHeartbeat(true, JSON.stringify(results));
+  if (alerts.length > 0) {
+    await sendSlackAlert(`⚠️ 自動出荷パイプラインの注意 (${new Date().toISOString()}):\n• ${alerts.join('\n• ')}`).catch(() => {});
+  }
+  console.log(`[cron/sync] Done in ${Date.now() - startedAt}ms`, JSON.stringify(results));
+  return res.json({ ok: true, results, alerts });
 });
 
 module.exports = router;
