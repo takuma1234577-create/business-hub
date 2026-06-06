@@ -1644,7 +1644,7 @@ async function recordHeartbeat(success, summary) {
       updated_at: now,
     });
     if (!success && consecutive >= 3) {
-      await sendSlackAlert(`🚨 自動出荷cronが${consecutive}回連続で失敗しています。至急確認してください。\n${(summary || '').slice(0, 500)}`).catch(() => {});
+      await sendSlackAlert(`[緊急] 自動出荷cronが${consecutive}回連続で失敗しています。至急確認してください。\n${(summary || '').slice(0, 500)}`).catch(() => {});
     }
   } catch (e) {
     console.error('[cron/sync] heartbeat error:', e.message);
@@ -1754,7 +1754,7 @@ router.get('/cron/sync', async (req, res) => {
       .or(`status.eq.PENDING,and(status.eq.ERROR,retry_count.lt.${MAX_FULFILL_RETRIES})`)
       .limit(50);
 
-    let fulfilled = 0, skippedUnmapped = 0, failed = 0;
+    let fulfilled = 0, skippedUnmapped = 0, failed = 0, stockWait = 0;
     for (const order of pendingOrders || []) {
       // ERROR注文はバックオフ期間が経過してから再試行（即時連打を防ぐ）
       if (order.status === 'ERROR' && order.updated_at && order.updated_at > retryThreshold) continue;
@@ -1816,8 +1816,15 @@ router.get('/cron/sync', async (req, res) => {
         await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'MCF_SUBMITTED', message: `[自動] Amazon MCF発送: ${mcfOrderId}` });
         fulfilled++;
       } catch (err) {
-        failed++;
         const msg = err.response?.data?.errors?.[0]?.message || err.message;
+        // 在庫不足はリトライ上限を消費せずPENDING維持（入荷後に自動出荷される）
+        const isStockIssue = /inventor|stock|fulfillable|insufficient|在庫|数量/i.test(msg);
+        if (isStockIssue) {
+          stockWait++;
+          await supabase.from('orders').update({ error_message: `[在庫待ち] ${msg}`, updated_at: new Date().toISOString() }).eq('id', order.id);
+          continue;
+        }
+        failed++;
         const newRetry = (order.retry_count || 0) + 1;
         console.error(`[cron/sync] fulfill error for ${order.id} (retry ${newRetry}/${MAX_FULFILL_RETRIES}):`, msg);
         await supabase.from('orders').update({ status: 'ERROR', retry_count: newRetry, error_message: msg, updated_at: new Date().toISOString() }).eq('id', order.id);
@@ -1827,8 +1834,8 @@ router.get('/cron/sync', async (req, res) => {
         }
       }
     }
-    results.autoFulfill = { fulfilled, skippedUnmapped, failed };
-    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders (unmapped=${skippedUnmapped}, failed=${failed})`);
+    results.autoFulfill = { fulfilled, skippedUnmapped, failed, stockWait };
+    console.log(`[cron/sync] Auto-fulfilled ${fulfilled} orders (unmapped=${skippedUnmapped}, failed=${failed}, stockWait=${stockWait})`);
     if (skippedUnmapped > 0) {
       alerts.push(`SKU未紐付けのため出荷できない注文が ${skippedUnmapped} 件あります（sku_mappingsを設定してください）`);
     }
@@ -2019,14 +2026,14 @@ router.get('/cron/sync', async (req, res) => {
   } catch (err) {
     console.error('[cron/sync] error:', err.message);
     await recordHeartbeat(false, `FATAL: ${err.message}`);
-    await sendSlackAlert(`🚨 自動出荷cronが異常終了しました: ${err.message}`).catch(() => {});
+    await sendSlackAlert(`[緊急] 自動出荷cronが異常終了しました: ${err.message}`).catch(() => {});
     return res.status(500).json({ error: err.message, partial: results });
   }
 
   // 正常終了: ハートビート更新＋まとめてアラート
   await recordHeartbeat(true, JSON.stringify(results));
   if (alerts.length > 0) {
-    await sendSlackAlert(`⚠️ 自動出荷パイプラインの注意 (${new Date().toISOString()}):\n• ${alerts.join('\n• ')}`).catch(() => {});
+    await sendSlackAlert(`[注意] 自動出荷パイプラインの注意 (${new Date().toISOString()}):\n• ${alerts.join('\n• ')}`).catch(() => {});
   }
   console.log(`[cron/sync] Done in ${Date.now() - startedAt}ms`, JSON.stringify(results));
   return res.json({ ok: true, results, alerts });
