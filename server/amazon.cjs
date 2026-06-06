@@ -107,6 +107,13 @@ async function getAccessToken() {
   return { token: cachedToken, endpoint: cachedEndpoint, marketplaceId: account.marketplaceId };
 }
 
+// MCF注文のGETで「存在しない」を判定（Amazonは404ではなく "Unable to get order info" 等を返す）
+function isMcfNotFound(e) {
+  if (e.response?.status === 404) return true;
+  const body = JSON.stringify(e.response?.data || '') + ' ' + (e.message || '');
+  return /unable to get order info|getorderbymerchantorderid|does not exist|not ?found|no such|resourcenotfound/i.test(body);
+}
+
 // ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
@@ -1253,7 +1260,7 @@ router.post('/orders/:id/fulfill', async (req, res) => {
         return res.json({ ok: true, alreadyExists: true, mcfOrderId, message: '既にAmazonに同一注文が存在するため新規作成しませんでした（二重出荷防止）' });
       }
     } catch (e) {
-      if (e.response?.status !== 404) throw e; // 404=未存在なら作成へ
+      if (!isMcfNotFound(e)) throw e; // 404=未存在なら作成へ
     }
 
     console.log('[fulfill] Creating MCF order:', mcfOrderId);
@@ -1384,7 +1391,7 @@ router.post('/fulfill-all', async (req, res) => {
             continue;
           }
         } catch (e) {
-          if (e.response?.status !== 404) throw e;
+          if (!isMcfNotFound(e)) throw e;
         }
 
         await axios.post(
@@ -1879,7 +1886,7 @@ router.get('/cron/sync', async (req, res) => {
             continue; // 既にAmazonに存在 → 二重作成しない
           }
         } catch (e) {
-          if (e.response?.status !== 404) throw e; // 404=未存在なら作成へ。それ以外は通常エラー処理へ
+          if (!isMcfNotFound(e)) throw e; // 404=未存在なら作成へ。それ以外は通常エラー処理へ
         }
 
         await axios.post(
@@ -1917,7 +1924,8 @@ router.get('/cron/sync', async (req, res) => {
         const isStockIssue = /inventor|stock|fulfillable|insufficient|在庫|数量/i.test(msg);
         if (isStockIssue) {
           stockWait++;
-          await supabase.from('orders').update({ error_message: `[在庫待ち] ${msg}`, updated_at: new Date().toISOString() }).eq('id', order.id);
+          // 在庫不足はクリーンなPENDINGとして保持（status/retryをリセット、入荷後に自動出荷）
+          await supabase.from('orders').update({ status: 'PENDING', retry_count: 0, error_message: `[在庫待ち] ${msg}`, updated_at: new Date().toISOString() }).eq('id', order.id);
           continue;
         }
         failed++;
