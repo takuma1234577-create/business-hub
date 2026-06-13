@@ -2633,7 +2633,7 @@ router.post('/slack/events', async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         system: `あなたはFITPEAKカスタマーサポートの指示解析AIです。
 担当者の指示を分析して、実行すべきアクションをJSON形式で返してください。
@@ -3558,7 +3558,7 @@ async function processWebhookEvents(events) {
             const { data: history } = await supabase
               .from('chat_messages')
               .select('direction, content, created_at')
-              .eq('channel_id', friend.channel_id)
+              .eq('friend_id', friend.id)
               .order('created_at', { ascending: false })
               .limit(20);
             if (history && history.length > 0) {
@@ -3760,7 +3760,7 @@ router.get('/delayed-ai-reply', async (req, res) => {
         const { data: history } = await supabase
           .from('chat_messages')
           .select('direction, content, created_at')
-          .eq('channel_id', friend.channel_id)
+          .eq('friend_id', friend.id)
           .order('created_at', { ascending: false })
           .limit(50);
         if (history && history.length > 0) {

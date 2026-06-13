@@ -386,6 +386,12 @@ async function generateFITPEAKReply(userMessage, ctx = {}) {
   }
   messages.push({ role: 'user', content: trimmed });
 
+  // Anthropic Messages API は messages の先頭が user role でないと 400 になる。
+  // 履歴の先頭が挨拶・自動応答（assistant）の場合があるため、最初の user まで切り落とす。
+  while (messages.length > 1 && messages[0].role !== 'user') {
+    messages.shift();
+  }
+
   const anthropic = await getAnthropicClient();
   const completion = await anthropic.messages.create({
     model: CLAUDE_MODEL,
