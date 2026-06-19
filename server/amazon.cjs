@@ -1984,10 +1984,11 @@ router.get('/cron/sync', async (req, res) => {
             const trackingNumber = pkg?.trackingNumber || null;
             const carrier = pkg?.carrierCode || null;
 
-            // Amazon側でキャンセル済み（手動キャンセル等）は要確認にして再出荷ループに入れない
-            if (mcfStatus === 'Cancelled' || mcfStatus === 'CANCELLED') {
-              await supabase.from('orders').update({ status: 'NEEDS_REVIEW', error_message: '[要確認] AmazonでMCF注文がキャンセルされています（手動確認してください）', updated_at: new Date().toISOString() }).eq('id', order.id);
-              await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'MCF_CANCELLED', message: `[自動] AmazonでMCFがキャンセル済みのため要確認に変更: ${order.mcf_order_id}` });
+            // Amazon側でキャンセル/出荷不可は要確認にして再出荷ループに入れない（手動キャンセル・在庫不可など）
+            const deadStatus = ['cancelled', 'unfulfillable', 'invalid'].includes((mcfStatus || '').toLowerCase());
+            if (deadStatus) {
+              await supabase.from('orders').update({ status: 'NEEDS_REVIEW', error_message: `[要確認] AmazonでMCFが${mcfStatus}状態です（手動確認してください）`, updated_at: new Date().toISOString() }).eq('id', order.id);
+              await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'MCF_DEAD', message: `[自動] AmazonでMCFが${mcfStatus}のため要確認に変更: ${order.mcf_order_id}` });
               trackingUpdated++;
               continue;
             }
