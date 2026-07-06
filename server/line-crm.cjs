@@ -3062,6 +3062,7 @@ async function processWebhookEvents(events) {
             picture_url: pictureUrl,
             status_message: statusMessage,
             status: 'active',
+            followed_at: new Date().toISOString(),
             ...(trafficSourceId ? { traffic_source_id: trafficSourceId } : {}),
             updated_at: new Date().toISOString(),
           }).eq('id', existingFriend.id);
@@ -3074,6 +3075,7 @@ async function processWebhookEvents(events) {
             status: 'active',
             channel_id: DEFAULT_CHANNEL_ID,
             traffic_source_id: trafficSourceId,
+            followed_at: new Date().toISOString(),
           });
         }
         console.log(`[follow] ${displayName} added. Source: ${trafficSourceId || 'direct'}`);
@@ -3130,7 +3132,7 @@ async function processWebhookEvents(events) {
     // ── Unfollowイベント処理 ──
     if (event?.type === 'unfollow' && lineUserId) {
       try {
-        await supabase.from('friends').update({ status: 'unfollowed', updated_at: new Date().toISOString() }).eq('line_user_id', lineUserId);
+        await supabase.from('friends').update({ status: 'unfollowed', unfollowed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('line_user_id', lineUserId);
       } catch {}
       continue;
     }
@@ -4115,6 +4117,247 @@ router.get('/fitpeak/stats', async (req, res) => {
       sentCount: sentCount || 0,
       urlClickCount: urlClickCount || 0,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===========================================================================
+// レビュー特典（無料プレゼント）申請 review_gift_claims の管理
+// スクショ確認 / 個別判定（承認→即発行・却下）/ 判定KB
+// ===========================================================================
+
+// GET /fitpeak/review-gifts - 申請一覧（スクショ・AI判定・抽出項目つき）
+router.get('/fitpeak/review-gifts', async (req, res) => {
+  try {
+    const { status, page = 1, per_page = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(per_page);
+
+    let query = supabase
+      .from('review_gift_claims')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + Number(per_page) - 1);
+    if (status) query = query.eq('verification_status', status);
+
+    const { data, count, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    // 友だち名を補完
+    const lineIds = [...new Set((data || []).map((c) => c.line_user_id).filter(Boolean))];
+    let friendMap = {};
+    if (lineIds.length) {
+      const { data: friends } = await supabase
+        .from('friends')
+        .select('line_user_id, display_name, picture_url')
+        .in('line_user_id', lineIds);
+      for (const f of friends || []) friendMap[f.line_user_id] = f;
+    }
+    const rows = (data || []).map((c) => ({
+      ...c,
+      friend: c.line_user_id ? friendMap[c.line_user_id] || null : null,
+    }));
+
+    res.json({ data: rows, total: count || 0, page: Number(page), per_page: Number(per_page) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /fitpeak/review-gifts/counts - ステータス別件数
+router.get('/fitpeak/review-gifts/counts', async (req, res) => {
+  try {
+    const statuses = ['pending', 'verified', 'rejected'];
+    const counts = {};
+    for (const s of statuses) {
+      const { count } = await supabase
+        .from('review_gift_claims')
+        .select('id', { count: 'exact', head: true })
+        .eq('verification_status', s);
+      counts[s] = count || 0;
+    }
+    const { count: issued } = await supabase
+      .from('review_gift_claims')
+      .select('id', { count: 'exact', head: true })
+      .not('shopify_invoice_url', 'is', null);
+    counts.issued = issued || 0;
+    res.json(counts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /fitpeak/review-gifts/:id/approve - 手動承認 → 即プレゼント発行
+router.post('/fitpeak/review-gifts/:id/approve', async (req, res) => {
+  try {
+    const { by, note } = req.body || {};
+    const id = req.params.id;
+
+    const { data: claim } = await supabase
+      .from('review_gift_claims')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (!claim) return res.status(404).json({ error: '申請が見つかりません' });
+
+    // verified にして手動判定を記録
+    await supabase
+      .from('review_gift_claims')
+      .update({
+        verification_status: 'verified',
+        reviewed_by: by || 'admin',
+        reviewed_at: new Date().toISOString(),
+        manual_note: note || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    // my-fitpeak の発行エンドポイントを呼ぶ（Shopify無料ドラフト注文）
+    let invoiceUrl = claim.shopify_invoice_url || null;
+    let issueError = null;
+    try {
+      const r = await fetch('https://my.fitpeak.co/api/review-gift/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claimId: id }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.invoiceUrl) invoiceUrl = d.invoiceUrl;
+      else issueError = d.error || '発行に失敗しました';
+    } catch (e) {
+      issueError = e.message;
+    }
+
+    res.json({ ok: true, invoiceUrl, issueError });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /fitpeak/review-gifts/:id/reject - 手動却下（理由・KB追加）
+router.post('/fitpeak/review-gifts/:id/reject', async (req, res) => {
+  try {
+    const { reason, by, addToKb } = req.body || {};
+    const id = req.params.id;
+
+    await supabase
+      .from('review_gift_claims')
+      .update({
+        verification_status: 'rejected',
+        reviewed_by: by || 'admin',
+        reviewed_at: new Date().toISOString(),
+        manual_note: reason || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    // AI誤判定の学習: 理由をナレッジベースに追加
+    if (addToKb && reason) {
+      await supabase.from('review_gift_verify_kb').insert({
+        reason,
+        note: `claim ${id} の手動却下より`,
+        created_by: by || 'admin',
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 判定ナレッジベース（review_gift_verify_kb）
+router.get('/fitpeak/verify-kb', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('review_gift_verify_kb')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ data: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router.post('/fitpeak/verify-kb', async (req, res) => {
+  try {
+    const { reason, note, by } = req.body || {};
+    if (!reason) return res.status(400).json({ error: 'reason required' });
+    const { data, error } = await supabase
+      .from('review_gift_verify_kb')
+      .insert({ reason, note: note || null, created_by: by || 'admin' })
+      .select('*')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router.patch('/fitpeak/verify-kb/:id/toggle', async (req, res) => {
+  try {
+    const { data: cur } = await supabase.from('review_gift_verify_kb').select('is_active').eq('id', req.params.id).maybeSingle();
+    const { data, error } = await supabase
+      .from('review_gift_verify_kb')
+      .update({ is_active: !cur?.is_active })
+      .eq('id', req.params.id)
+      .select('*')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router.delete('/fitpeak/verify-kb/:id', async (req, res) => {
+  try {
+    await supabase.from('review_gift_verify_kb').delete().eq('id', req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /fitpeak/heatmap - 画面到達ヒートマップ（survey_events集計）
+const SURVEY_STEP_ORDER = [
+  'landing', 'questions', 'submitted', 'coupon', 'pre_review', 'review_cta',
+  'review_gift_offer', 'review_gift_submitted', 'gift_verified', 'gift_issued',
+  'support_cta', 'completed',
+];
+const SURVEY_STEP_LABELS = {
+  landing: 'アンケート開始画面', questions: '設問回答', submitted: '回答送信完了',
+  coupon: 'クーポン画面', pre_review: 'プレゼントオファー(★5)', review_cta: 'レビュー促進',
+  review_gift_offer: 'スクショ提出画面', review_gift_submitted: 'スクショ提出完了',
+  gift_verified: 'レビュー検証OK', gift_issued: 'プレゼント発行', support_cta: 'サポート導線(★1-3)',
+  completed: '完了',
+};
+router.get('/fitpeak/heatmap', async (req, res) => {
+  try {
+    const { data: events } = await supabase
+      .from('survey_events')
+      .select('step, line_user_id, user_id, scratch_code')
+      .limit(50000);
+
+    const usersByStep = {};   // step -> Set(userKey)
+    const eventsByStep = {};  // step -> count
+    for (const s of SURVEY_STEP_ORDER) { usersByStep[s] = new Set(); eventsByStep[s] = 0; }
+    for (const e of events || []) {
+      if (!(e.step in eventsByStep)) { usersByStep[e.step] = new Set(); eventsByStep[e.step] = 0; }
+      eventsByStep[e.step]++;
+      const key = e.line_user_id || e.user_id || e.scratch_code;
+      if (key) usersByStep[e.step].add(key);
+    }
+
+    const steps = SURVEY_STEP_ORDER.map((s) => ({
+      step: s,
+      label: SURVEY_STEP_LABELS[s] || s,
+      users: usersByStep[s] ? usersByStep[s].size : 0,
+      events: eventsByStep[s] || 0,
+    }));
+    const startUsers = steps[0]?.users || 0;
+    for (const st of steps) st.rate = startUsers > 0 ? Math.round((st.users / startUsers) * 100) : 0;
+
+    res.json({ steps, totalEvents: (events || []).length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
