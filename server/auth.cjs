@@ -330,6 +330,7 @@ function authMiddleware(req, res, next) {
     '/api/hp-outreach/cron/',
     '/api/daily-cron',
     '/api/line-crm/webhook',
+    '/api/line-crm/track/',
     '/api/line-crm/delayed-ai-reply',
     '/api/line-crm/tag-scheduled-replies/',
     '/api/line-crm/broadcasts/cron',
