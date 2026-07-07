@@ -3031,12 +3031,14 @@ async function processWebhookEvents(events) {
         // 流入経路の判定: 直近5分以内のクリックからマッチング
         let trafficSourceId = null;
         try {
-          const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          // traffic_clicks の列は created_at（clicked_at は存在しないため照合が毎回失敗していた）。
+          // クリック後すぐに追加しない人が多いため、照合ウィンドウを30分に拡大。
+          const windowStart = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           const { data: recentClick } = await supabase
             .from('traffic_clicks')
             .select('source_id')
-            .gte('clicked_at', fiveMinAgo)
-            .order('clicked_at', { ascending: false })
+            .gte('created_at', windowStart)
+            .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
           if (recentClick) {
