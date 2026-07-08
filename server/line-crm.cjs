@@ -3986,6 +3986,75 @@ router.get('/traffic-sources', async (_req, res) => {
   }
 });
 
+// GET /traffic-sources/analytics?days=N - 日別のクリック数・友だち登録数（経路経由）
+router.get('/traffic-sources/analytics', async (req, res) => {
+  try {
+    const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 7), 365);
+    const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
+
+    // クリック（created_at）
+    const { data: clicks } = await supabase
+      .from('traffic_clicks')
+      .select('created_at')
+      .gte('created_at', since);
+
+    // 経路経由の友だち登録（traffic_source_id あり・followed_at）
+    const { data: friends } = await supabase
+      .from('friends')
+      .select('followed_at')
+      .not('traffic_source_id', 'is', null)
+      .gte('followed_at', since)
+      .not('followed_at', 'is', null);
+
+    // 経路別の友だち登録数（期間内）
+    const { data: bySrc } = await supabase
+      .from('friends')
+      .select('traffic_source_id')
+      .not('traffic_source_id', 'is', null)
+      .gte('followed_at', since);
+    const { data: sources } = await supabase.from('traffic_sources').select('id, name');
+    const nameById = {};
+    for (const s of (sources || [])) nameById[s.id] = s.name;
+    const perSourceMap = {};
+    for (const f of (bySrc || [])) {
+      const nm = nameById[f.traffic_source_id] || '(不明)';
+      perSourceMap[nm] = (perSourceMap[nm] || 0) + 1;
+    }
+    const bySource = Object.entries(perSourceMap)
+      .map(([name, friends]) => ({ name, friends }))
+      .sort((a, b) => b.friends - a.friends);
+
+    // 日別マップ
+    const dailyMap = {};
+    for (let i = 0; i < numDays; i++) {
+      const d = new Date(Date.now() - (numDays - 1 - i) * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      dailyMap[key] = { date: key, clicks: 0, friends: 0 };
+    }
+    for (const c of (clicks || [])) {
+      const key = new Date(c.created_at).toISOString().slice(0, 10);
+      if (dailyMap[key]) dailyMap[key].clicks++;
+    }
+    for (const f of (friends || [])) {
+      const key = new Date(f.followed_at).toISOString().slice(0, 10);
+      if (dailyMap[key]) dailyMap[key].friends++;
+    }
+    const daily = Object.values(dailyMap);
+
+    return res.json({
+      summary: {
+        clicks: daily.reduce((s, d) => s + d.clicks, 0),
+        friends: daily.reduce((s, d) => s + d.friends, 0),
+      },
+      daily,
+      bySource,
+    });
+  } catch (err) {
+    console.error('GET /traffic-sources/analytics error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /traffic-sources
 router.post('/traffic-sources', async (req, res) => {
   try {

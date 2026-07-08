@@ -19,6 +19,12 @@ interface TemplateItem { id: string; name: string }
 export default function TrafficSources() {
   const [sources, setSources] = useState<TrafficSource[]>([])
   const [loading, setLoading] = useState(false)
+  const [days, setDays] = useState(30)
+  const [analytics, setAnalytics] = useState<{
+    daily: { date: string; clicks: number; friends: number }[]
+    summary: { clicks: number; friends: number }
+    bySource: { name: string; friends: number }[]
+  } | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
@@ -45,6 +51,13 @@ export default function TrafficSources() {
   }, [])
 
   useEffect(() => { fetchSources() }, [fetchSources])
+
+  useEffect(() => {
+    fetch(`/api/line-crm/traffic-sources/analytics?days=${days}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setAnalytics(d))
+      .catch(() => {})
+  }, [days])
 
   useEffect(() => {
     fetch('/api/line-crm/tags').then(r => r.ok ? r.json() : []).then(d => setTags(Array.isArray(d) ? d : [])).catch(() => {})
@@ -176,6 +189,71 @@ export default function TrafficSources() {
             </div>
             <p className="text-2xl font-bold text-[#06C755]">{totalFriends.toLocaleString()}</p>
           </div>
+        </div>
+      )}
+
+      {/* 日別の友だち登録（経路経由） */}
+      {sources.length > 0 && analytics && (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
+              <Users size={14} /> 日別の友だち登録（経路経由）
+            </div>
+            <div className="flex gap-1">
+              {[7, 14, 30, 90].map(d => (
+                <button
+                  key={d}
+                  onClick={() => setDays(d)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-lg cursor-pointer transition-colors ${days === d ? 'bg-[#06C755] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}
+                >
+                  {d}日
+                </button>
+              ))}
+            </div>
+          </div>
+          {(() => {
+            const maxV = Math.max(...analytics.daily.map(x => Math.max(x.friends, x.clicks)), 1)
+            return (
+              <>
+                <div className="flex items-end gap-0.5 h-40">
+                  {analytics.daily.map((d, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 flex items-end justify-center gap-px h-full"
+                      title={`${d.date}　登録 ${d.friends} / クリック ${d.clicks}`}
+                    >
+                      <div className="w-1/2 bg-[#06C755] rounded-t" style={{ height: `${(d.friends / maxV) * 100}%` }} />
+                      <div className="w-1/2 bg-sky-300 rounded-t" style={{ height: `${(d.clicks / maxV) * 100}%` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
+                  <span>{analytics.daily[0]?.date.slice(5)}</span>
+                  <span>{analytics.daily[analytics.daily.length - 1]?.date.slice(5)}</span>
+                </div>
+              </>
+            )
+          })()}
+          <div className="flex items-center gap-4 mt-3 text-xs text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#06C755] inline-block" /> 友だち登録 <b className="text-[#06C755]">{analytics.summary.friends.toLocaleString()}</b></span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-sky-300 inline-block" /> クリック <b>{analytics.summary.clicks.toLocaleString()}</b></span>
+          </div>
+          {analytics.bySource.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
+              <p className="text-xs text-slate-500 mb-2">経路別の友だち登録（期間内）</p>
+              <div className="space-y-1.5">
+                {analytics.bySource.map(s => (
+                  <div key={s.name} className="flex items-center gap-2 text-xs">
+                    <span className="w-28 truncate text-slate-700 dark:text-slate-300">{s.name}</span>
+                    <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded overflow-hidden">
+                      <div className="h-full bg-[#06C755]" style={{ width: `${(s.friends / Math.max(...analytics.bySource.map(x => x.friends), 1)) * 100}%` }} />
+                    </div>
+                    <span className="w-8 text-right font-medium text-slate-900 dark:text-white">{s.friends}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
