@@ -2218,6 +2218,51 @@ router.post('/media/upload', mediaUpload.single('file'), async (req, res) => {
 // ===========================================================================
 const DEFAULT_CHANNEL_ID = '00000000-0000-0000-0000-000000000010';
 
+// ── テンプレートのフォルダ（空フォルダも永続化） ──
+// GET /template-folders  → フォルダ名の配列
+router.get('/template-folders', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('template_folders')
+      .select('name')
+      .order('name', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json((data || []).map(r => r.name));
+  } catch (err) {
+    console.error('GET /template-folders error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /template-folders  { name }
+router.post('/template-folders', async (req, res) => {
+  try {
+    const name = (req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const { error } = await supabase
+      .from('template_folders')
+      .upsert({ name }, { onConflict: 'name' });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, name });
+  } catch (err) {
+    console.error('POST /template-folders error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /template-folders/:name  （フォルダ定義のみ削除。所属テンプレートは変更しない）
+router.delete('/template-folders/:name', async (req, res) => {
+  try {
+    const name = decodeURIComponent(req.params.name || '');
+    const { error } = await supabase.from('template_folders').delete().eq('name', name);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /template-folders error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /message-templates
 router.get('/message-templates', async (_req, res) => {
   try {

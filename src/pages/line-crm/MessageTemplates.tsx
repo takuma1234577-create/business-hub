@@ -220,9 +220,12 @@ export default function MessageTemplates() {
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
 
-  useEffect(() => {
+  const refreshLists = useCallback(() => {
     api.get<TagOption[]>('/tags').then(r => setTags(r.data || [])).catch(() => {})
+    api.get<string[]>('/template-folders').then(r => setPendingFolders(r.data || [])).catch(() => {})
   }, [])
+
+  useEffect(() => { refreshLists() }, [refreshLists])
 
   const toggleSelect = (id: string) => {
     setSelectedIds(s => {
@@ -250,6 +253,7 @@ export default function MessageTemplates() {
   }
 
   const openCreate = () => {
+    refreshLists()
     setName('')
     // 選択中のフォルダがあれば初期値にする
     setFolder(selectedFolder && selectedFolder !== '__uncategorized__' ? selectedFolder : '')
@@ -259,6 +263,7 @@ export default function MessageTemplates() {
   }
 
   const openEdit = (t: Template) => {
+    refreshLists()
     setName(t.name)
     setFolder(t.folder || '')
     setBlocks(t.content?.messages || [])
@@ -365,6 +370,8 @@ export default function MessageTemplates() {
               onCreate={name => {
                 setPendingFolders(p => Array.from(new Set([...p, name])))
                 setSelectedFolder(name)
+                // フォルダを永続化（空フォルダでも保存され、再読み込みで消えない）
+                api.post('/template-folders', { name }).catch(() => {})
               }}
               counts={counts}
             />
