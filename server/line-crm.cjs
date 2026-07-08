@@ -3979,7 +3979,11 @@ router.get('/track/:code', async (req, res) => {
         });
         if (botResp.ok) {
           const botInfo = await botResp.json();
-          if (botInfo.basicId) addUrl = `https://line.me/R/ti/p/@${botInfo.basicId}`;
+          // basicId は既に「@」付きで返るため、二重付与を防ぐ
+          if (botInfo.basicId) {
+            const bid = String(botInfo.basicId).startsWith('@') ? botInfo.basicId : `@${botInfo.basicId}`;
+            addUrl = `https://line.me/R/ti/p/${bid}`;
+          }
         }
       } catch {}
     }
