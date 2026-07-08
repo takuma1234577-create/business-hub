@@ -3276,6 +3276,43 @@ async function processWebhookEvents(events) {
         logWebhookMessage(event, '[postback:check_orders]', replyText);
         continue;
       }
+
+      if (action === 'ans') {
+        // 質問（選択式）の回答: 選択肢に紐づくタグを付与（＋任意で返信）
+        const tagIds = (params.get('t') || '').split(',').map(s => s.trim()).filter(Boolean);
+        const replyText = params.get('r') || '';
+        try {
+          const { data: friend } = await supabase
+            .from('friends')
+            .select('id')
+            .eq('line_user_id', lineUserId)
+            .maybeSingle();
+          if (friend) {
+            for (const tagId of tagIds) {
+              try {
+                const { data: existing } = await supabase
+                  .from('friend_tags')
+                  .select('tag_id')
+                  .eq('friend_id', friend.id)
+                  .eq('tag_id', tagId)
+                  .maybeSingle();
+                if (!existing) {
+                  await supabase.from('friend_tags').insert({ friend_id: friend.id, tag_id: tagId });
+                  enqueueTagDelivery(friend.id, tagId).catch(() => {});
+                }
+              } catch (e) {
+                console.error('[postback:ans] tag error:', e.message);
+              }
+            }
+          }
+          if (replyText && event.replyToken) await replyToLine(event.replyToken, replyText);
+        } catch (err) {
+          console.error('[line-webhook] ans error:', err.message);
+        }
+        const displayText = event.postback?.params?.displayText || '回答';
+        logWebhookMessage(event, `[回答] ${displayText}`, replyText);
+        continue;
+      }
       continue;
     }
 

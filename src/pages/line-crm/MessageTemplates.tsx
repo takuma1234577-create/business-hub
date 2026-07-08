@@ -135,8 +135,11 @@ const blockIcon = (k: UIBlockKind, size = 16) => {
   }
 }
 
+type TagOption = { id: string; name: string }
+
 export default function MessageTemplates() {
   const [templates, setTemplates] = useState<Template[]>([])
+  const [tags, setTags] = useState<TagOption[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -216,6 +219,10 @@ export default function MessageTemplates() {
   }, [])
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
+
+  useEffect(() => {
+    api.get<TagOption[]>('/tags').then(r => setTags(r.data || [])).catch(() => {})
+  }, [])
 
   const toggleSelect = (id: string) => {
     setSelectedIds(s => {
@@ -532,6 +539,7 @@ export default function MessageTemplates() {
                       index={idx}
                       total={blocks.length}
                       templates={templates.filter(t => t.id !== editingId)}
+                      tags={tags}
                       onChange={next => updateBlock(idx, next)}
                       onRemove={() => removeBlock(idx)}
                       onMoveUp={() => moveBlock(idx, -1)}
@@ -1038,13 +1046,14 @@ interface BlockEditorProps {
   index: number
   total: number
   templates: Template[]
+  tags: TagOption[]
   onChange: (b: MessageBlock) => void
   onRemove: () => void
   onMoveUp: () => void
   onMoveDown: () => void
 }
 
-function BlockEditor({ block, index, total, templates, onChange, onRemove, onMoveUp, onMoveDown }: BlockEditorProps) {
+function BlockEditor({ block, index, total, templates, tags, onChange, onRemove, onMoveUp, onMoveDown }: BlockEditorProps) {
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50/50 dark:bg-slate-900/30">
       <div className="flex items-center justify-between mb-3">
@@ -1121,10 +1130,10 @@ function BlockEditor({ block, index, total, templates, onChange, onRemove, onMov
       )}
 
       {block.type === 'template' && block.template.type === 'buttons' && (
-        <PanelEditor block={block as PanelBlock} onChange={onChange} templates={templates} />
+        <PanelEditor block={block as PanelBlock} onChange={onChange} templates={templates} tags={tags} />
       )}
       {block.type === 'template' && block.template.type === 'carousel' && (
-        <CarouselEditor block={block as CarouselBlock} onChange={onChange} templates={templates} />
+        <CarouselEditor block={block as CarouselBlock} onChange={onChange} templates={templates} tags={tags} />
       )}
     </div>
   )
@@ -1319,7 +1328,28 @@ function ThumbDropUpload({ value, onChange, aspect = 'rectangle' }: { value: str
   )
 }
 
-function PanelEditor({ block, onChange, templates }: { block: PanelBlock; onChange: (b: MessageBlock) => void; templates: Template[] }) {
+// ── 「回答(タグ)」ボタン: タップで指定タグを付与する postback ──
+// data = action=ans&t=<tagId>&r=<任意の返信文>
+function isAnswerAction(a: ButtonAction): boolean {
+  return a.type === 'postback' && typeof a.data === 'string' && a.data.startsWith('action=ans')
+}
+function parseAnswer(data: string): { tag: string; reply: string } {
+  const p = new URLSearchParams(data)
+  return { tag: p.get('t') || '', reply: p.get('r') || '' }
+}
+function buildAnswerAction(label: string, tag: string, reply: string): ButtonAction {
+  const params = new URLSearchParams()
+  params.set('action', 'ans')
+  if (tag) params.set('t', tag)
+  if (reply) params.set('r', reply)
+  return { type: 'postback', label, data: params.toString(), displayText: label }
+}
+type UIActionType = 'message' | 'uri' | 'postback' | 'answer'
+function uiActionType(a: ButtonAction): UIActionType {
+  return a.type === 'postback' && isAnswerAction(a) ? 'answer' : a.type
+}
+
+function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; onChange: (b: MessageBlock) => void; templates: Template[]; tags: TagOption[] }) {
   const tmpl = block.template
   const updateTmpl = (patch: Partial<PanelBlock['template']>) =>
     onChange({ ...block, template: { ...tmpl, ...patch } })
@@ -1331,12 +1361,13 @@ function PanelEditor({ block, onChange, templates }: { block: PanelBlock; onChan
     const curr = tmpl.actions[i] as ButtonAction
     replaceAction(i, { ...curr, ...patch } as ButtonAction)
   }
-  const changeType = (i: number, type: ButtonAction['type']) => {
+  const changeType = (i: number, type: UIActionType) => {
     const curr = tmpl.actions[i]
     const label = curr.label
     if (type === 'message') replaceAction(i, { type: 'message', label, text: '' })
     else if (type === 'uri') replaceAction(i, { type: 'uri', label, uri: '' })
-    else if (type === 'postback') replaceAction(i, { type: 'postback', label, data: '' })
+    else if (type === 'answer') replaceAction(i, buildAnswerAction(label, '', ''))
+    else replaceAction(i, { type: 'postback', label, data: '' })
   }
   const addAction = () => {
     if (tmpl.actions.length >= 4) return
@@ -1377,13 +1408,14 @@ function PanelEditor({ block, onChange, templates }: { block: PanelBlock; onChan
         {tmpl.actions.map((a, i) => (
           <div key={i} className="flex items-center gap-2">
             <select
-              value={a.type}
-              onChange={e => changeType(i, e.target.value as ButtonAction['type'])}
+              value={uiActionType(a)}
+              onChange={e => changeType(i, e.target.value as UIActionType)}
               className="px-2 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
             >
               <option value="message">送信</option>
               <option value="uri">URL</option>
               <option value="postback">テンプレート</option>
+              <option value="answer">回答(タグ)</option>
             </select>
             <input
               type="text"
@@ -1409,6 +1441,26 @@ function PanelEditor({ block, onChange, templates }: { block: PanelBlock; onChan
                 placeholder="https://..."
                 className="flex-1 px-2 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
               />
+            ) : isAnswerAction(a) ? (
+              <div className="flex-[2] flex items-center gap-1">
+                <select
+                  value={parseAnswer(a.data).tag}
+                  onChange={e => replaceAction(i, buildAnswerAction(a.label, e.target.value, parseAnswer(a.data).reply))}
+                  className="flex-1 px-2 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                >
+                  <option value="">付与タグ...</option>
+                  {tags.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={parseAnswer(a.data).reply}
+                  onChange={e => replaceAction(i, buildAnswerAction(a.label, parseAnswer(a.data).tag, e.target.value))}
+                  placeholder="回答後の返信(任意)"
+                  className="flex-1 px-2 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                />
+              </div>
             ) : (
               <select
                 value={parseTemplateId(a.data)}
@@ -1446,7 +1498,7 @@ function PanelEditor({ block, onChange, templates }: { block: PanelBlock; onChan
 }
 
 // ─────────────── Carousel Editor ───────────────
-function CarouselEditor({ block, onChange, templates }: { block: CarouselBlock; onChange: (b: MessageBlock) => void; templates: Template[] }) {
+function CarouselEditor({ block, onChange, templates, tags }: { block: CarouselBlock; onChange: (b: MessageBlock) => void; templates: Template[]; tags: TagOption[] }) {
   const columns = block.template.columns
   const updateColumn = (i: number, next: CarouselColumn) => {
     onChange({
@@ -1483,6 +1535,7 @@ function CarouselEditor({ block, onChange, templates }: { block: CarouselBlock; 
             total={columns.length}
             column={col}
             templates={templates}
+            tags={tags}
             onChange={next => updateColumn(i, next)}
             onRemove={() => removeColumn(i)}
             onMoveLeft={() => moveColumn(i, -1)}
@@ -1505,12 +1558,13 @@ function CarouselEditor({ block, onChange, templates }: { block: CarouselBlock; 
 }
 
 function CarouselColumnEditor({
-  index, total, column, templates, onChange, onRemove, onMoveLeft, onMoveRight,
+  index, total, column, templates, tags, onChange, onRemove, onMoveLeft, onMoveRight,
 }: {
   index: number
   total: number
   column: CarouselColumn
   templates: Template[]
+  tags: TagOption[]
   onChange: (c: CarouselColumn) => void
   onRemove: () => void
   onMoveLeft: () => void
@@ -1520,11 +1574,12 @@ function CarouselColumnEditor({
   const updateAction = (i: number, next: ButtonAction) => {
     onChange({ ...column, actions: column.actions.map((a, idx) => idx === i ? next : a) })
   }
-  const changeActionType = (i: number, type: ButtonAction['type']) => {
+  const changeActionType = (i: number, type: UIActionType) => {
     const label = column.actions[i].label
     let next: ButtonAction
     if (type === 'message') next = { type: 'message', label, text: '' }
     else if (type === 'uri') next = { type: 'uri', label, uri: '' }
+    else if (type === 'answer') next = buildAnswerAction(label, '', '')
     else next = { type: 'postback', label, data: '' }
     updateAction(i, next)
   }
@@ -1582,13 +1637,14 @@ function CarouselColumnEditor({
           <div key={i} className="space-y-1">
             <div className="flex items-center gap-1">
               <select
-                value={a.type}
-                onChange={e => changeActionType(i, e.target.value as ButtonAction['type'])}
+                value={uiActionType(a)}
+                onChange={e => changeActionType(i, e.target.value as UIActionType)}
                 className="px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
               >
                 <option value="message">送信</option>
                 <option value="uri">URL</option>
                 <option value="postback">テンプレ</option>
+                <option value="answer">回答(タグ)</option>
               </select>
               <input
                 type="text"
@@ -1610,7 +1666,7 @@ function CarouselColumnEditor({
               <input type="text" value={a.uri || ''} onChange={e => updateAction(i, { type: 'uri', label: a.label, uri: e.target.value })} placeholder="https://..."
                 className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]" />
             )}
-            {a.type === 'postback' && (
+            {a.type === 'postback' && !isAnswerAction(a) && (
               <select
                 value={parseTemplateId(a.data)}
                 onChange={e => {
@@ -1627,6 +1683,25 @@ function CarouselColumnEditor({
                 <option value="">テンプレート選択...</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
+            )}
+            {a.type === 'postback' && isAnswerAction(a) && (
+              <div className="space-y-1">
+                <select
+                  value={parseAnswer(a.data).tag}
+                  onChange={e => updateAction(i, buildAnswerAction(a.label, e.target.value, parseAnswer(a.data).reply))}
+                  className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
+                >
+                  <option value="">付与するタグ...</option>
+                  {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <input
+                  type="text"
+                  value={parseAnswer(a.data).reply}
+                  onChange={e => updateAction(i, buildAnswerAction(a.label, parseAnswer(a.data).tag, e.target.value))}
+                  placeholder="回答後の返信(任意)"
+                  className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
+                />
+              </div>
             )}
           </div>
         ))}
