@@ -9,7 +9,12 @@ interface TrafficSource {
   click_count: number
   friend_count: number
   created_at: string
+  tag_ids?: string[]
+  greeting_template_id?: string | null
 }
+
+interface TagItem { id: string; name: string; color?: string | null }
+interface TemplateItem { id: string; name: string }
 
 export default function TrafficSources() {
   const [sources, setSources] = useState<TrafficSource[]>([])
@@ -20,6 +25,10 @@ export default function TrafficSources() {
   const [formDesc, setFormDesc] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [qrSource, setQrSource] = useState<TrafficSource | null>(null)
+  const [tags, setTags] = useState<TagItem[]>([])
+  const [templates, setTemplates] = useState<TemplateItem[]>([])
+  const [formTagIds, setFormTagIds] = useState<string[]>([])
+  const [formGreetingTemplateId, setFormGreetingTemplateId] = useState<string>('')
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -37,18 +46,28 @@ export default function TrafficSources() {
 
   useEffect(() => { fetchSources() }, [fetchSources])
 
+  useEffect(() => {
+    fetch('/api/line-crm/tags').then(r => r.ok ? r.json() : []).then(d => setTags(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/line-crm/message-templates').then(r => r.ok ? r.json() : []).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+
+  const toggleFormTag = (id: string) =>
+    setFormTagIds(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id])
+
   const handleCreate = async () => {
     if (!formName.trim()) return
     try {
       const res = await fetch('/api/line-crm/traffic-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null }),
+        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null }),
       })
       if (res.ok) {
         setShowForm(false)
         setFormName('')
         setFormDesc('')
+        setFormTagIds([])
+        setFormGreetingTemplateId('')
         fetchSources()
       }
     } catch (err) {
@@ -62,11 +81,13 @@ export default function TrafficSources() {
       await fetch(`/api/line-crm/traffic-sources/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null }),
+        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null }),
       })
       setEditId(null)
       setFormName('')
       setFormDesc('')
+      setFormTagIds([])
+      setFormGreetingTemplateId('')
       setShowForm(false)
       fetchSources()
     } catch (err) {
@@ -96,6 +117,8 @@ export default function TrafficSources() {
     setEditId(source.id)
     setFormName(source.name)
     setFormDesc(source.description || '')
+    setFormTagIds(source.tag_ids || [])
+    setFormGreetingTemplateId(source.greeting_template_id || '')
     setShowForm(true)
   }
 
@@ -126,7 +149,7 @@ export default function TrafficSources() {
           </div>
         </div>
         <button
-          onClick={() => { setShowForm(true); setEditId(null); setFormName(''); setFormDesc('') }}
+          onClick={() => { setShowForm(true); setEditId(null); setFormName(''); setFormDesc(''); setFormTagIds([]); setFormGreetingTemplateId('') }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <Plus size={16} />
@@ -276,6 +299,48 @@ export default function TrafficSources() {
                   className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
                 />
               </div>
+
+              {/* 自動付与タグ */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">この経路で自動付与するタグ（任意）</label>
+                {tags.length === 0 ? (
+                  <p className="text-xs text-slate-400">タグがありません（タグ管理で作成できます）</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(tag => {
+                      const on = formTagIds.includes(tag.id)
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleFormTag(tag.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition ${on ? 'bg-[#06C755] text-white border-[#06C755]' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#06C755]'}`}
+                        >
+                          {on ? '✓ ' : ''}{tag.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-slate-400">この経路から友だち追加した人に自動でタグを付けます。</p>
+              </div>
+
+              {/* 専用の挨拶メッセージ */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">専用の挨拶メッセージ（任意）</label>
+                <select
+                  value={formGreetingTemplateId}
+                  onChange={e => setFormGreetingTemplateId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
+                >
+                  <option value="">（全体の挨拶を使用）</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">設定すると、この経路の友だちには全体の挨拶の代わりにこのテンプレを送ります。</p>
+              </div>
+
               {!editId && (
                 <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
                   <p className="text-xs text-slate-500 leading-relaxed">

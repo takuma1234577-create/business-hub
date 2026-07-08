@@ -3028,8 +3028,10 @@ async function processWebhookEvents(events) {
           } catch {}
         }
 
-        // 流入経路の判定: 直近5分以内のクリックからマッチング
+        // 流入経路の判定: 直近クリックからマッチング（＋経路別のタグ・専用挨拶を取得）
         let trafficSourceId = null;
+        let sourceTagIds = [];
+        let sourceGreetingTemplateId = null;
         try {
           // traffic_clicks の列は created_at（clicked_at は存在しないため照合が毎回失敗していた）。
           // クリック後すぐに追加しない人が多いため、照合ウィンドウを30分に拡大。
@@ -3043,9 +3045,19 @@ async function processWebhookEvents(events) {
             .maybeSingle();
           if (recentClick) {
             trafficSourceId = recentClick.source_id;
-            // friend_countをインクリメント
-            const { count } = await supabase.from('friends').select('id', { count: 'exact', head: true }).eq('traffic_source_id', trafficSourceId);
-            await supabase.from('traffic_sources').update({ friend_count: (count || 0) + 1 }).eq('id', trafficSourceId);
+            // 経路の設定（タグ・専用挨拶）を取得
+            const { data: srcCfg } = await supabase
+              .from('traffic_sources')
+              .select('friend_count, tag_ids, greeting_template_id')
+              .eq('id', trafficSourceId)
+              .maybeSingle();
+            if (srcCfg) {
+              sourceTagIds = Array.isArray(srcCfg.tag_ids) ? srcCfg.tag_ids : [];
+              sourceGreetingTemplateId = srcCfg.greeting_template_id || null;
+              await supabase.from('traffic_sources')
+                .update({ friend_count: (srcCfg.friend_count || 0) + 1 })
+                .eq('id', trafficSourceId);
+            }
           }
         } catch (err) {
           console.error('[follow] traffic source matching error:', err.message);
@@ -3082,7 +3094,22 @@ async function processWebhookEvents(events) {
         }
         console.log(`[follow] ${displayName} added. Source: ${trafficSourceId || 'direct'}`);
 
-        // 挨拶メッセージを送信
+        // 経路別タグを付与（付与のみ・タグ連動配信は発火させない）
+        if (trafficSourceId && sourceTagIds.length > 0) {
+          try {
+            const { data: fr } = await supabase.from('friends').select('id').eq('line_user_id', lineUserId).maybeSingle();
+            if (fr?.id) {
+              const { data: existingTags } = await supabase.from('friend_tags').select('tag_id').eq('friend_id', fr.id);
+              const have = new Set((existingTags || []).map(r => r.tag_id));
+              const rows = sourceTagIds.filter(t => t && !have.has(t)).map(t => ({ friend_id: fr.id, tag_id: t }));
+              if (rows.length > 0) await supabase.from('friend_tags').insert(rows);
+            }
+          } catch (tagErr) {
+            console.error('[follow] source tag apply error:', tagErr.message);
+          }
+        }
+
+        // 挨拶メッセージを送信（経路専用挨拶があれば優先、無ければ全体挨拶）
         try {
           const { data: channelSettings } = await supabase
             .from('line_channels')
@@ -3090,11 +3117,14 @@ async function processWebhookEvents(events) {
             .limit(1)
             .maybeSingle();
 
-          if (channelSettings?.greeting_enabled && channelSettings?.greeting_template_id && token) {
+          const greetingTemplateId = sourceGreetingTemplateId
+            || (channelSettings?.greeting_enabled ? channelSettings?.greeting_template_id : null);
+
+          if (greetingTemplateId && token) {
             const { data: tmpl } = await supabase
               .from('message_templates')
               .select('content')
-              .eq('id', channelSettings.greeting_template_id)
+              .eq('id', greetingTemplateId)
               .maybeSingle();
 
             if (tmpl?.content?.messages && Array.isArray(tmpl.content.messages) && tmpl.content.messages.length > 0) {
@@ -3877,13 +3907,20 @@ router.get('/traffic-sources', async (_req, res) => {
 // POST /traffic-sources
 router.post('/traffic-sources', async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, tag_ids, greeting_template_id } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
     const code = Math.random().toString(36).substring(2, 10);
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('traffic_sources')
-      .insert({ name, description: description || null, code, channel_id: DEFAULT_CHANNEL_ID })
+      .insert({
+        name,
+        description: description || null,
+        code,
+        channel_id: DEFAULT_CHANNEL_ID,
+        tag_ids: Array.isArray(tag_ids) ? tag_ids : [],
+        greeting_template_id: greeting_template_id || null,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -3897,11 +3934,14 @@ router.post('/traffic-sources', async (req, res) => {
 // PUT /traffic-sources/:id
 router.put('/traffic-sources/:id', async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, tag_ids, greeting_template_id } = req.body;
     const supabase = getSupabase();
+    const updates = { name, description, updated_at: new Date().toISOString() };
+    if (tag_ids !== undefined) updates.tag_ids = Array.isArray(tag_ids) ? tag_ids : [];
+    if (greeting_template_id !== undefined) updates.greeting_template_id = greeting_template_id || null;
     const { data, error } = await supabase
       .from('traffic_sources')
-      .update({ name, description, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', req.params.id)
       .select()
       .single();
