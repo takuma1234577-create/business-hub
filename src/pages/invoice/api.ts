@@ -45,6 +45,25 @@ export const invoiceApi = {
   getNextNumber: () => api.get<{ number: string }>('/invoice-number').then(r => r.data.number),
 };
 
+export interface ParsedReceipt {
+  companyName: string;
+  contactName: string;
+  amount: number;
+  taxRate: number;
+  subject: string;
+  invoiceNumber: string;
+  issueDate: string;
+}
+
+export const receiptApi = {
+  parse: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    // Content-Type はブラウザに自動設定させる（multipart boundary を含めるため）
+    return api.post<ParsedReceipt>('/parse-receipt', form).then(r => r.data);
+  },
+};
+
 export const settingsApi = {
   get: () => api.get<SenderSettings>('/settings').then(r => r.data),
   update: (data: Partial<SenderSettings>) => api.put<SenderSettings>('/settings', data).then(r => r.data),

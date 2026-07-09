@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getSupabase, getGoogleOAuth2, google } = require('./shared.cjs');
+const multer = require('multer');
+const { getSupabase, getGoogleOAuth2, getAnthropicClient, google } = require('./shared.cjs');
 const PDFDocument = require('pdfkit');
+
+// アップロードした請求書をメモリ上で受け取る（最大20MB）
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // --- Config ---
 const CRON_SECRET = process.env.INVOICE_CRON_SECRET || '';
@@ -309,7 +313,17 @@ router.delete('/schedules/:id', async (req, res) => {
 // === Settings Routes ===
 router.get('/settings', async (req, res) => {
   const { data, error } = await supabase.from('invoice_settings').select('*').eq('id', 'default').single();
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    // Row doesn't exist yet — return empty defaults
+    if (error.code === 'PGRST116') {
+      return res.json({
+        senderName: '', senderCompany: '', senderPostalCode: '', senderAddress: '',
+        senderPhone: '', senderEmail: '',
+        bankName: '', bankBranch: '', bankAccount: '', bankAccountName: '', bankSwift: '', currency: 'JPY',
+      });
+    }
+    return res.status(500).json({ error: error.message });
+  }
   const result = toCamel(data);
   delete result.id;
   delete result.updatedAt;
@@ -319,8 +333,9 @@ router.get('/settings', async (req, res) => {
 router.put('/settings', async (req, res) => {
   const row = toSnake(req.body);
   delete row.id;
+  row.id = 'default';
   row.updated_at = new Date().toISOString();
-  const { data, error } = await supabase.from('invoice_settings').update(row).eq('id', 'default').select().single();
+  const { data, error } = await supabase.from('invoice_settings').upsert(row).select().single();
   if (error) return res.status(500).json({ error: error.message });
   const result = toCamel(data);
   delete result.id;
@@ -908,6 +923,80 @@ router.get('/cron', async (req, res) => {
     }
   }
   res.json({ success: true, processed });
+});
+
+// =====================
+// 請求書アップロード → AI解析 → 領収書フィールド抽出
+// =====================
+router.post('/parse-receipt', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'ファイルが必要です' });
+
+    const mimeType = req.file.mimetype;
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = mimeType.startsWith('image/');
+    if (!isPdf && !isImage) {
+      return res.status(400).json({ error: 'PDFまたは画像ファイルをアップロードしてください' });
+    }
+
+    const anthropic = await getAnthropicClient();
+    const base64 = req.file.buffer.toString('base64');
+
+    const content = [];
+    if (isPdf) {
+      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } });
+    } else {
+      content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
+    }
+
+    content.push({
+      type: 'text',
+      text: `これは請求書です。この請求書をもとに「領収書」を作成するため、必要な情報を読み取ってください。
+
+領収書の宛名は、請求書の「請求先（宛先／お客様）」の会社名・担当者名です。請求元（発行者）ではありません。
+
+以下のJSON形式で返してください。説明やコメントは不要です。JSONのみ返してください。
+
+{
+  "companyName": "請求先の会社名（宛名）",
+  "contactName": "請求先の担当者名（なければ空文字）",
+  "amount": 合計金額（税込・数値のみ、カンマや円記号なし）,
+  "taxRate": 消費税率（10 / 8 / 0 のいずれか。判断できなければ10）,
+  "subject": "但し書き（主な品目やサービス内容を簡潔に。例：コンサルティング費用）",
+  "invoiceNumber": "請求書番号（なければ空文字）",
+  "issueDate": "請求書の発行日 YYYY-MM-DD（不明なら空文字）"
+}
+
+重要なルール:
+- amount は税込の合計金額。税抜と税額が別記載なら合算した税込総額を使う。
+- 金額が読み取れない場合は 0 を返す。
+- 会社名は「株式会社」等も含めて正確に。「御中」「様」は付けない。`,
+    });
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content }],
+    });
+
+    const text = response.content[0]?.text || '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('AI応答からデータを抽出できませんでした');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    res.json({
+      companyName: String(parsed.companyName || ''),
+      contactName: String(parsed.contactName || ''),
+      amount: Number(parsed.amount) || 0,
+      taxRate: [0, 8, 10].includes(Number(parsed.taxRate)) ? Number(parsed.taxRate) : 10,
+      subject: String(parsed.subject || ''),
+      invoiceNumber: String(parsed.invoiceNumber || ''),
+      issueDate: /^\d{4}-\d{2}-\d{2}$/.test(parsed.issueDate) ? parsed.issueDate : '',
+    });
+  } catch (err) {
+    console.error('[parse-receipt] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
