@@ -9,6 +9,7 @@ export type OrderStatus =
   | 'TRACKING_UPDATED'
   | 'CANCELLED'
   | 'ERROR'
+  | 'NEEDS_REVIEW'
 
 export type ShippingSpeed = 'STANDARD' | 'EXPEDITED' | 'PRIORITY'
 
