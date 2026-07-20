@@ -32,6 +32,18 @@ export interface InvoiceData {
   notes: string;
 }
 
+export interface ReceiptData {
+  receiptNumber: string;
+  issueDate: string;
+  client: Client;
+  sender: SenderSettings;
+  amount: number;        // 領収金額（税込）
+  taxRate: number;       // 消費税率（%）10 / 8 / 0
+  subject: string;       // 但し書き（例：コンサルティング費用）
+  paymentMethod: string; // お支払方法（銀行振込 / 現金 / クレジットカード 等）
+  notes: string;
+}
+
 export interface EmailTemplate {
   id: string;
   name: string;

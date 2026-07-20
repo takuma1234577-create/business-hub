@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ToolLayout from '../components/ToolLayout'
 import { InvoiceForm } from './invoice/InvoiceForm'
+import { ReceiptForm } from './invoice/ReceiptForm'
 import { ClientManager } from './invoice/ClientManager'
 import { TemplateManager } from './invoice/TemplateManager'
 import { HistoryView } from './invoice/HistoryView'
@@ -8,10 +9,11 @@ import { ScheduleManager } from './invoice/ScheduleManager'
 import { SettingsManager } from './invoice/SettingsManager'
 import { AuthStatus } from './invoice/AuthStatus'
 
-type Tab = 'invoice' | 'clients' | 'templates' | 'history' | 'schedules' | 'settings'
+type Tab = 'invoice' | 'receipt' | 'clients' | 'templates' | 'history' | 'schedules' | 'settings'
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'invoice', label: '請求書作成' },
+  { id: 'receipt', label: '領収書作成' },
   { id: 'clients', label: 'クライアント管理' },
   { id: 'templates', label: 'メールテンプレート' },
   { id: 'history', label: '送信履歴' },
@@ -46,6 +48,7 @@ export default function InvoiceTool() {
       </div>
 
       {activeTab === 'invoice' && <InvoiceForm />}
+      {activeTab === 'receipt' && <ReceiptForm />}
       {activeTab === 'clients' && <ClientManager />}
       {activeTab === 'templates' && <TemplateManager />}
       {activeTab === 'history' && <HistoryView />}
