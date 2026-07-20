@@ -3,13 +3,15 @@ import ToolLayout from '../components/ToolLayout'
 import ScriptEditor from './fitpeak-sns/ScriptEditor'
 import AssetManager from './fitpeak-sns/AssetManager'
 import VideoList from './fitpeak-sns/VideoList'
+import PostQueue from './fitpeak-sns/PostQueue'
 
-type Tab = 'scripts' | 'assets' | 'videos'
+type Tab = 'scripts' | 'assets' | 'videos' | 'queue'
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'scripts', label: '台本管理' },
   { id: 'assets', label: '素材管理' },
   { id: 'videos', label: '生成動画' },
+  { id: 'queue', label: '投稿キュー' },
 ]
 
 export default function FitpeakSns() {
@@ -37,6 +39,7 @@ export default function FitpeakSns() {
       {activeTab === 'scripts' && <ScriptEditor />}
       {activeTab === 'assets' && <AssetManager />}
       {activeTab === 'videos' && <VideoList />}
+      {activeTab === 'queue' && <PostQueue />}
     </ToolLayout>
   )
 }

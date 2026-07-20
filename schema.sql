@@ -1574,3 +1574,69 @@ begin
   limit match_count;
 end;
 $$;
+
+-- ============================================================
+-- SALES AGENT MODULE（営業エージェント）
+-- ============================================================
+
+create table if not exists sales_agent_settings (
+  id                text primary key default 'default',
+  enabled           boolean not null default false,
+  mode              text not null default 'proposal',
+  cooldown_days     int not null default 7,
+  daily_limit       int not null default 20,
+  max_coupon_amount int not null default 1000,
+  amazon_url        text default 'https://www.amazon.co.jp/stores/page/FITPEAK',
+  shopify_url       text default 'https://fitpeak.co',
+  extra_instructions text,
+  updated_at        timestamptz default now()
+);
+alter table sales_agent_settings enable row level security;
+create policy "service_role_all" on sales_agent_settings using (true);
+
+create table if not exists sales_agent_proposals (
+  id                  uuid primary key default gen_random_uuid(),
+  friend_id           uuid not null references friends(id) on delete cascade,
+  line_user_id        text not null,
+  display_name        text,
+  segment             text,
+  objective           text,
+  recommended_product text,
+  message             text not null,
+  link_type           text default 'none',
+  link_url            text,
+  coupon_amount       int not null default 0,
+  coupon_code         text,
+  confidence          numeric,
+  reasoning           text,
+  status              text not null default 'pending',
+  error               text,
+  created_at          timestamptz default now(),
+  sent_at             timestamptz
+);
+alter table sales_agent_proposals enable row level security;
+create policy "service_role_all" on sales_agent_proposals using (true);
+create index if not exists idx_sap_status on sales_agent_proposals(status);
+create index if not exists idx_sap_friend on sales_agent_proposals(friend_id);
+create index if not exists idx_sap_sent_at on sales_agent_proposals(sent_at);
+
+-- ============================================================
+-- SNS POST QUEUE（投稿キュー: キュー + ワンタップ投稿）
+-- ============================================================
+create table if not exists sns_post_queue (
+  id            uuid primary key default gen_random_uuid(),
+  video_id      uuid not null references sns_videos(id) on delete cascade,
+  platform      text not null,
+  caption       text not null default '',
+  hashtags      jsonb not null default '[]'::jsonb,
+  scheduled_for timestamptz,
+  status        text not null default 'queued',
+  post_url      text,
+  error         text,
+  created_at    timestamptz default now(),
+  posted_at     timestamptz
+);
+alter table sns_post_queue enable row level security;
+create policy "service_role_all" on sns_post_queue using (true);
+create index if not exists idx_spq_status on sns_post_queue(status);
+create index if not exists idx_spq_video on sns_post_queue(video_id);

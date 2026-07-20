@@ -13,6 +13,7 @@ import {
   Star,
   Globe,
   Video,
+  Target,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -106,6 +107,16 @@ const tools: Tool[] = [
     path: '/sales-email',
     color: 'text-teal-600 dark:text-teal-400',
     bgColor: 'bg-teal-50 dark:bg-teal-950/50',
+    status: 'active',
+  },
+  {
+    id: 'sales-agent',
+    name: '営業エージェント',
+    description: 'LINE友だち一人ひとりをAIが分析し、購入につながる提案を自動生成。ワンタップ承認で送信、クーポン発行・購入リンクまで自動。',
+    icon: <Target size={28} />,
+    path: '/sales-agent',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-950/50',
     status: 'active',
   },
   {

@@ -85,6 +85,7 @@ const hpOutreachRoutes = require(path.join(__dirname, 'hp-outreach.cjs'));
 const backupRoutes = require(path.join(__dirname, 'backup.cjs'));
 const shopifyReviewsRoutes = require(path.join(__dirname, 'shopify-reviews.cjs'));
 const fitpeakSnsRoutes = require(path.join(__dirname, 'fitpeak-sns.cjs'));
+const salesAgentRoutes = require(path.join(__dirname, 'sales-agent.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -110,6 +111,7 @@ app.use('/api/hp-outreach', hpOutreachRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/shopify-reviews', shopifyReviewsRoutes);
 app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
+app.use('/api/sales-agent', salesAgentRoutes);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
 function internalGet(routePath) {
@@ -159,6 +161,8 @@ app.get('/api/daily-cron', async (req, res) => {
     // hpPipeline:          '/api/hp-outreach/cron/pipeline',
     // hpReplies:           '/api/hp-outreach/cron/check-replies',
     surveyFollowups:     '/api/line-crm/survey-followups/process',
+    // 営業エージェント: 提案生成（既定は無効。設定でenabled、mode='auto'のときのみ送信）
+    salesAgent:          '/api/sales-agent/cron',
     dailyBackup:         '/api/backup/run',
   };
 

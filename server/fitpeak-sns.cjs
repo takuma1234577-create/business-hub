@@ -465,4 +465,221 @@ router.delete('/videos/:id', async (req, res) => {
   }
 });
 
+// ===========================================================================
+// SNS投稿キュー（キュー + ワンタップ投稿）
+//   完成動画をAIで投稿文最適化 → キュー化 → 人がワンタップ投稿。
+//   TikTok/Instagram公式APIが接続済みなら自動投稿、未接続なら投稿アシスト
+//   （投稿文コピー + 動画DL + 「投稿済み」ワンタップ）にフォールバック。
+// ===========================================================================
+
+const PLATFORM_LABEL = { tiktok: 'TikTok', instagram: 'Instagram' };
+
+// プラットフォーム別の投稿文をAIで最適化
+async function optimizeCaption(video, platform) {
+  const { getAnthropicClient } = require('./shared.cjs');
+  const productName = (PRODUCTS[video.product] || {}).name || video.product || 'FITPEAK商品';
+  const baseCaption = video.caption || '';
+  const guide = platform === 'tiktok'
+    ? 'TikTok向け: 最初の1行で強いフック。短く勢いのある口語。トレンド感。ハッシュタグは8〜12個（日本語＋一部英語、#筋トレ #宅トレ #ジム など）。最適投稿時間帯は平日19:00〜22:00。'
+    : 'Instagram Reels向け: 共感→価値→CTAの流れ。改行を使い読みやすく。絵文字は使わない。ハッシュタグは15〜25個をまとめて末尾に。最適投稿時間帯は平日20:00〜21:00、週末11:00。';
+
+  const prompt = `あなたはFITPEAK（筋トレギアD2Cブランド）のSNS運用責任者です。
+以下の動画について、${PLATFORM_LABEL[platform]}に最適化した投稿文を作成してください。
+
+商品: ${productName}
+テーマ: ${video.theme || ''}
+元キャプション: ${baseCaption}
+
+${guide}
+
+以下のJSON形式のみで出力（他のテキストは禁止）:
+{"caption":"投稿本文（ハッシュタグは含めない）","hashtags":["#tag1","#tag2"],"best_time_jst":"20:00","reason":"その時間を推奨する理由を一言"}`;
+
+  const anthropic = await getAnthropicClient();
+  const completion = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 700,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const textBlock = (completion.content || []).find((b) => b.type === 'text');
+  const raw = (textBlock?.text || '').trim();
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) return { caption: baseCaption, hashtags: video.hashtags || [], best_time_jst: null };
+  try {
+    const p = JSON.parse(m[0]);
+    return {
+      caption: p.caption || baseCaption,
+      hashtags: Array.isArray(p.hashtags) ? p.hashtags : [],
+      best_time_jst: p.best_time_jst || null,
+      reason: p.reason || '',
+    };
+  } catch {
+    return { caption: baseCaption, hashtags: video.hashtags || [], best_time_jst: null };
+  }
+}
+
+// "HH:MM"(JST) から次回の投稿日時(timestamptz)を計算。過去なら翌日。
+function nextOccurrence(hhmm) {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null;
+  const [h, min] = hhmm.split(':').map(Number);
+  const nowUtc = Date.now();
+  const jstNow = new Date(nowUtc + 9 * 3600 * 1000); // JST換算
+  const target = new Date(jstNow);
+  target.setHours(h, min, 0, 0);
+  if (target.getTime() <= jstNow.getTime()) target.setDate(target.getDate() + 1);
+  // JST→UTCに戻してISO
+  return new Date(target.getTime() - 9 * 3600 * 1000).toISOString();
+}
+
+// 完成動画を投稿キューに追加（プラットフォームごとに最適化）
+router.post('/videos/:id/queue', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const platforms = Array.isArray(req.body?.platforms) && req.body.platforms.length
+      ? req.body.platforms
+      : ['tiktok', 'instagram'];
+
+    const { data: video } = await sb.from('sns_videos').select('*').eq('id', req.params.id).single();
+    if (!video) return res.status(404).json({ error: '動画が見つかりません' });
+    if (video.status !== 'done' || !video.video_url) {
+      return res.status(400).json({ error: 'レンダリング完了済みの動画のみキューに追加できます' });
+    }
+
+    const created = [];
+    for (const platform of platforms) {
+      if (!PLATFORM_LABEL[platform]) continue;
+      const opt = await optimizeCaption(video, platform);
+      const { data, error } = await sb.from('sns_post_queue').insert({
+        video_id: video.id,
+        platform,
+        caption: opt.caption,
+        hashtags: opt.hashtags,
+        scheduled_for: nextOccurrence(opt.best_time_jst),
+        status: 'queued',
+      }).select().single();
+      if (error) {
+        console.error('[sns-queue] insert error:', error.message);
+        continue;
+      }
+      created.push({ ...data, _reason: opt.reason });
+    }
+
+    res.json({ created });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 投稿キュー一覧（動画情報をジョイン）
+router.get('/post-queue', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    let q = sb.from('sns_post_queue')
+      .select('*, sns_videos(video_url, theme, product, script_number)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (req.query.status) q = q.eq('status', req.query.status);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// キュー項目の編集
+router.put('/post-queue/:id', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const allowed = ['caption', 'hashtags', 'scheduled_for', 'platform'];
+    const patch = {};
+    for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
+    const { data, error } = await sb.from('sns_post_queue')
+      .update(patch).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TikTok/Instagram公式APIで投稿（接続済みなら）。未接続ならmanualモードを返す。
+async function publishToPlatform(item, video) {
+  const sb = getSupabase();
+  // channel_stores に該当プラットフォームの有効な認証情報があるか
+  const { data: store } = await sb.from('channel_stores')
+    .select('channel, access_token, metadata')
+    .eq('channel', item.platform.toUpperCase())
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!store || !store.access_token) {
+    // API未接続 → 投稿アシスト（手動）モード
+    return {
+      mode: 'manual',
+      video_url: video.video_url,
+      caption: `${item.caption}\n\n${(item.hashtags || []).join(' ')}`.trim(),
+    };
+  }
+
+  // 公式API接続済み → ここで各プラットフォームのContent Posting APIを呼ぶ
+  // （TikTok Content Posting API / Instagram Graph API。審査通過後にcredentialを
+  //   channel_storesへ登録すれば、この分岐で自動投稿される。）
+  throw new Error(`${PLATFORM_LABEL[item.platform]}の自動投稿APIは未実装です（認証情報は検出）。手動投稿をご利用ください。`);
+}
+
+// ワンタップ投稿
+router.post('/post-queue/:id/publish', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data: item } = await sb.from('sns_post_queue').select('*').eq('id', req.params.id).maybeSingle();
+    if (!item) return res.status(404).json({ error: 'キュー項目が見つかりません' });
+    const { data: video } = await sb.from('sns_videos').select('*').eq('id', item.video_id).maybeSingle();
+    if (!video) return res.status(404).json({ error: '動画が見つかりません' });
+
+    const result = await publishToPlatform(item, video);
+
+    if (result.mode === 'manual') {
+      // 手動投稿アシスト: 投稿文と動画URLを返す（statusは変更しない。投稿後にmark-posted）
+      return res.json({ mode: 'manual', ...result });
+    }
+
+    // API投稿成功
+    await sb.from('sns_post_queue').update({
+      status: 'posted', posted_at: new Date().toISOString(), post_url: result.post_url || null, error: null,
+    }).eq('id', item.id);
+    res.json({ mode: 'api', post_url: result.post_url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 投稿済みにする（手動投稿後のワンタップ）
+router.post('/post-queue/:id/mark-posted', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.from('sns_post_queue').update({
+      status: 'posted', posted_at: new Date().toISOString(), post_url: req.body?.post_url || null,
+    }).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// スキップ
+router.post('/post-queue/:id/skip', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.from('sns_post_queue').update({ status: 'skipped' })
+      .eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

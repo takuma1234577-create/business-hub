@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react'
+import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Gift, Link2 } from 'lucide-react'
 import axios from 'axios'
 import SurveyFollowups from './SurveyFollowups'
+import ReviewGiftAdmin from './ReviewGiftAdmin'
+import ReferralAdmin from './ReferralAdmin'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
 api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
@@ -35,8 +37,11 @@ interface Stats {
   urlClickCount: number
 }
 
+interface HeatStep { step: string; label: string; users: number; events: number; rate: number }
+
 export default function FitpeakDashboard() {
-  const [subTab, setSubTab] = useState<'dashboard' | 'followups'>('dashboard')
+  const [subTab, setSubTab] = useState<'dashboard' | 'followups' | 'review_gifts' | 'referrals'>('dashboard')
+  const [heatmap, setHeatmap] = useState<HeatStep[]>([])
   const [view, setView] = useState<'list' | 'detail'>('list')
   const [surveys, setSurveys] = useState<Survey[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -66,8 +71,13 @@ export default function FitpeakDashboard() {
     } catch { /* ignore */ }
   }, [])
 
+  const fetchHeatmap = useCallback(async () => {
+    try { const res = await api.get('/fitpeak/heatmap'); setHeatmap(res.data.steps || []) } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => { fetchSurveys() }, [fetchSurveys])
   useEffect(() => { fetchStats() }, [fetchStats])
+  useEffect(() => { fetchHeatmap() }, [fetchHeatmap])
 
   const openDetail = async (id: string) => {
     try {
@@ -86,31 +96,54 @@ export default function FitpeakDashboard() {
 
   const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
+  const copyReviewUrl = (surveyId: string, lineUserId: string | null) => {
+    const base = 'https://my.fitpeak.co/survey/review-gift'
+    const url = surveyId ? `${base}?sid=${surveyId}` : lineUserId ? `${base}?line=${lineUserId}` : base
+    navigator.clipboard?.writeText(url)
+      .then(() => alert('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url))
+      .catch(() => window.prompt('URLをコピーしてLINEで送ってください', url))
+  }
+
   const ratingColor = (n: number) => {
     if (n >= 4) return 'text-[#06C755]'
     if (n >= 3) return 'text-yellow-500'
     return 'text-red-500'
   }
 
+  const SubNav = ({ active }: { active: 'dashboard' | 'followups' | 'review_gifts' | 'referrals' }) => (
+    <div className="flex items-center gap-2 mb-6 flex-wrap">
+      <button onClick={() => setSubTab('dashboard')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'dashboard' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>ダッシュボード</button>
+      <button onClick={() => setSubTab('referrals')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'referrals' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Link2 size={14} className="inline mr-1" />紹介管理</button>
+      <button onClick={() => setSubTab('review_gifts')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'review_gifts' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Gift size={14} className="inline mr-1" />レビュー特典</button>
+      <button onClick={() => setSubTab('followups')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'followups' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><RefreshCw size={14} className="inline mr-1" />フォローアップ</button>
+    </div>
+  )
+
+  // Sub-tab: 紹介管理
+  if (subTab === 'referrals') {
+    return (
+      <div>
+        <SubNav active="referrals" />
+        <ReferralAdmin />
+      </div>
+    )
+  }
+
+  // Sub-tab: レビュー特典
+  if (subTab === 'review_gifts') {
+    return (
+      <div>
+        <SubNav active="review_gifts" />
+        <ReviewGiftAdmin />
+      </div>
+    )
+  }
+
   // Sub-tab: フォローアップ
   if (subTab === 'followups') {
     return (
       <div>
-        <div className="flex items-center gap-2 mb-6">
-          <button
-            onClick={() => setSubTab('dashboard')}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-          >
-            ダッシュボード
-          </button>
-          <button
-            onClick={() => setSubTab('followups')}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[#06C755] text-white cursor-pointer"
-          >
-            <RefreshCw size={14} className="inline mr-1" />
-            フォローアップ
-          </button>
-        </div>
+        <SubNav active="followups" />
         <SurveyFollowups />
       </div>
     )
@@ -126,6 +159,11 @@ export default function FitpeakDashboard() {
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">アンケート詳細</h2>
+          {s.rating === 5 && (
+            <button onClick={() => copyReviewUrl(s.id, s.line_user_id)} className="ml-auto px-3 py-1.5 rounded-lg border border-[#06C755]/40 text-[#06C755] text-sm font-medium flex items-center gap-1 hover:bg-[#06C755]/10">
+              <Link2 size={14} /> レビュー提出URLをコピー
+            </button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -232,45 +270,26 @@ export default function FitpeakDashboard() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-6">
-        <button
-          onClick={() => setSubTab('dashboard')}
-          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[#06C755] text-white cursor-pointer"
-        >
-          ダッシュボード
-        </button>
-        <button
-          onClick={() => setSubTab('followups')}
-          className="px-3 py-1.5 text-sm font-medium rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-        >
-          <RefreshCw size={14} className="inline mr-1" />
-          フォローアップ
-        </button>
-      </div>
+      <SubNav active="dashboard" />
 
-      {/* Funnel */}
-      {stats && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-6">
-          <h3 className="text-sm font-medium text-slate-900 dark:text-white mb-4">アンケートファネル</h3>
-          <div className="flex items-end gap-2">
-            {[
-              { label: 'アンケート送信', value: stats.sentCount, color: 'bg-slate-400' },
-              { label: 'URLクリック', value: stats.urlClickCount, color: 'bg-blue-400' },
-              { label: 'アンケート回答', value: stats.total, color: 'bg-[#06C755]' },
-              { label: 'レビュークリック', value: stats.reviewClicked, color: 'bg-orange-400' },
-            ].map((step, i) => {
-              const maxVal = Math.max(stats.sentCount, stats.urlClickCount, stats.total, stats.reviewClicked, 1)
-              const height = Math.max(20, (step.value / maxVal) * 120)
-              const prevValue = i === 0 ? null : [stats.sentCount, stats.urlClickCount, stats.total][i - 1]
-              const rate = prevValue && prevValue > 0 ? Math.round(step.value / prevValue * 100) : null
+      {/* 画面到達ファネル / ヒートマップ（survey_events ベース） */}
+      {heatmap.length > 0 && heatmap.some(s => s.users > 0) && (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-6 overflow-x-auto">
+          <h3 className="text-sm font-medium text-slate-900 dark:text-white mb-1">アンケート到達ファネル（各画面まで到達したユーザー数）</h3>
+          <p className="text-xs text-slate-400 mb-4">開始画面を100%とした到達率。★5のみ「プレゼントオファー」以降に進みます。</p>
+          <div className="flex items-end gap-1.5 min-w-[640px]">
+            {heatmap.map((step) => {
+              const start = heatmap[0]?.users || 1
+              const height = Math.max(8, (step.users / Math.max(start, 1)) * 130)
+              // 到達率で色分け（ヒートマップ）
+              const rate = step.rate
+              const bg = rate >= 66 ? 'bg-[#06C755]' : rate >= 33 ? 'bg-yellow-400' : rate > 0 ? 'bg-orange-400' : 'bg-slate-300 dark:bg-slate-600'
               return (
-                <div key={step.label} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">{step.value}</span>
-                  {rate !== null && (
-                    <span className="text-xs text-slate-400">{rate}%</span>
-                  )}
-                  <div className={`w-full rounded-t-lg ${step.color}`} style={{ height: `${height}px` }} />
-                  <span className="text-xs text-slate-500 text-center mt-1">{step.label}</span>
+                <div key={step.step} className="flex-1 flex flex-col items-center gap-1 min-w-[48px]">
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{step.users}</span>
+                  <span className="text-[10px] text-slate-400">{step.rate}%</span>
+                  <div className={`w-full rounded-t ${bg}`} style={{ height: `${height}px` }} title={`${step.label}: ${step.users}人 (${step.rate}%)`} />
+                  <span className="text-[10px] text-slate-500 text-center mt-1 leading-tight">{step.label}</span>
                 </div>
               )
             })}

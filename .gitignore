@@ -25,3 +25,4 @@ dist-ssr
 .vercel
 .env.vercel
 .env.pulled
+.env*.local

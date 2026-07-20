@@ -17,6 +17,7 @@ import AmazonAnalytics from './pages/AmazonAnalytics'
 import HpOutreach from './pages/HpOutreach'
 import ShopifyReviews from './pages/ShopifyReviews'
 import FitpeakSns from './pages/FitpeakSns'
+import SalesAgent from './pages/SalesAgent'
 import Login from './pages/Login'
 
 // 全fetchリクエストに認証トークンを自動付与
@@ -81,6 +82,7 @@ function App() {
       <Route path="/shopify-reviews" element={<ShopifyReviews />} />
       <Route path="/hp-outreach" element={<HpOutreach />} />
       <Route path="/fitpeak-sns/*" element={<FitpeakSns />} />
+      <Route path="/sales-agent" element={<SalesAgent />} />
     </Routes>
   )
 }
