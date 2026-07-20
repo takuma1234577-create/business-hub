@@ -57,7 +57,7 @@ function normalizeLineMessages(messages) {
 // ===========================================================================
 
 // GET /accounts - アカウント一覧（トークン/シークレットは含めない）
-router.get('/accounts', async (_req, res) => {
+router.get('/accounts', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('line_channels')
