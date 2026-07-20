@@ -4,6 +4,7 @@ import axios from 'axios'
 import { broadcastApi, tagApi, friendApi } from './api'
 import type { Broadcast, Tag } from './types'
 import TestSendWidget from './TestSendWidget'
+import { getChannelId } from './lineAccount'
 
 interface Template {
   id: string
@@ -15,7 +16,12 @@ type TargetType = 'all' | 'filtered'
 type MessageMode = 'text' | 'template'
 
 const lineCrmApi = axios.create({ baseURL: '/api/line-crm' })
-lineCrmApi.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+lineCrmApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 export default function Broadcasts() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
   const [tags, setTags] = useState<Tag[]>([])

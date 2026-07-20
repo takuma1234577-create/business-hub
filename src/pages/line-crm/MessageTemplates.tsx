@@ -4,9 +4,10 @@ import { createClient } from '@supabase/supabase-js'
 import {
   FileText, Plus, Pencil, Trash2, X, ArrowUp, ArrowDown,
   Type, Image as ImageIcon, Video, Music, LayoutGrid, Upload, Eye, FolderInput,
-  GalleryHorizontal, ChevronLeft, ChevronRight, Copy, Send,
+  GalleryHorizontal, ChevronLeft, ChevronRight, Copy, Send, Link as LinkIcon,
 } from 'lucide-react'
 import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
+import { getChannelId } from './lineAccount'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -26,7 +27,7 @@ async function uploadToStorage(file: File): Promise<string> {
 
 // ── Message block types ──
 type TextBlock = { type: 'text'; text: string }
-type ImageBlock = { type: 'image'; originalContentUrl: string; previewImageUrl: string }
+type ImageBlock = { type: 'image'; originalContentUrl: string; previewImageUrl: string; linkUrl?: string; aspectRatio?: string }
 type VideoBlock = { type: 'video'; originalContentUrl: string; previewImageUrl: string }
 type AudioBlock = { type: 'audio'; originalContentUrl: string; duration: number }
 // LINE Messaging APIのactionは message / uri / postback 等をサポート。
@@ -77,7 +78,12 @@ interface Template {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 // UI上のブロック種別（LINEの `template` を panel / carousel に細分化）
 type UIBlockKind = 'text' | 'image' | 'video' | 'audio' | 'panel' | 'carousel'
 
@@ -932,12 +938,19 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
       )
     case 'image':
       return block.previewImageUrl || block.originalContentUrl ? (
-        <img
-          src={block.previewImageUrl || block.originalContentUrl}
-          alt=""
-          className="max-w-[75%] max-h-64 rounded-2xl rounded-tl-sm shadow-sm object-cover"
-          onError={e => (e.currentTarget.style.display = 'none')}
-        />
+        <div className="max-w-[75%] relative">
+          <img
+            src={block.previewImageUrl || block.originalContentUrl}
+            alt=""
+            className="w-full max-h-64 rounded-2xl rounded-tl-sm shadow-sm object-cover"
+            onError={e => (e.currentTarget.style.display = 'none')}
+          />
+          {block.linkUrl && (
+            <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-1">
+              <LinkIcon size={10} /> タップで遷移
+            </span>
+          )}
+        </div>
       ) : (
         <div className="max-w-[75%] bg-white/80 rounded-2xl rounded-tl-sm px-3 py-2 text-xs text-slate-500">画像URL未設定</div>
       )
@@ -1096,15 +1109,42 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
       )}
 
       {block.type === 'image' && (
-        <MediaPair
-          accept="image/*"
-          urlLabel="画像URL"
-          previewLabel="プレビュー画像URL（省略時は同じ）"
-          url={block.originalContentUrl}
-          previewUrl={block.previewImageUrl}
-          onUrlChange={v => onChange({ ...block, originalContentUrl: v, previewImageUrl: block.previewImageUrl || v })}
-          onPreviewChange={v => onChange({ ...block, previewImageUrl: v })}
-        />
+        <div className="space-y-2">
+          <MediaPair
+            accept="image/*"
+            urlLabel="画像URL"
+            previewLabel="プレビュー画像URL（省略時は同じ）"
+            url={block.originalContentUrl}
+            previewUrl={block.previewImageUrl}
+            onUrlChange={v => onChange({ ...block, originalContentUrl: v, previewImageUrl: block.previewImageUrl || v })}
+            onPreviewChange={v => onChange({ ...block, previewImageUrl: v })}
+          />
+          <input
+            type="url"
+            value={block.linkUrl || ''}
+            onChange={e => onChange({ ...block, linkUrl: e.target.value })}
+            placeholder="遷移先URL（任意・例: https://my.fitpeak.co/referral）"
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755]"
+          />
+          {block.linkUrl && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400">画像の縦横比</span>
+              <select
+                value={block.aspectRatio || '1:1'}
+                onChange={e => onChange({ ...block, aspectRatio: e.target.value })}
+                className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+              >
+                <option value="1:1">正方形 (1:1)</option>
+                <option value="1.51:1">横長 (1.51:1)</option>
+                <option value="1.91:1">ワイド (1.91:1)</option>
+                <option value="4:5">縦長 (4:5)</option>
+                <option value="3:4">縦長 (3:4)</option>
+                <option value="9:16">縦長 (9:16)</option>
+              </select>
+              <span className="text-xs text-slate-400">画像に合わせて選択（タップでURLに遷移）</span>
+            </div>
+          )}
+        </div>
       )}
 
       {block.type === 'video' && (

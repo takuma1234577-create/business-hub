@@ -2,9 +2,15 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Sparkles, Save, ToggleLeft, ToggleRight, Eye, X } from 'lucide-react'
 import TestSendWidget from './TestSendWidget'
+import { getChannelId } from './lineAccount'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 interface Template {
   id: string
   name: string

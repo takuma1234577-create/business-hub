@@ -37,6 +37,33 @@ function getGoogleOAuth2(redirectUri) {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+// ── LINE CRM: 複数公式アカウントの認証情報解決 ──
+// 既存の本番LINEアカウント（環境変数のトークン/シークレットで動作し続ける）のid
+const DEFAULT_CHANNEL_ID = '00000000-0000-0000-0000-000000000010';
+
+// channelId のLINE認証情報を解決する。
+// - 未指定 or DEFAULT_CHANNEL_ID: DBに値があればそれを使い、無ければ環境変数にフォールバック（既存本番アカウント用）。
+// - それ以外（新規追加アカウント）: DBの行が必須。無効/未設定なら例外を投げ、誤って本番トークンにフォールバックしないようにする。
+async function getLineCredentials(channelId) {
+  const supabase = getSupabase();
+  if (!channelId || channelId === DEFAULT_CHANNEL_ID) {
+    const { data: row } = await supabase.from('line_channels')
+      .select('channel_access_token, channel_secret')
+      .eq('id', DEFAULT_CHANNEL_ID).maybeSingle();
+    return {
+      accessToken: row?.channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN,
+      channelSecret: row?.channel_secret || process.env.LINE_CHANNEL_SECRET,
+    };
+  }
+  const { data: row, error } = await supabase.from('line_channels')
+    .select('channel_access_token, channel_secret, is_active')
+    .eq('id', channelId).maybeSingle();
+  if (error || !row || !row.is_active || !row.channel_access_token) {
+    throw new Error(`LINEアカウント (${channelId}) の認証情報が見つかりません`);
+  }
+  return { accessToken: row.channel_access_token, channelSecret: row.channel_secret };
+}
+
 // ── Chatwork ──
 function getChatworkToken() {
   const token = process.env.CHATWORK_API_TOKEN;
@@ -181,5 +208,7 @@ module.exports = {
   getChatworkToken,
   getChatworkHeaders,
   getAnthropicClient,
+  getLineCredentials,
+  DEFAULT_CHANNEL_ID,
   google, // re-export for google.gmail etc.
 };

@@ -11,12 +11,18 @@ import type {
   PaginatedResponse,
   FriendListParams,
 } from './types'
+import { getChannelId } from './lineAccount'
 
 const api = axios.create({
   baseURL: '/api/line-crm',
   headers: { 'Content-Type': 'application/json' },
 })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 // Friends API
 export const friendApi = {
   list: (params?: FriendListParams) =>

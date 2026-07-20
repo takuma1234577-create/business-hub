@@ -1,5 +1,20 @@
 // LINE CRM TypeScript interfaces
 
+export interface LineAccount {
+  id: string
+  display_name: string
+  bot_display_name: string | null
+  bot_picture_url: string | null
+  bot_basic_id: string | null
+  bot_user_id?: string | null
+  is_active: boolean
+  is_default: boolean
+  webhook_url: string
+  greeting_enabled?: boolean
+  greeting_template_id?: string | null
+  created_at?: string
+}
+
 export interface Tag {
   id: string
   name: string

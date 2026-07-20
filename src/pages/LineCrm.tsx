@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, MessageCircle, Bot, FileText, ExternalLink, TrendingUp, Send, ShieldBan, X, User } from 'lucide-react'
+import { ArrowLeft, Users, MessageCircle, Bot, FileText, ExternalLink, TrendingUp, Send, ShieldBan, X, User, Settings, ChevronDown } from 'lucide-react'
 import FriendList from './line-crm/FriendList'
 import FriendDetail from './line-crm/FriendDetail'
 import ChatThreads from './line-crm/ChatThreads'
@@ -18,9 +18,12 @@ import TagScheduledReplies from './line-crm/TagScheduledReplies'
 import TrafficSources from './line-crm/TrafficSources'
 import FriendsAnalytics from './line-crm/FriendsAnalytics'
 import FitpeakDashboard from './line-crm/FitpeakDashboard'
+import LineAccounts from './line-crm/LineAccounts'
+import { useLineAccounts } from './line-crm/useLineAccounts'
+import { getChannelId } from './line-crm/lineAccount'
 import type { Friend } from './line-crm/types'
 
-type MainTabId = 'chat' | 'content' | 'delivery' | 'ai' | 'analytics'
+type MainTabId = 'chat' | 'content' | 'delivery' | 'ai' | 'analytics' | 'accounts'
 
 interface MainTabDef {
   id: MainTabId
@@ -48,7 +51,12 @@ export default function LineCrm() {
     { id: 'delivery', label: '配信', icon: <Send size={18} /> },
     { id: 'ai', label: 'AI', icon: <Bot size={18} /> },
     { id: 'analytics', label: '分析', icon: <TrendingUp size={18} /> },
+    { id: 'accounts', label: 'アカウント管理', icon: <Settings size={18} /> },
   ]
+
+  const { accounts, selectedChannelId, selectChannel } = useLineAccounts()
+  const [showAccountMenu, setShowAccountMenu] = useState(false)
+  const currentAccount = accounts.find((a) => a.id === selectedChannelId)
 
   const handleSelectFriend = (friend: Friend) => {
     setSelectedFriend(friend)
@@ -77,7 +85,7 @@ export default function LineCrm() {
   const fetchBlockedFriends = async () => {
     setLoadingBlocked(true)
     try {
-      const res = await fetch('/api/line-crm/friends-blocked')
+      const res = await fetch(`/api/line-crm/friends-blocked?channel_id=${getChannelId()}`)
       if (res.ok) setBlockedFriends(await res.json())
     } catch (err) { console.error(err) }
     finally { setLoadingBlocked(false) }
@@ -125,6 +133,39 @@ export default function LineCrm() {
               LINE CRM
             </h1>
           </div>
+
+          {/* アカウントswitcher */}
+          {accounts.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowAccountMenu((v) => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                {currentAccount?.display_name || 'アカウント選択'}
+                <ChevronDown size={14} />
+              </button>
+              {showAccountMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAccountMenu(false)} />
+                  <div className="absolute left-0 mt-1 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg z-20 py-1">
+                    {accounts.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => { selectChannel(a.id); setShowAccountMenu(false) }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                          a.id === selectedChannelId ? 'text-[#06C755] font-medium' : 'text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        {a.display_name}
+                        {!a.is_active && <span className="ml-2 text-xs text-slate-400">(無効)</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => navigate('/my-fitpeak')}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#c8a960]/10 text-[#c8a960] hover:bg-[#c8a960]/20 transition-colors cursor-pointer"
@@ -157,8 +198,8 @@ export default function LineCrm() {
         </div>
       </nav>
 
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      {/* Content (アカウント切替時に配下を強制リマウントして再取得させる) */}
+      <main className="max-w-6xl mx-auto px-6 py-8" key={selectedChannelId}>
 
         {/* ===== チャット ===== */}
         {mainTab === 'chat' && (
@@ -340,6 +381,9 @@ export default function LineCrm() {
             {analyticsSub === 'fitpeak' && <FitpeakDashboard />}
           </>
         )}
+
+        {/* ===== アカウント管理 ===== */}
+        {mainTab === 'accounts' && <LineAccounts />}
 
       </main>
     </div>

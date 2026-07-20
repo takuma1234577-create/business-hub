@@ -10,15 +10,16 @@
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
-const { getSupabase, getAnthropicClient } = require('./shared.cjs');
+const { getSupabase, getAnthropicClient, getLineCredentials, DEFAULT_CHANNEL_ID } = require('./shared.cjs');
 
 const router = express.Router();
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 
 // ── LINE Push送信ヘルパー ──
-async function pushLineMessage(lineUserId, messages) {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN未設定');
+// Shopify連携は現状メインストア（既存アカウント）専用のため channelId は省略可
+async function pushLineMessage(lineUserId, messages, channelId = DEFAULT_CHANNEL_ID) {
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (!token) throw new Error('LINEアカウントの認証情報が未設定です');
   const msgArray = Array.isArray(messages) ? messages : [messages];
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',

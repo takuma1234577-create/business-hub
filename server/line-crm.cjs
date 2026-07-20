@@ -1,12 +1,189 @@
 const express = require('express');
 const axios = require('axios');
 const { waitUntil } = require('@vercel/functions');
-const { getSupabase } = require('./shared.cjs');
+const { getSupabase, getLineCredentials, DEFAULT_CHANNEL_ID } = require('./shared.cjs');
 const { notifyEmailAboutLine } = require('./cross-channel-notify.cjs');
 const { registerUserByEmail, getLinkedOrders, generateAutoLoginUrl } = require('./shopify-line.cjs');
 const { updateFriendChatSummary } = require('./fitpeak-rag.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const router = express.Router();
+
+// 画像ブロックに linkUrl があれば「画像タップ→URL遷移」できるFlexに変換する。
+// LINEの image メッセージはタップアクション非対応のため、リンク付き画像はFlex化が必要。
+function imageBlockToFlex(m) {
+  const uri = String(m.linkUrl || '').trim();
+  const ratio = (typeof m.aspectRatio === 'string' && /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(m.aspectRatio)) ? m.aspectRatio : '1:1';
+  return {
+    type: 'flex',
+    altText: (m.altText && String(m.altText).slice(0, 400)) || 'キャンペーン',
+    contents: {
+      type: 'bubble',
+      size: 'giga',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '0px',
+        contents: [{
+          type: 'image',
+          url: m.originalContentUrl,
+          size: 'full',
+          aspectRatio: ratio,
+          aspectMode: 'cover',
+          action: { type: 'uri', uri },
+        }],
+      },
+    },
+  };
+}
+
+// 送信直前の正規化: リンク付き画像はFlex化、通常画像はLINE非対応の独自フィールドを除去。
+function normalizeLineMessages(messages) {
+  if (!Array.isArray(messages)) return messages;
+  return messages.map((m) => {
+    if (m && m.type === 'image') {
+      const link = (m.linkUrl || '').trim();
+      if (link) return imageBlockToFlex(m);
+      const clean = { ...m };
+      delete clean.linkUrl;
+      delete clean.aspectRatio;
+      return clean;
+    }
+    return m;
+  });
+}
+
+// ===========================================================================
+// Accounts (複数公式LINEアカウントの管理)
+// ===========================================================================
+
+// GET /accounts - アカウント一覧（トークン/シークレットは含めない）
+router.get('/accounts', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('line_channels')
+      .select('id, display_name, bot_display_name, bot_picture_url, bot_basic_id, bot_user_id, is_active, greeting_enabled, greeting_template_id, created_at')
+      .order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const accounts = (data || []).map((row) => ({
+      ...row,
+      is_default: row.id === DEFAULT_CHANNEL_ID,
+      webhook_url: row.id === DEFAULT_CHANNEL_ID
+        ? `${origin}/api/line-crm/webhook`
+        : `${origin}/api/line-crm/webhook/${row.id}`,
+    }));
+    return res.json(accounts);
+  } catch (err) {
+    console.error('GET /accounts error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /accounts - アカウント追加（保存前にLINE bot/infoでトークンを検証）
+router.post('/accounts', async (req, res) => {
+  try {
+    const { display_name, channel_access_token, channel_secret } = req.body || {};
+    if (!display_name || !channel_access_token || !channel_secret) {
+      return res.status(400).json({ error: 'display_name, channel_access_token, channel_secret は必須です' });
+    }
+
+    let botInfo;
+    try {
+      const resp = await fetch('https://api.line.me/v2/bot/info', {
+        headers: { Authorization: `Bearer ${channel_access_token}` },
+      });
+      if (!resp.ok) return res.status(400).json({ error: 'アクセストークンが無効です（LINE APIへの接続に失敗しました）' });
+      botInfo = await resp.json();
+    } catch (err) {
+      return res.status(400).json({ error: `LINE接続確認に失敗しました: ${err.message}` });
+    }
+
+    const { data, error } = await supabase
+      .from('line_channels')
+      .insert({
+        display_name,
+        channel_access_token,
+        channel_secret,
+        is_active: true,
+        bot_display_name: botInfo.displayName || null,
+        bot_picture_url: botInfo.pictureUrl || null,
+        bot_basic_id: botInfo.basicId || null,
+        bot_user_id: botInfo.userId || null,
+      })
+      .select('id, display_name, bot_display_name, bot_picture_url, bot_basic_id, is_active, created_at')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    const origin = `${req.protocol}://${req.get('host')}`;
+    return res.status(201).json({ ...data, is_default: false, webhook_url: `${origin}/api/line-crm/webhook/${data.id}` });
+  } catch (err) {
+    console.error('POST /accounts error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /accounts/:id - 表示名/有効フラグの更新、トークン/シークレットは入力があれば再検証して上書き
+router.put('/accounts/:id', async (req, res) => {
+  try {
+    const { display_name, is_active, channel_access_token, channel_secret } = req.body || {};
+    const updates = { updated_at: new Date().toISOString() };
+    if (display_name !== undefined) updates.display_name = display_name;
+    if (is_active !== undefined) updates.is_active = !!is_active;
+
+    if (channel_access_token && channel_secret) {
+      let botInfo;
+      try {
+        const resp = await fetch('https://api.line.me/v2/bot/info', {
+          headers: { Authorization: `Bearer ${channel_access_token}` },
+        });
+        if (!resp.ok) return res.status(400).json({ error: 'アクセストークンが無効です（LINE APIへの接続に失敗しました）' });
+        botInfo = await resp.json();
+      } catch (err) {
+        return res.status(400).json({ error: `LINE接続確認に失敗しました: ${err.message}` });
+      }
+      updates.channel_access_token = channel_access_token;
+      updates.channel_secret = channel_secret;
+      updates.bot_display_name = botInfo.displayName || null;
+      updates.bot_picture_url = botInfo.pictureUrl || null;
+      updates.bot_basic_id = botInfo.basicId || null;
+      updates.bot_user_id = botInfo.userId || null;
+    }
+
+    const { data, error } = await supabase
+      .from('line_channels')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select('id, display_name, bot_display_name, bot_picture_url, bot_basic_id, is_active, created_at')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data);
+  } catch (err) {
+    console.error('PUT /accounts/:id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /accounts/:id - 既存の本番アカウントは削除不可、友だちが残っている場合は無効化を促す
+router.delete('/accounts/:id', async (req, res) => {
+  try {
+    if (req.params.id === DEFAULT_CHANNEL_ID) {
+      return res.status(400).json({ error: '既存アカウントは削除できません' });
+    }
+    const { count } = await supabase
+      .from('friends')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel_id', req.params.id);
+    if (count > 0) {
+      return res.status(400).json({ error: `${count}件の友だちが登録されています。先に無効化（is_active=false）してください` });
+    }
+    const { error } = await supabase.from('line_channels').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /accounts/:id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // ===========================================================================
 // Friends
@@ -16,7 +193,8 @@ const router = express.Router();
 // 友だちがメッセージに反応するとWebhookで自動登録される
 router.post('/friends/restore', async (req, res) => {
   try {
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const channelId = req.body?.channel_id || req.query.channel_id || DEFAULT_CHANNEL_ID;
+    const { accessToken: token } = await getLineCredentials(channelId);
     if (!token) return res.status(400).json({ error: 'LINE_CHANNEL_ACCESS_TOKEN が未設定です' });
 
     // ブロードキャストで全友だちにメッセージ送信
@@ -62,6 +240,7 @@ router.get('/friends', async (req, res) => {
       tag_id,
       page = '1',
       pageSize = '20',
+      channel_id: channelId = DEFAULT_CHANNEL_ID,
     } = req.query;
 
     const currentPage = Math.max(1, parseInt(page, 10) || 1);
@@ -93,6 +272,7 @@ router.get('/friends', async (req, res) => {
     let query = supabase
       .from('friends')
       .select('*', { count: 'exact' })
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -225,9 +405,11 @@ router.patch('/friends/:id/block', async (req, res) => {
 // GET /friends-blocked - ブロックした/された一覧
 router.get('/friends-blocked', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('friends')
       .select('id, display_name, picture_url, status, updated_at')
+      .eq('channel_id', channelId)
       .in('status', ['blocked', 'unfollowed'])
       .order('updated_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
@@ -382,11 +564,13 @@ router.delete('/tags/:id', async (req, res) => {
 router.get('/chat-threads', async (req, res) => {
   try {
     const { search } = req.query;
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
 
     // 直近のメッセージ500件を取得し、friend_idごとに最新1件にまとめる
     const { data: msgs, error: msgErr } = await supabase
       .from('chat_messages')
       .select('friend_id, content, direction, message_type, created_at')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -630,7 +814,7 @@ router.post('/chat/:friendId/send', async (req, res) => {
 
     // LINE Push API でメッセージを送信
     if (friend.line_user_id && message_type === 'text') {
-      const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      const { accessToken: token } = await getLineCredentials(friend.channel_id);
       if (token) {
         const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
           method: 'POST',
@@ -704,7 +888,7 @@ router.post('/chat/:friendId/send-media', async (req, res) => {
 
     // LINE Push API でメディアを送信
     if (friend.line_user_id) {
-      const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      const { accessToken: token } = await getLineCredentials(friend.channel_id);
       if (token) {
         let lineMessage;
         if (type === 'video') {
@@ -921,8 +1105,15 @@ async function enqueueTagDelivery(friendId, tagId) {
 
 // ヘルパー: processの本体（cronとwebhookの両方から呼ばれる）
 async function processTagDeliveryQueue(limit = 50) {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) return { processed: 0, message: 'No LINE token' };
+  // 友だちごとにchannel_idが異なりうるため、トークンは配信ループ内でchannel_idごとに解決する
+  const credentialCache = new Map();
+  async function resolveToken(channelId) {
+    const key = channelId || DEFAULT_CHANNEL_ID;
+    if (!credentialCache.has(key)) {
+      credentialCache.set(key, await getLineCredentials(key).catch(() => ({ accessToken: null })));
+    }
+    return credentialCache.get(key).accessToken;
+  }
 
   // キューからpending & 配信時刻到達のアイテムを取得
   const { data: items, error: qErr } = await supabase
@@ -973,9 +1164,15 @@ async function processTagDeliveryQueue(limit = 50) {
       continue;
     }
 
-    const messages = Array.isArray(rule.response_messages) ? rule.response_messages : [];
+    const messages = normalizeLineMessages(Array.isArray(rule.response_messages) ? rule.response_messages : []);
     if (messages.length === 0) {
       await supabase.from('tag_delivery_queue').update({ status: 'failed', error_message: 'No messages configured' }).eq('id', item.id);
+      continue;
+    }
+
+    const token = await resolveToken(friend.channel_id);
+    if (!token) {
+      await supabase.from('tag_delivery_queue').update({ status: 'failed', error_message: 'No LINE token' }).eq('id', item.id);
       continue;
     }
 
@@ -1095,6 +1292,7 @@ router.get('/tag-scheduled-replies/pending', async (req, res) => {
 router.get('/friends-analytics', async (req, res) => {
   try {
     const { days = '30' } = req.query;
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const numDays = Math.min(Math.max(parseInt(days, 10) || 30, 7), 365);
     const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
 
@@ -1102,6 +1300,7 @@ router.get('/friends-analytics', async (req, res) => {
     const { data: follows } = await supabase
       .from('friends')
       .select('followed_at')
+      .eq('channel_id', channelId)
       .gte('followed_at', since)
       .not('followed_at', 'is', null);
 
@@ -1109,20 +1308,24 @@ router.get('/friends-analytics', async (req, res) => {
     const { data: unfollows } = await supabase
       .from('friends')
       .select('unfollowed_at')
+      .eq('channel_id', channelId)
       .gte('unfollowed_at', since)
       .not('unfollowed_at', 'is', null);
 
     // 全体の統計
     const { count: totalFriends } = await supabase
       .from('friends')
-      .select('id', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .eq('channel_id', channelId);
     const { count: activeFriends } = await supabase
       .from('friends')
       .select('id', { count: 'exact', head: true })
+      .eq('channel_id', channelId)
       .eq('status', 'active');
     const { count: unfollowedFriends } = await supabase
       .from('friends')
       .select('id', { count: 'exact', head: true })
+      .eq('channel_id', channelId)
       .eq('status', 'unfollowed');
 
     // 日別に集計
@@ -1179,9 +1382,11 @@ router.get('/friends-analytics', async (req, res) => {
 // GET /auto-responses - List auto-responses
 router.get('/auto-responses', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('auto_responses')
       .select('*')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -1207,6 +1412,7 @@ router.post('/auto-responses', async (req, res) => {
       priority = 100,
       folder = null,
       tag_actions = [],
+      channel_id: channelId,
     } = req.body;
 
     if (!name || !Array.isArray(keywords) || keywords.length === 0 || !Array.isArray(response_messages) || response_messages.length === 0) {
@@ -1218,7 +1424,7 @@ router.post('/auto-responses', async (req, res) => {
     const { data, error } = await supabase
       .from('auto_responses')
       .insert({
-        channel_id: DEFAULT_CHANNEL_ID,
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         name,
         keywords,
         response_messages,
@@ -1346,9 +1552,11 @@ router.patch('/auto-responses/:id/toggle', async (req, res) => {
 // GET /broadcasts - List broadcasts
 router.get('/broadcasts', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('broadcasts')
       .select('*')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -1365,7 +1573,7 @@ router.get('/broadcasts', async (req, res) => {
 // POST /broadcasts - Create broadcast
 router.post('/broadcasts', async (req, res) => {
   try {
-    const { name, message_content, messages: customMessages, scheduled_at, target_tags, target_filters } = req.body;
+    const { name, message_content, messages: customMessages, scheduled_at, target_tags, target_filters, channel_id: channelId } = req.body;
 
     if (!name || (!message_content && (!customMessages || customMessages.length === 0))) {
       return res
@@ -1377,19 +1585,11 @@ router.post('/broadcasts', async (req, res) => {
       ? customMessages
       : [{ type: 'text', text: message_content }];
 
-    // channel_idを取得（最初のチャンネルを使用）
-    const { data: channel } = await supabase
-      .from('friends')
-      .select('channel_id')
-      .not('channel_id', 'is', null)
-      .limit(1)
-      .single();
-
     const { data, error } = await supabase
       .from('broadcasts')
       .insert({
         name,
-        channel_id: channel?.channel_id || '00000000-0000-0000-0000-000000000010',
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         message_content: message_content || '',
         messages: finalMessages,
         scheduled_at: scheduled_at || null,
@@ -1415,8 +1615,6 @@ router.post('/broadcasts', async (req, res) => {
 router.post('/broadcasts/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-    if (!token) return res.status(500).json({ error: 'LINE_CHANNEL_ACCESS_TOKEN未設定' });
 
     // 配信データを取得
     const { data: bc, error: bcErr } = await supabase
@@ -1427,11 +1625,14 @@ router.post('/broadcasts/:id/send', async (req, res) => {
     if (bcErr || !bc) return res.status(404).json({ error: 'Broadcast not found' });
     if (bc.status === 'sent' || bc.status === 'sending') return res.status(400).json({ error: '既に送信済みです' });
 
+    const { accessToken: token } = await getLineCredentials(bc.channel_id);
+    if (!token) return res.status(500).json({ error: 'LINEアカウントの認証情報が未設定です' });
+
     // ステータスを sending に変更
     await supabase.from('broadcasts').update({ status: 'sending', updated_at: new Date().toISOString() }).eq('id', id);
 
-    // 対象の友だちを取得
-    let friendQuery = supabase.from('friends').select('id, line_user_id, display_name, channel_id, created_at').eq('status', 'active');
+    // 対象の友だちを取得（配信を作成したアカウントの友だちのみに限定）
+    let friendQuery = supabase.from('friends').select('id, line_user_id, display_name, channel_id, created_at').eq('status', 'active').eq('channel_id', bc.channel_id);
 
     // 高機能フィルター (target_filters)
     const filters = bc.target_filters || {};
@@ -1497,7 +1698,7 @@ router.post('/broadcasts/:id/send', async (req, res) => {
     }
 
     // メッセージ
-    const messages = bc.message_content ? [{ type: 'text', text: bc.message_content }] : (Array.isArray(bc.messages) ? bc.messages : []);
+    const messages = bc.message_content ? [{ type: 'text', text: bc.message_content }] : normalizeLineMessages(Array.isArray(bc.messages) ? bc.messages : []);
     if (messages.length === 0) {
       await supabase.from('broadcasts').update({ status: 'failed' }).eq('id', id);
       return res.status(400).json({ error: 'メッセージが空です' });
@@ -1557,8 +1758,9 @@ router.post('/broadcasts/:id/send', async (req, res) => {
 router.post('/broadcasts/preview-count', async (req, res) => {
   try {
     const { include_tags, exclude_tags, tag_logic, registered_from, registered_to } = req.body;
+    const channelId = req.body.channel_id || req.query.channel_id || DEFAULT_CHANNEL_ID;
 
-    let query = supabase.from('friends').select('id', { count: 'exact', head: true }).eq('status', 'active');
+    let query = supabase.from('friends').select('id', { count: 'exact', head: true }).eq('status', 'active').eq('channel_id', channelId);
 
     if (registered_from) query = query.gte('created_at', registered_from);
     if (registered_to) query = query.lte('created_at', registered_to + 'T23:59:59.999Z');
@@ -1923,12 +2125,13 @@ router.get('/bot-info', async (_req, res) => {
 });
 
 // GET /greeting-settings
-router.get('/greeting-settings', async (_req, res) => {
+router.get('/greeting-settings', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('line_channels')
       .select('id, display_name, greeting_template_id, greeting_enabled')
-      .limit(1)
+      .eq('id', channelId)
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data || null);
@@ -1942,22 +2145,15 @@ router.get('/greeting-settings', async (_req, res) => {
 router.put('/greeting-settings', async (req, res) => {
   try {
     const { greeting_template_id, greeting_enabled } = req.body || {};
+    const channelId = req.body?.channel_id || req.query.channel_id || DEFAULT_CHANNEL_ID;
     const updates = {};
     if (greeting_template_id !== undefined) updates.greeting_template_id = greeting_template_id || null;
     if (greeting_enabled !== undefined) updates.greeting_enabled = !!greeting_enabled;
 
-    // 先頭のチャンネルを取得して更新（1チャンネル運用想定）
-    const { data: channel, error: fetchErr } = await supabase
-      .from('line_channels')
-      .select('id')
-      .limit(1)
-      .maybeSingle();
-    if (fetchErr || !channel) return res.status(404).json({ error: 'チャンネルが見つかりません' });
-
     const { data, error } = await supabase
       .from('line_channels')
       .update(updates)
-      .eq('id', channel.id)
+      .eq('id', channelId)
       .select()
       .single();
     if (error) return res.status(500).json({ error: error.message });
@@ -1974,18 +2170,20 @@ router.put('/greeting-settings', async (req, res) => {
 const LINE_API = 'https://api.line.me';
 const LINE_DATA_API = 'https://api-data.line.me';
 
-function lineAuth() {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN が未設定です');
+async function lineAuth(channelId) {
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (!token) throw new Error('LINEアカウントの認証情報が未設定です');
   return { Authorization: `Bearer ${token}` };
 }
 
 // GET /rich-menus
-router.get('/rich-menus', async (_req, res) => {
+router.get('/rich-menus', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('rich_menus')
       .select('*')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data || []);
@@ -1998,14 +2196,14 @@ router.get('/rich-menus', async (_req, res) => {
 // POST /rich-menus (image_url 付きで保存のみ。LINE公開は /activate で)
 router.post('/rich-menus', async (req, res) => {
   try {
-    const { name, chat_bar_text, size_width, size_height, areas, image_url } = req.body || {};
+    const { name, chat_bar_text, size_width, size_height, areas, image_url, channel_id: channelId } = req.body || {};
     if (!name || !size_width || !size_height || !Array.isArray(areas) || areas.length === 0) {
       return res.status(400).json({ error: 'name, size, areas(1件以上) は必須です' });
     }
     const { data, error } = await supabase
       .from('rich_menus')
       .insert({
-        channel_id: DEFAULT_CHANNEL_ID,
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         name,
         chat_bar_text: chat_bar_text || 'メニュー',
         size_width,
@@ -2054,7 +2252,7 @@ router.delete('/rich-menus/:id', async (req, res) => {
   try {
     const { data: menu } = await supabase
       .from('rich_menus')
-      .select('line_rich_menu_id, is_default')
+      .select('line_rich_menu_id, is_default, channel_id')
       .eq('id', req.params.id)
       .maybeSingle();
 
@@ -2062,7 +2260,7 @@ router.delete('/rich-menus/:id', async (req, res) => {
     if (menu?.line_rich_menu_id) {
       try {
         await axios.delete(`${LINE_API}/v2/bot/richmenu/${menu.line_rich_menu_id}`, {
-          headers: lineAuth(),
+          headers: await lineAuth(menu.channel_id),
         });
       } catch (err) {
         console.warn('[rich-menu delete] LINE API delete failed:', err.response?.data || err.message);
@@ -2089,11 +2287,13 @@ router.post('/rich-menus/:id/activate', async (req, res) => {
     if (fetchErr || !menu) return res.status(404).json({ error: 'リッチメニューが見つかりません' });
     if (!menu.image_url) return res.status(400).json({ error: '画像が未設定です' });
 
+    const menuAuth = await lineAuth(menu.channel_id);
+
     // 既存のline_rich_menu_idがあれば先に削除
     if (menu.line_rich_menu_id) {
       try {
         await axios.delete(`${LINE_API}/v2/bot/richmenu/${menu.line_rich_menu_id}`, {
-          headers: lineAuth(),
+          headers: menuAuth,
         });
       } catch (_) { /* ignore */ }
     }
@@ -2108,7 +2308,7 @@ router.post('/rich-menus/:id/activate', async (req, res) => {
         chatBarText: menu.chat_bar_text || 'メニュー',
         areas: menu.areas,
       },
-      { headers: { ...lineAuth(), 'Content-Type': 'application/json' } },
+      { headers: { ...menuAuth, 'Content-Type': 'application/json' } },
     );
     const richMenuId = createRes.data.richMenuId;
 
@@ -2145,13 +2345,13 @@ router.post('/rich-menus/:id/activate', async (req, res) => {
     }
 
     await axios.post(`${LINE_DATA_API}/v2/bot/richmenu/${richMenuId}/content`, imgBuffer, {
-      headers: { ...lineAuth(), 'Content-Type': contentType },
+      headers: { ...menuAuth, 'Content-Type': contentType },
       maxBodyLength: Infinity,
     });
 
     // 3. デフォルトリッチメニューに設定
     await axios.post(`${LINE_API}/v2/bot/user/all/richmenu/${richMenuId}`, null, {
-      headers: lineAuth(),
+      headers: menuAuth,
     });
 
     // 4. 他のメニューのis_defaultを解除
@@ -2216,7 +2416,6 @@ router.post('/media/upload', mediaUpload.single('file'), async (req, res) => {
 // ===========================================================================
 // Message Templates (エルメ風 複数メッセージテンプレート)
 // ===========================================================================
-const DEFAULT_CHANNEL_ID = '00000000-0000-0000-0000-000000000010';
 
 // ── テンプレートのフォルダ（空フォルダも永続化） ──
 // GET /template-folders  → フォルダ名の配列
@@ -2264,11 +2463,13 @@ router.delete('/template-folders/:name', async (req, res) => {
 });
 
 // GET /message-templates
-router.get('/message-templates', async (_req, res) => {
+router.get('/message-templates', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('message_templates')
       .select('*')
+      .eq('channel_id', channelId)
       .order('updated_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data || []);
@@ -2281,14 +2482,14 @@ router.get('/message-templates', async (_req, res) => {
 // POST /message-templates
 router.post('/message-templates', async (req, res) => {
   try {
-    const { name, messages, folder = null } = req.body || {};
+    const { name, messages, folder = null, channel_id: channelId } = req.body || {};
     if (!name || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'name と messages(1件以上) は必須です' });
     }
     const { data, error } = await supabase
       .from('message_templates')
       .insert({
-        channel_id: DEFAULT_CHANNEL_ID,
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         name,
         type: 'multi',
         content: { messages },
@@ -2371,7 +2572,7 @@ router.post('/message-templates/test-send', async (req, res) => {
 
     const { data: friend, error: friendErr } = await supabase
       .from('friends')
-      .select('line_user_id, display_name')
+      .select('line_user_id, display_name, channel_id')
       .eq('id', friend_id)
       .maybeSingle();
 
@@ -2379,9 +2580,9 @@ router.post('/message-templates/test-send', async (req, res) => {
       return res.status(404).json({ error: '友だちが見つかりません' });
     }
 
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const { accessToken: token } = await getLineCredentials(friend.channel_id);
     if (!token) {
-      return res.status(500).json({ error: 'LINE_CHANNEL_ACCESS_TOKEN が未設定です' });
+      return res.status(500).json({ error: 'LINEアカウントの認証情報が未設定です' });
     }
 
     const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
@@ -2392,7 +2593,7 @@ router.post('/message-templates/test-send', async (req, res) => {
       },
       body: JSON.stringify({
         to: friend.line_user_id,
-        messages: messages.slice(0, 5),
+        messages: normalizeLineMessages(messages).slice(0, 5),
       }),
     });
 
@@ -2583,9 +2784,9 @@ function verifySlackSignature(rawBody, timestamp, signature) {
   } catch { return false; }
 }
 
-async function pushToCustomer(lineUserId, text) {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN未設定');
+async function pushToCustomer(channelId, lineUserId, text) {
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (!token) throw new Error('LINEアカウントの認証情報が未設定です');
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -2778,7 +2979,7 @@ router.post('/slack/events', async (req, res) => {
 
         if (!shippingAddress) {
           // 住所が見つからない場合、お客様に聞く
-          await pushToCustomer(esc.line_user_id, `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。\n\n新しい商品をお送りするため、お届け先のご住所をお教えいただけますか？\n（郵便番号、都道府県、市区町村、番地、お名前）\n\n─────────\nFITPEAK AIより`);
+          await pushToCustomer(friend?.channel_id, esc.line_user_id, `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。\n\n新しい商品をお送りするため、お届け先のご住所をお教えいただけますか？\n（郵便番号、都道府県、市区町村、番地、お名前）\n\n─────────\nFITPEAK AIより`);
           await postSlackThreadReply(event.channel, threadTs, '📦 お客様の住所が見つからなかったため、LINEで住所を確認中です。住所が届いたら再度指示してください。');
           return;
         }
@@ -2898,7 +3099,7 @@ router.post('/slack/events', async (req, res) => {
 
     // お客様にメッセージ送信
     const customerMsg = action.customer_message || `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。ご依頼の件、対応いたしました。ご不明点がございましたらお気軽にお問い合わせください。`;
-    await pushToCustomer(esc.line_user_id, customerMsg + '\n\n─────────\nFITPEAK AIより');
+    await pushToCustomer(friend?.channel_id, esc.line_user_id, customerMsg + '\n\n─────────\nFITPEAK AIより');
 
     // chat_messagesに記録
     if (friend) {
@@ -2930,8 +3131,7 @@ router.post('/slack/events', async (req, res) => {
   }
 });
 
-function verifyLineSignature(rawBody, signature) {
-  const secret = process.env.LINE_CHANNEL_SECRET;
+function verifyLineSignature(rawBody, signature, secret) {
   if (!secret || !signature || !rawBody) return false;
   const hash = crypto
     .createHmac('sha256', secret)
@@ -2944,9 +3144,9 @@ function verifyLineSignature(rawBody, signature) {
   return crypto.timingSafeEqual(a, b);
 }
 
-async function replyToLine(replyToken, textOrMessages) {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN が未設定です');
+async function replyToLine(channelId, replyToken, textOrMessages) {
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (!token) throw new Error('LINEアカウントの認証情報が未設定です');
   const messages = Array.isArray(textOrMessages)
     ? textOrMessages
     : [{ type: 'text', text: textOrMessages }];
@@ -2964,7 +3164,7 @@ async function replyToLine(replyToken, textOrMessages) {
   }
 }
 
-async function logWebhookMessage(event, userMessage, aiReply) {
+async function logWebhookMessage(channelId, event, userMessage, aiReply) {
   // 既存の chat_messages テーブルは channel_id / friend_id が必須なので、
   // 友だちを解決できた場合のみ記録する（失敗してもWebhook本処理を止めない）
   try {
@@ -2974,6 +3174,7 @@ async function logWebhookMessage(event, userMessage, aiReply) {
       .from('friends')
       .select('id, channel_id')
       .eq('line_user_id', lineUserId)
+      .eq('channel_id', channelId)
       .maybeSingle();
     if (!friend) return;
 
@@ -3007,13 +3208,23 @@ async function logWebhookMessage(event, userMessage, aiReply) {
   }
 }
 
-// POST /api/line-crm/webhook  （LINE Messaging API）
+// POST /api/line-crm/webhook  （LINE Messaging API・既存の本番アカウント用。URLは変更しない）
 router.post('/webhook', async (req, res) => {
+  await handleLineWebhook(DEFAULT_CHANNEL_ID, req, res);
+});
+
+// POST /api/line-crm/webhook/:channelId （2アカウント目以降。LINE Developers ConsoleのWebhook URLに個別設定）
+router.post('/webhook/:channelId', async (req, res) => {
+  await handleLineWebhook(req.params.channelId, req, res);
+});
+
+async function handleLineWebhook(channelId, req, res) {
   const signature = req.headers['x-line-signature'];
   const rawBody = req.rawBody;
+  const { channelSecret } = await getLineCredentials(channelId).catch(() => ({ channelSecret: null }));
 
-  if (!verifyLineSignature(rawBody, signature)) {
-    console.error('[webhook] Signature verification failed', { hasSecret: !!process.env.LINE_CHANNEL_SECRET, hasSignature: !!signature, hasRawBody: !!rawBody });
+  if (!verifyLineSignature(rawBody, signature, channelSecret)) {
+    console.error('[webhook] Signature verification failed', { channelId, hasSecret: !!channelSecret, hasSignature: !!signature, hasRawBody: !!rawBody });
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
@@ -3024,13 +3235,13 @@ router.post('/webhook', async (req, res) => {
 
   // waitUntilでレスポンス後もfunctionを生かし続ける
   waitUntil(Promise.allSettled([
-    processWebhookEvents(events),
+    processWebhookEvents(channelId, events),
     // piggyback: webhook受信のたびにキュー処理も実行（確実な発火のため）
     processTagDeliveryQueue(10).catch(() => {}),
   ]));
-});
+}
 
-async function processWebhookEvents(events) {
+async function processWebhookEvents(channelId, events) {
   try {
 
   // AI自動応答の有効/無効をチェック
@@ -3054,7 +3265,7 @@ async function processWebhookEvents(events) {
     // ── Followイベント処理（友だち追加）──
     if (event?.type === 'follow' && lineUserId) {
       try {
-        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        const { accessToken: token } = await getLineCredentials(channelId);
         // LINEプロフィール取得
         let displayName = 'Unknown';
         let pictureUrl = null;
@@ -3113,6 +3324,7 @@ async function processWebhookEvents(events) {
           .from('friends')
           .select('id')
           .eq('line_user_id', lineUserId)
+          .eq('channel_id', channelId)
           .maybeSingle();
 
         if (existingFriend) {
@@ -3132,7 +3344,7 @@ async function processWebhookEvents(events) {
             picture_url: pictureUrl,
             status_message: statusMessage,
             status: 'active',
-            channel_id: DEFAULT_CHANNEL_ID,
+            channel_id: channelId,
             traffic_source_id: trafficSourceId,
             followed_at: new Date().toISOString(),
           });
@@ -3142,7 +3354,7 @@ async function processWebhookEvents(events) {
         // 経路別タグを付与（付与のみ・タグ連動配信は発火させない）
         if (trafficSourceId && sourceTagIds.length > 0) {
           try {
-            const { data: fr } = await supabase.from('friends').select('id').eq('line_user_id', lineUserId).maybeSingle();
+            const { data: fr } = await supabase.from('friends').select('id').eq('line_user_id', lineUserId).eq('channel_id', channelId).maybeSingle();
             if (fr?.id) {
               const { data: existingTags } = await supabase.from('friend_tags').select('tag_id').eq('friend_id', fr.id);
               const have = new Set((existingTags || []).map(r => r.tag_id));
@@ -3159,7 +3371,7 @@ async function processWebhookEvents(events) {
           const { data: channelSettings } = await supabase
             .from('line_channels')
             .select('greeting_enabled, greeting_template_id')
-            .limit(1)
+            .eq('id', channelId)
             .maybeSingle();
 
           const greetingTemplateId = sourceGreetingTemplateId
@@ -3176,12 +3388,12 @@ async function processWebhookEvents(events) {
               const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ to: lineUserId, messages: tmpl.content.messages.slice(0, 5) }),
+                body: JSON.stringify({ to: lineUserId, messages: normalizeLineMessages(tmpl.content.messages).slice(0, 5) }),
               });
               if (pushRes.ok) {
                 console.log(`[follow] Greeting sent to ${displayName}`);
                 // チャットログに記録
-                const { data: friendRow } = await supabase.from('friends').select('id, channel_id').eq('line_user_id', lineUserId).maybeSingle();
+                const { data: friendRow } = await supabase.from('friends').select('id, channel_id').eq('line_user_id', lineUserId).eq('channel_id', channelId).maybeSingle();
                 if (friendRow?.channel_id) {
                   const textParts = tmpl.content.messages.filter(m => m.type === 'text' && m.text).map(m => m.text);
                   await supabase.from('chat_messages').insert({
@@ -3209,7 +3421,7 @@ async function processWebhookEvents(events) {
     // ── Unfollowイベント処理 ──
     if (event?.type === 'unfollow' && lineUserId) {
       try {
-        await supabase.from('friends').update({ status: 'unfollowed', unfollowed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('line_user_id', lineUserId);
+        await supabase.from('friends').update({ status: 'unfollowed', unfollowed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('line_user_id', lineUserId).eq('channel_id', channelId);
       } catch {}
       continue;
     }
@@ -3226,15 +3438,15 @@ async function processWebhookEvents(events) {
         try {
           const url = await generateAutoLoginUrl(lineUserId, '/line-link');
           replyText = `会員登録・LINE連携はこちらから行えます。\n\n${url}\n\n上のリンクをタップして、My FITPEAKのメールアドレスとパスワードを入力してください。`;
-          await replyToLine(event.replyToken, replyText);
+          await replyToLine(channelId, event.replyToken, replyText);
         } catch (err) {
           console.error('[line-webhook] register prompt error:', err.message);
           try {
             replyText = '会員登録ありがとうございます。\n\n公式サイトでのご購入時に使用した、または使用するメールアドレスを教えてください。';
-            await replyToLine(event.replyToken, replyText);
+            await replyToLine(channelId, event.replyToken, replyText);
           } catch {}
         }
-        logWebhookMessage(event, '[postback:register_email]', replyText);
+        logWebhookMessage(channelId, event, '[postback:register_email]', replyText);
         continue;
       }
 
@@ -3251,12 +3463,12 @@ async function processWebhookEvents(events) {
             if (tmpl && tmpl.content && tmpl.content.messages) {
               // テンプレートをLINEに送信
               // LINE Push APIでテンプレートを送信
-              const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+              const { accessToken: token } = await getLineCredentials(channelId);
               if (token) {
                 await fetch('https://api.line.me/v2/bot/message/push', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ to: lineUserId, messages: tmpl.content.messages }),
+                  body: JSON.stringify({ to: lineUserId, messages: normalizeLineMessages(tmpl.content.messages) }),
                 });
               }
 
@@ -3265,6 +3477,7 @@ async function processWebhookEvents(events) {
                 .from('friends')
                 .select('id, channel_id')
                 .eq('line_user_id', lineUserId)
+                .eq('channel_id', channelId)
                 .maybeSingle();
 
               if (friend) {
@@ -3310,15 +3523,15 @@ async function processWebhookEvents(events) {
             const url = await generateAutoLoginUrl(lineUserId, '/orders');
             replyText = `注文履歴はこちらからご確認いただけます。\n\n${url}`;
           }
-          await replyToLine(event.replyToken, replyText);
+          await replyToLine(channelId, event.replyToken, replyText);
         } catch (err) {
           console.error('[line-webhook] check_orders error:', err.message);
           try {
             replyText = '注文情報の取得に失敗しました。';
-            await replyToLine(event.replyToken, replyText);
+            await replyToLine(channelId, event.replyToken, replyText);
           } catch {}
         }
-        logWebhookMessage(event, '[postback:check_orders]', replyText);
+        logWebhookMessage(channelId, event, '[postback:check_orders]', replyText);
         continue;
       }
 
@@ -3331,6 +3544,7 @@ async function processWebhookEvents(events) {
             .from('friends')
             .select('id')
             .eq('line_user_id', lineUserId)
+            .eq('channel_id', channelId)
             .maybeSingle();
           if (friend) {
             for (const tagId of tagIds) {
@@ -3350,12 +3564,12 @@ async function processWebhookEvents(events) {
               }
             }
           }
-          if (replyText && event.replyToken) await replyToLine(event.replyToken, replyText);
+          if (replyText && event.replyToken) await replyToLine(channelId, event.replyToken, replyText);
         } catch (err) {
           console.error('[line-webhook] ans error:', err.message);
         }
         const displayText = event.postback?.params?.displayText || '回答';
-        logWebhookMessage(event, `[回答] ${displayText}`, replyText);
+        logWebhookMessage(channelId, event, `[回答] ${displayText}`, replyText);
         continue;
       }
       continue;
@@ -3371,6 +3585,7 @@ async function processWebhookEvents(events) {
             .from('friends')
             .select('id, channel_id')
             .eq('line_user_id', lineUserId)
+            .eq('channel_id', channelId)
             .maybeSingle();
 
           if (friend) {
@@ -3379,7 +3594,7 @@ async function processWebhookEvents(events) {
             // 画像・動画: LINE Content APIからダウンロードしてSupabase Storageに保存
             if ((msgType === 'image' || msgType === 'video') && event.message.id) {
               try {
-                const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+                const { accessToken: token } = await getLineCredentials(channelId);
                 const contentRes = await axios.get(
                   `https://api-data.line.me/v2/bot/message/${event.message.id}/content`,
                   { headers: { Authorization: `Bearer ${token}` }, responseType: 'arraybuffer' }
@@ -3446,9 +3661,10 @@ async function processWebhookEvents(events) {
           .from('friends')
           .select('id')
           .eq('line_user_id', lineUserId)
+          .eq('channel_id', channelId)
           .maybeSingle();
         if (!existingFriend) {
-          const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+          const { accessToken: token } = await getLineCredentials(channelId);
           let displayName = 'Unknown', pictureUrl = null, statusMessage = null;
           if (token) {
             try {
@@ -3469,7 +3685,7 @@ async function processWebhookEvents(events) {
             picture_url: pictureUrl,
             status_message: statusMessage,
             status: 'active',
-            channel_id: DEFAULT_CHANNEL_ID,
+            channel_id: channelId,
           });
           console.log(`[webhook] Auto-registered friend: ${displayName}`);
         }
@@ -3493,11 +3709,11 @@ async function processWebhookEvents(events) {
       try {
         const url = await generateAutoLoginUrl(lineUserId, '/line-link');
         replyText = `会員登録・LINE連携はこちらから行えます。\n\n${url}\n\n上のリンクをタップして、My FITPEAKのメールアドレスとパスワードを入力してください。`;
-        await replyToLine(event.replyToken, replyText);
+        await replyToLine(channelId, event.replyToken, replyText);
       } catch (err) {
         console.error('[line-webhook] register text command error:', err.message);
       }
-      logWebhookMessage(event, userMessage, replyText || null);
+      logWebhookMessage(channelId, event, userMessage, replyText || null);
       continue;
     }
 
@@ -3511,11 +3727,11 @@ async function processWebhookEvents(events) {
           const url = await generateAutoLoginUrl(lineUserId, '/orders');
           replyText = `注文履歴はこちらからご確認いただけます。\n\n${url}`;
         }
-        await replyToLine(event.replyToken, replyText);
+        await replyToLine(channelId, event.replyToken, replyText);
       } catch (err) {
         console.error('[line-webhook] orders text command error:', err.message);
       }
-      logWebhookMessage(event, userMessage, replyText || null);
+      logWebhookMessage(channelId, event, userMessage, replyText || null);
       continue;
     }
 
@@ -3526,6 +3742,7 @@ async function processWebhookEvents(events) {
         .from('auto_responses')
         .select('*')
         .eq('is_active', true)
+        .eq('channel_id', channelId)
         .order('priority', { ascending: false });
       const target = userMessage.trim();
       for (const rule of (rules || [])) {
@@ -3548,7 +3765,7 @@ async function processWebhookEvents(events) {
         if (messages.length > 0) {
           // メッセージ配列をそのままLINEに送信（テンプレート・画像等も対応）
           try {
-            await replyToLine(event.replyToken, messages);
+            await replyToLine(channelId, event.replyToken, messages);
           } catch (replyErr) {
             console.error('[auto_response] replyToLine failed:', replyErr.message);
           }
@@ -3559,6 +3776,7 @@ async function processWebhookEvents(events) {
               .from('friends')
               .select('id, channel_id')
               .eq('line_user_id', lineUserId)
+              .eq('channel_id', channelId)
               .maybeSingle();
             if (friend) {
               const incomingAt = new Date();
@@ -3642,13 +3860,14 @@ async function processWebhookEvents(events) {
           .from('friends')
           .select('id')
           .eq('line_user_id', lineUserId)
+          .eq('channel_id', channelId)
           .maybeSingle();
         friendId = friend?.id;
 
         if (friendId) {
           const result = await registerUserByEmail(lineUserId, friendId, userMessage.trim());
-          await replyToLine(event.replyToken, result.message);
-          logWebhookMessage(event, userMessage, result.message);
+          await replyToLine(channelId, event.replyToken, result.message);
+          logWebhookMessage(channelId, event, userMessage, result.message);
           continue;
         }
       } catch (err) {
@@ -3657,7 +3876,7 @@ async function processWebhookEvents(events) {
     }
 
     // AI即時返信: キーワード不一致時にAIで即時返信
-    logWebhookMessage(event, userMessage, null);
+    logWebhookMessage(channelId, event, userMessage, null);
 
     if (aiEnabled) {
       try {
@@ -3665,6 +3884,7 @@ async function processWebhookEvents(events) {
           .from('friends')
           .select('id, display_name, line_user_id, channel_id')
           .eq('line_user_id', lineUserId)
+          .eq('channel_id', channelId)
           .maybeSingle();
 
         if (friend) {
@@ -3733,7 +3953,7 @@ async function processWebhookEvents(events) {
 
           if (aiReply) {
             const aiReplyWithFooter = aiReply + '\n\n─────────\nFITPEAK AIより';
-            const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+            const { accessToken: token } = await getLineCredentials(channelId);
             if (token) {
               const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
                 method: 'POST',
@@ -3917,7 +4137,7 @@ router.get('/delayed-ai-reply', async (req, res) => {
       }
 
       // LINE Push APIで送信
-      const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      const { accessToken: token } = await getLineCredentials(friend.channel_id);
       if (token && aiReply) {
         try {
           const delayedReplyWithFooter = aiReply + '\n\n─────────\nFITPEAK AIより';
@@ -3971,12 +4191,14 @@ router.get('/delayed-ai-reply', async (req, res) => {
 // ===========================================================================
 
 // GET /traffic-sources
-router.get('/traffic-sources', async (_req, res) => {
+router.get('/traffic-sources', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('traffic_sources')
       .select('*')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json(data || []);
@@ -3989,32 +4211,30 @@ router.get('/traffic-sources', async (_req, res) => {
 // GET /traffic-sources/analytics?days=N - 日別のクリック数・友だち登録数（経路経由）
 router.get('/traffic-sources/analytics', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 7), 365);
     const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
 
-    // クリック（created_at）
-    const { data: clicks } = await supabase
-      .from('traffic_clicks')
-      .select('created_at')
-      .gte('created_at', since);
-
-    // 経路経由の友だち登録（traffic_source_id あり・followed_at）
-    const { data: friends } = await supabase
-      .from('friends')
-      .select('followed_at')
-      .not('traffic_source_id', 'is', null)
-      .gte('followed_at', since)
-      .not('followed_at', 'is', null);
-
-    // 経路別の友だち登録数（期間内）
-    const { data: bySrc } = await supabase
-      .from('friends')
-      .select('traffic_source_id')
-      .not('traffic_source_id', 'is', null)
-      .gte('followed_at', since);
-    const { data: sources } = await supabase.from('traffic_sources').select('id, name');
+    // このアカウントの経路IDに限定
+    const { data: sources } = await supabase.from('traffic_sources').select('id, name').eq('channel_id', channelId);
+    const sourceIds = (sources || []).map((s) => s.id);
     const nameById = {};
     for (const s of (sources || [])) nameById[s.id] = s.name;
+
+    // クリック（created_at）
+    const { data: clicks } = sourceIds.length > 0
+      ? await supabase.from('traffic_clicks').select('created_at').in('source_id', sourceIds).gte('created_at', since)
+      : { data: [] };
+
+    // 経路経由の友だち登録（traffic_source_id あり・followed_at）
+    const { data: friends } = sourceIds.length > 0
+      ? await supabase.from('friends').select('followed_at').in('traffic_source_id', sourceIds).gte('followed_at', since).not('followed_at', 'is', null)
+      : { data: [] };
+
+    // 経路別の友だち登録数（期間内）
+    const { data: bySrc } = sourceIds.length > 0
+      ? await supabase.from('friends').select('traffic_source_id').in('traffic_source_id', sourceIds).gte('followed_at', since)
+      : { data: [] };
     const perSourceMap = {};
     for (const f of (bySrc || [])) {
       const nm = nameById[f.traffic_source_id] || '(不明)';
@@ -4058,7 +4278,7 @@ router.get('/traffic-sources/analytics', async (req, res) => {
 // POST /traffic-sources
 router.post('/traffic-sources', async (req, res) => {
   try {
-    const { name, description, tag_ids, greeting_template_id } = req.body;
+    const { name, description, tag_ids, greeting_template_id, channel_id: channelId } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
     const code = Math.random().toString(36).substring(2, 10);
     const supabase = getSupabase();
@@ -4068,7 +4288,7 @@ router.post('/traffic-sources', async (req, res) => {
         name,
         description: description || null,
         code,
-        channel_id: DEFAULT_CHANNEL_ID,
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         tag_ids: Array.isArray(tag_ids) ? tag_ids : [],
         greeting_template_id: greeting_template_id || null,
       })
@@ -4142,7 +4362,7 @@ router.get('/track/:code', async (req, res) => {
     const supabase = getSupabase();
     const { data: source } = await supabase
       .from('traffic_sources')
-      .select('id, click_count')
+      .select('id, click_count, channel_id')
       .eq('code', req.params.code)
       .maybeSingle();
 
@@ -4161,7 +4381,7 @@ router.get('/track/:code', async (req, res) => {
     ]);
 
     // LINE Bot Info からBASIC IDを取得してリダイレクト
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const { accessToken: token } = await getLineCredentials(source.channel_id).catch(() => ({ accessToken: null }));
     let addUrl = 'https://line.me/R/ti/p/@956iyppc'; // fallback
     if (token) {
       try {
@@ -4379,6 +4599,104 @@ router.get('/fitpeak/review-gifts/counts', async (req, res) => {
       .not('shopify_invoice_url', 'is', null);
     counts.issued = issued || 0;
     res.json(counts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /fitpeak/referrals - 紹介一覧（成立/確認待ち/送付状況）
+router.get('/fitpeak/referrals', async (req, res) => {
+  try {
+    const { status, page = 1, per_page = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(per_page);
+    let query = supabase
+      .from('referral_uses')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + Number(per_page) - 1);
+    if (status) query = query.eq('status', status);
+    const { data, count, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    const lineIds = new Set((data || [])
+      .flatMap((r) => [r.referrer_line_user_id, r.referred_line_user_id])
+      .filter(Boolean));
+
+    // LINE ID未設定の行は、メール→line_shopify_links からLINEアカウントを解決（ギフト送付先の特定用）
+    const emails = [...new Set((data || []).flatMap((r) => [
+      !r.referrer_line_user_id ? r.referrer_email : null,
+      !r.referred_line_user_id ? r.referred_email : null,
+    ]).filter(Boolean).map((e) => e.toLowerCase()))];
+    const emailToLine = {};
+    if (emails.length) {
+      const { data: links } = await supabase
+        .from('line_shopify_links')
+        .select('shopify_email, line_user_id')
+        .in('shopify_email', emails);
+      for (const l of links || []) {
+        if (l.shopify_email && l.line_user_id) {
+          emailToLine[l.shopify_email.toLowerCase()] = l.line_user_id;
+          lineIds.add(l.line_user_id);
+        }
+      }
+    }
+
+    let friendMap = {};
+    if (lineIds.size) {
+      const { data: friends } = await supabase
+        .from('friends')
+        .select('line_user_id, display_name, picture_url')
+        .in('line_user_id', [...lineIds]);
+      for (const f of friends || []) friendMap[f.line_user_id] = f;
+    }
+
+    const effLine = (lid, email) => lid || (email ? emailToLine[email.toLowerCase()] : null) || null;
+    const rows = (data || []).map((r) => {
+      const rl = effLine(r.referrer_line_user_id, r.referrer_email);
+      const dl = effLine(r.referred_line_user_id, r.referred_email);
+      return {
+        ...r,
+        referrer_line_effective: rl,
+        referred_line_effective: dl,
+        referrer_friend: rl ? friendMap[rl] || null : null,
+        referred_friend: dl ? friendMap[dl] || null : null,
+      };
+    });
+
+    const counts = {};
+    for (const s of ['pending_bind', 'confirmed', 'completed']) {
+      const { count: c } = await supabase
+        .from('referral_uses')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', s);
+      counts[s] = c || 0;
+    }
+    res.json({ data: rows, total: count || 0, page: Number(page), per_page: Number(per_page), counts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /fitpeak/referrals/:id/mark-sent - ギフト送付済みを記録（side: referrer|referred|both）
+router.post('/fitpeak/referrals/:id/mark-sent', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { side } = req.body || {};
+    const now = new Date().toISOString();
+    const { data: row } = await supabase.from('referral_uses').select('*').eq('id', id).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'not found' });
+
+    const update = {};
+    if (side === 'referrer' || side === 'both') update.referrer_gift_sent_at = now;
+    if (side === 'referred' || side === 'both') update.referred_gift_sent_at = now;
+
+    const referrerSent = update.referrer_gift_sent_at || row.referrer_gift_sent_at;
+    const referredSent = update.referred_gift_sent_at || row.referred_gift_sent_at;
+    if (referrerSent && referredSent) update.status = 'completed';
+
+    const { error } = await supabase.from('referral_uses').update(update).eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, status: update.status || row.status });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4682,7 +5000,8 @@ router.get('/survey-followups/process', async (req, res) => {
 });
 
 async function processSurveyFollowups() {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  // FITPEAKサーベイ機能は既存の本番アカウントに紐づく（スコープ外）
+  const { accessToken: token } = await getLineCredentials(DEFAULT_CHANNEL_ID);
   if (!token) return { processed: 0, message: 'No LINE token' };
 
   // アクティブなルールを取得
@@ -4697,7 +5016,7 @@ async function processSurveyFollowups() {
   const results = [];
 
   for (const rule of rules) {
-    const messages = Array.isArray(rule.response_messages) ? rule.response_messages : [];
+    const messages = normalizeLineMessages(Array.isArray(rule.response_messages) ? rule.response_messages : []);
     if (messages.length === 0) continue;
 
     let targets = [];

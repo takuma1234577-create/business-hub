@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil } from 'lucide-react'
+import { getChannelId } from './lineAccount'
 
 interface TrafficSource {
   id: string
@@ -41,7 +42,7 @@ export default function TrafficSources() {
   const fetchSources = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/line-crm/traffic-sources')
+      const res = await fetch(`/api/line-crm/traffic-sources?channel_id=${getChannelId()}`)
       if (res.ok) setSources(await res.json())
     } catch (err) {
       console.error('Failed to fetch traffic sources:', err)
@@ -53,7 +54,7 @@ export default function TrafficSources() {
   useEffect(() => { fetchSources() }, [fetchSources])
 
   useEffect(() => {
-    fetch(`/api/line-crm/traffic-sources/analytics?days=${days}`)
+    fetch(`/api/line-crm/traffic-sources/analytics?days=${days}&channel_id=${getChannelId()}`)
       .then(r => (r.ok ? r.json() : null))
       .then(d => setAnalytics(d))
       .catch(() => {})
@@ -61,7 +62,7 @@ export default function TrafficSources() {
 
   useEffect(() => {
     fetch('/api/line-crm/tags').then(r => r.ok ? r.json() : []).then(d => setTags(Array.isArray(d) ? d : [])).catch(() => {})
-    fetch('/api/line-crm/message-templates').then(r => r.ok ? r.json() : []).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch(`/api/line-crm/message-templates?channel_id=${getChannelId()}`).then(r => r.ok ? r.json() : []).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const toggleFormTag = (id: string) =>
@@ -73,7 +74,7 @@ export default function TrafficSources() {
       const res = await fetch('/api/line-crm/traffic-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null }),
+        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null, channel_id: getChannelId() }),
       })
       if (res.ok) {
         setShowForm(false)

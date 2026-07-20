@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Users, UserPlus, UserMinus, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { getChannelId } from './lineAccount'
 
 interface DailyData {
   date: string
@@ -29,7 +30,7 @@ export default function FriendsAnalytics() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/line-crm/friends-analytics?days=${days}`)
+    fetch(`/api/line-crm/friends-analytics?days=${days}&channel_id=${getChannelId()}`)
       .then(r => r.json())
       .then(setData)
       .catch(console.error)

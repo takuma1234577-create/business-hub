@@ -5,7 +5,7 @@
  * 公式LINEで対応した場合 → Shopifyメールに「公式LINEにてご連絡しておりますので、ご確認ください。」
  */
 
-const { getSupabase, getGoogleOAuth2, google } = require('./shared.cjs');
+const { getSupabase, getGoogleOAuth2, google, getLineCredentials } = require('./shared.cjs');
 
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 
@@ -15,9 +15,6 @@ const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
  * @param {string} customerName - お客様の名前
  */
 async function notifyLineAboutEmail(customerEmail, customerName) {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) return false;
-
   try {
     // メールアドレスまたは名前でLINE友だちを検索
     // まず名前で部分一致検索
@@ -28,7 +25,7 @@ async function notifyLineAboutEmail(customerEmail, customerName) {
       const nameParts = customerName.replace(/\s+/g, '').split('');
       const { data: friends } = await supabase
         .from('friends')
-        .select('id, line_user_id, display_name')
+        .select('id, line_user_id, display_name, channel_id')
         .eq('status', 'active');
 
       if (friends) {
@@ -49,6 +46,9 @@ async function notifyLineAboutEmail(customerEmail, customerName) {
 
     if (!friend?.line_user_id) return false;
 
+    const { accessToken: token } = await getLineCredentials(friend.channel_id);
+    if (!token) return false;
+
     // LINE Push APIで通知
     const res = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
@@ -68,22 +68,14 @@ async function notifyLineAboutEmail(customerEmail, customerName) {
     }
 
     // チャットログに記録
-    if (friend.id) {
-      const { data: friendData } = await supabase
-        .from('friends')
-        .select('channel_id')
-        .eq('id', friend.id)
-        .single();
-
-      if (friendData?.channel_id) {
-        await supabase.from('chat_messages').insert({
-          channel_id: friendData.channel_id,
-          friend_id: friend.id,
-          direction: 'outgoing',
-          message_type: 'text',
-          content: { text: 'メールにてご連絡しておりますので、ご確認ください。', source: 'cross_channel' },
-        });
-      }
+    if (friend.id && friend.channel_id) {
+      await supabase.from('chat_messages').insert({
+        channel_id: friend.channel_id,
+        friend_id: friend.id,
+        direction: 'outgoing',
+        message_type: 'text',
+        content: { text: 'メールにてご連絡しておりますので、ご確認ください。', source: 'cross_channel' },
+      });
     }
 
     console.log(`[cross-channel] LINE notification sent to ${friend.display_name}`);

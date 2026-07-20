@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Plus, Pencil, Trash2, Zap, X, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
 import TestSendWidget from './TestSendWidget'
+import { getChannelId } from './lineAccount'
 
 interface TagAction {
   action: 'add' | 'remove'
@@ -34,7 +35,12 @@ interface Template {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 type MessageBlock = { type: string; text?: string } & Record<string, unknown>
 
 type FormData = {

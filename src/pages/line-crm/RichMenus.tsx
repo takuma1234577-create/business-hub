@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import axios from 'axios'
 import { LayoutGrid, Plus, Pencil, Trash2, X, Upload, CheckCircle } from 'lucide-react'
+import { getChannelId } from './lineAccount'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 // ── LINE Rich Menu types ──
 interface Bounds { x: number; y: number; width: number; height: number }
 type RMAction =
