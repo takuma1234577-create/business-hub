@@ -10,7 +10,7 @@
  *   SUPABASE_URL, SUPABASE_ANON_KEY (shared.cjs経由)
  */
 
-const { getSupabase, getAnthropicClient } = require('./shared.cjs');
+const { getSupabase, getAnthropicClient, DEFAULT_CHANNEL_ID } = require('./shared.cjs');
 const { lookupOrder, formatOrderForPrompt } = require('./order-lookup.cjs');
 const { sendSlackEscalation } = require('./slack-notify.cjs');
 const { lookupInventoryFromMessage, formatInventoryForPrompt } = require('./amazon-inventory-lookup.cjs');
@@ -552,6 +552,9 @@ async function updateFriendChatSummary(friendId, channelId) {
       if (!friend) return;
       channelId = friend.channel_id;
     }
+
+    // このAI要約はFITPEAK専用のプロンプトで作られているため、既存の本番アカウント以外では生成しない
+    if (channelId !== DEFAULT_CHANNEL_ID) return;
 
     // 全チャット履歴を取得（最新100件）
     const { data: messages } = await supabase

@@ -3244,16 +3244,19 @@ async function handleLineWebhook(channelId, req, res) {
 async function processWebhookEvents(channelId, events) {
   try {
 
-  // AI自動応答の有効/無効をチェック
-  let aiEnabled = true;
+  // AI自動応答(FITPEAK AI)は、注文/在庫検索やペルソナがFITPEAK専用に作り込まれているため、
+  // 既存の本番アカウント(FITPEAK)以外では絶対に使わない。
+  let aiEnabled = channelId === DEFAULT_CHANNEL_ID;
   try {
-    const { data: aiSettings } = await supabase
-      .from('ai_settings')
-      .select('enabled, auto_reply_enabled')
-      .limit(1)
-      .maybeSingle();
-    if (aiSettings && (aiSettings.enabled === false || aiSettings.auto_reply_enabled === false)) {
-      aiEnabled = false;
+    if (aiEnabled) {
+      const { data: aiSettings } = await supabase
+        .from('ai_settings')
+        .select('enabled, auto_reply_enabled')
+        .limit(1)
+        .maybeSingle();
+      if (aiSettings && (aiSettings.enabled === false || aiSettings.auto_reply_enabled === false)) {
+        aiEnabled = false;
+      }
     }
   } catch (err) {
     console.error('[line-webhook] ai_settings check error:', err.message);
@@ -4005,11 +4008,12 @@ router.get('/delayed-ai-reply', async (req, res) => {
     }
 
     // 5時間以上前の受信メッセージで、その後にoutgoingメッセージがないものを探す
-    // 1. 5時間以上前のincomingメッセージを取得
+    // 1. 5時間以上前のincomingメッセージを取得（FITPEAK AIはFITPEAK専用なので既存の本番アカウントに限定）
     const { data: oldIncoming } = await supabase
       .from('chat_messages')
       .select('id, channel_id, friend_id, content, created_at')
       .eq('direction', 'incoming')
+      .eq('channel_id', DEFAULT_CHANNEL_ID)
       .lte('created_at', cutoffTime)
       .order('created_at', { ascending: false })
       .limit(50);

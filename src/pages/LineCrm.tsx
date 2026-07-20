@@ -20,7 +20,7 @@ import FriendsAnalytics from './line-crm/FriendsAnalytics'
 import FitpeakDashboard from './line-crm/FitpeakDashboard'
 import LineAccounts from './line-crm/LineAccounts'
 import { useLineAccounts } from './line-crm/useLineAccounts'
-import { getChannelId } from './line-crm/lineAccount'
+import { getChannelId, DEFAULT_CHANNEL_ID } from './line-crm/lineAccount'
 import type { Friend } from './line-crm/types'
 
 type MainTabId = 'chat' | 'content' | 'delivery' | 'ai' | 'analytics' | 'accounts'
@@ -344,22 +344,28 @@ export default function LineCrm() {
 
         {/* ===== AI (AI設定 / RAGナレッジ / メール自動返信) ===== */}
         {mainTab === 'ai' && (
-          <>
-            <div className="flex items-center gap-2 mb-6">
-              <button onClick={() => setAiSub('ai-settings')} className={subTabCls(aiSub === 'ai-settings')}>
-                AI設定
-              </button>
-              <button onClick={() => setAiSub('knowledge')} className={subTabCls(aiSub === 'knowledge')}>
-                RAGナレッジ
-              </button>
-              <button onClick={() => setAiSub('email-auto-reply')} className={subTabCls(aiSub === 'email-auto-reply')}>
-                メール自動返信
-              </button>
+          selectedChannelId !== DEFAULT_CHANNEL_ID ? (
+            <div className="p-8 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center text-sm text-slate-500 dark:text-slate-400">
+              AI自動応答（FITPEAK AI）は既存のFITPEAKアカウント専用の機能のため、このアカウントでは利用できません。
             </div>
-            {aiSub === 'ai-settings' && <AiSettings />}
-            {aiSub === 'knowledge' && <KnowledgeChunks />}
-            {aiSub === 'email-auto-reply' && <EmailAutoReply />}
-          </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-6">
+                <button onClick={() => setAiSub('ai-settings')} className={subTabCls(aiSub === 'ai-settings')}>
+                  AI設定
+                </button>
+                <button onClick={() => setAiSub('knowledge')} className={subTabCls(aiSub === 'knowledge')}>
+                  RAGナレッジ
+                </button>
+                <button onClick={() => setAiSub('email-auto-reply')} className={subTabCls(aiSub === 'email-auto-reply')}>
+                  メール自動返信
+                </button>
+              </div>
+              {aiSub === 'ai-settings' && <AiSettings />}
+              {aiSub === 'knowledge' && <KnowledgeChunks />}
+              {aiSub === 'email-auto-reply' && <EmailAutoReply />}
+            </>
+          )
         )}
 
         {/* ===== 分析 (友だち増減 / 流入経路) ===== */}
