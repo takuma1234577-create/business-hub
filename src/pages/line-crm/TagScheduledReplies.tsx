@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Plus, Pencil, Trash2, Clock, X, ToggleLeft, ToggleRight, Play, Users, ChevronDown, ChevronUp } from 'lucide-react'
 import TestSendWidget from './TestSendWidget'
+import { getChannelId } from './lineAccount'
 
 interface TagScheduledReply {
   id: string
@@ -41,7 +42,12 @@ interface Template {
 }
 
 const api = axios.create({ baseURL: '/api/line-crm' })
-api.interceptors.request.use((config) => { const token = localStorage.getItem('auth_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.params = { ...config.params, channel_id: getChannelId() }
+  return config
+})
 type FormData = {
   name: string
   tag_id: string

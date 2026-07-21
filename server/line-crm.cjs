@@ -493,9 +493,11 @@ router.put('/friends/:id/tags', async (req, res) => {
 // GET /tags - List all tags
 router.get('/tags', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('tags')
       .select('*')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -512,7 +514,7 @@ router.get('/tags', async (req, res) => {
 // POST /tags - Create tag
 router.post('/tags', async (req, res) => {
   try {
-    const { name, color } = req.body;
+    const { name, color, channel_id: channelId } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
@@ -520,7 +522,7 @@ router.post('/tags', async (req, res) => {
 
     const { data, error } = await supabase
       .from('tags')
-      .insert({ name, color: color || null })
+      .insert({ name, color: color || null, channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID })
       .select()
       .single();
 
@@ -997,9 +999,11 @@ router.post('/chat/upload', upload.single('file'), async (req, res) => {
 
 router.get('/tag-scheduled-replies', async (req, res) => {
   try {
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const { data, error } = await supabase
       .from('tag_scheduled_replies')
       .select('*, tags(id, name, color)')
+      .eq('channel_id', channelId)
       .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data || []);
@@ -1010,13 +1014,13 @@ router.get('/tag-scheduled-replies', async (req, res) => {
 
 router.post('/tag-scheduled-replies', async (req, res) => {
   try {
-    const { tag_id, delay_hours, response_messages, name } = req.body;
+    const { tag_id, delay_hours, response_messages, name, channel_id: channelId } = req.body;
     if (!tag_id || !delay_hours || !response_messages) {
       return res.status(400).json({ error: 'tag_id, delay_hours, response_messages are required' });
     }
     const { data, error } = await supabase
       .from('tag_scheduled_replies')
-      .insert({ tag_id, delay_hours, response_messages, name: name || '', is_active: true })
+      .insert({ tag_id, delay_hours, response_messages, name: name || '', is_active: true, channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID })
       .select()
       .single();
     if (error) return res.status(500).json({ error: error.message });

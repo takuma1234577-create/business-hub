@@ -61,7 +61,7 @@ export default function TrafficSources() {
   }, [days])
 
   useEffect(() => {
-    fetch('/api/line-crm/tags').then(r => r.ok ? r.json() : []).then(d => setTags(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch(`/api/line-crm/tags?channel_id=${getChannelId()}`).then(r => r.ok ? r.json() : []).then(d => setTags(Array.isArray(d) ? d : [])).catch(() => {})
     fetch(`/api/line-crm/message-templates?channel_id=${getChannelId()}`).then(r => r.ok ? r.json() : []).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
