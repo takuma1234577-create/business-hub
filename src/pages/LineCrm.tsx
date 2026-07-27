@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Users, MessageCircle, Bot, FileText, ExternalLink, TrendingUp, Send, ShieldBan, X, User, Settings, ChevronDown } from 'lucide-react'
 import FriendList from './line-crm/FriendList'
 import FriendDetail from './line-crm/FriendDetail'
@@ -61,6 +61,18 @@ export default function LineCrm() {
   const { accounts, selectedChannelId, selectChannel } = useLineAccounts()
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const currentAccount = accounts.find((a) => a.id === selectedChannelId)
+
+  // ダッシュボードから /line-crm?view=order-verify で来たら、在宅ワーク案件ナビの注文確認タブを直接開く
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('view') === 'order-verify') {
+      selectChannel(REVIEW_ORDER_CHANNEL_ID)
+      setMainTab('content')
+      setContentSub('order-verify')
+    }
+    // 初回のみ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 友だち情報画面から戻るとき、開いた元（一覧 or チャット）に戻す
   const [friendDetailReturnTo, setFriendDetailReturnTo] = useState<'threads' | 'detail'>('threads')

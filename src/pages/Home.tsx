@@ -14,6 +14,7 @@ import {
   Globe,
   Video,
   Target,
+  ShieldCheck,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -65,6 +66,16 @@ const tools: Tool[] = [
     ],
   },
 {
+    id: 'review-order-verify',
+    name: '注文確認（レビュー案件）',
+    description: '在宅ワーク案件ナビで届く「注文完了スクショ」をAIで解析し、Amazonセラーセントラルで実注文を照合。合致で「注文完了」タグ自動付与＋次工程へ、不一致は再送依頼を自動返信。',
+    icon: <ShieldCheck size={28} />,
+    path: '/line-crm?view=order-verify',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/50',
+    status: 'active',
+  },
+  {
     id: 'return-review',
     name: '返品・交換審査システム',
     description: 'お客様からの返品・交換申請をAIで自動審査。Shopify返金・LINE通知を自動化。',
