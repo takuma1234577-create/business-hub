@@ -23,16 +23,37 @@ const router = express.Router();
 const VISION_MODEL = 'claude-sonnet-4-5';
 
 // デフォルト返信文（configで上書き可能）。絵文字は使わない。
+// success はプレースホルダ {order_number} {product} {amount} を実注文の値で差し込む。
 const DEFAULTS = {
   success:
-    'ご注文を確認できました。\nこのまま次の工程にお進みください。担当より順次ご案内いたします。',
-  resend:
-    'お送りいただいた画像から注文情報を読み取れませんでした。\nAmazonの「注文完了（注文内容）」画面全体（注文番号・商品名・合計金額が写っているもの）のスクリーンショットを、もう一度お送りください。',
-  mismatch:
-    'お送りいただいた画像の内容を注文履歴と照合できませんでした。\n注文番号・商品名・合計金額がはっきり写った注文完了画面のスクリーンショットを、もう一度お送りください。',
-  cancelled:
-    'こちらの注文はキャンセル済みのようです。ご確認のうえ、有効なご注文の完了画面をお送りください。',
+    'ご注文の確認が完了しました。ありがとうございます。\n\n' +
+    '・注文番号：{order_number}\n' +
+    '・商品名：{product}\n' +
+    '・合計金額：{amount}\n\n' +
+    '【次のステップ】\n' +
+    '商品が届きましたら、実際にお使いいただき、レビュー下書きをお送りください。',
+  // 確認NG（該当なし・不一致・読取不可・キャンセル）共通のチェックリスト文
+  ng:
+    '注文内容が確認できませんでした。\n' +
+    '・注文番号：\n' +
+    '・商品名：\n' +
+    '・合計金額：\n\n' +
+    '以下情報がスクショの中に入ってるか確認してください。',
 };
+
+// 円表示（¥3,980）
+function fmtYen(v) {
+  const n = parseYen(v);
+  return n == null ? '' : '¥' + n.toLocaleString('ja-JP');
+}
+
+// テンプレートのプレースホルダを差し込む
+function fillTemplate(tpl, { orderNumber, product, amount }) {
+  return String(tpl)
+    .replace(/\{order_number\}/g, orderNumber || '')
+    .replace(/\{product\}/g, product || '')
+    .replace(/\{amount\}/g, amount || '');
+}
 
 // ---------------------------------------------------------------------------
 // 設定
@@ -299,12 +320,23 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
     return decide('mismatch', reasons.join(' / '), config, DEFAULTS.mismatch, extracted, orderNumber, orderData);
   }
 
-  // 照合OK
+  // 照合OK: 実注文の値を差し込んだ完了メッセージ（＝次工程の案内も含む）を返す
   await logResult({ ...record, status: 'verified', reason: '照合OK', extracted, order_data: orderData, order_number: orderNumber });
+  // 商品名: Amazonの正式名称は長すぎるため、読みやすい長さに丸める
+  const rawProduct =
+    orderTitles.join(' / ') ||
+    (extracted.items || []).map((i) => i && (i.name || i.title)).filter(Boolean).join(' / ');
+  const productName = rawProduct.length > 48 ? rawProduct.slice(0, 48) + '…' : rawProduct;
+  const successTpl = config.success_message || DEFAULTS.success;
+  const replyText = fillTemplate(successTpl, {
+    orderNumber,
+    product: productName,
+    amount: fmtYen(order.OrderTotal?.Amount),
+  });
   return {
     status: 'verified',
     reason: '照合OK',
-    replyText: config.success_message || DEFAULTS.success,
+    replyText,
     autoReply: !!config.auto_reply,
     applyTagId: config.tag_id || null,
     extracted,
@@ -313,15 +345,16 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   };
 }
 
-function decide(status, reason, config, defaultMsg, extracted, orderNumber, order) {
-  let msg = defaultMsg;
-  if (status === 'not_order' || status === 'unreadable' || status === 'not_found') {
-    msg = config.resend_message || DEFAULTS.resend;
-  } else if (status === 'mismatch') {
-    msg = config.mismatch_message || DEFAULTS.mismatch;
-  } else if (status === 'cancelled') {
-    msg = DEFAULTS.cancelled;
-  }
+function decide(status, reason, config, _defaultMsg, extracted, orderNumber, order) {
+  // 確認NG（該当なし・不一致・読取不可・注文画面でない・キャンセル）は共通のNG文面。
+  // configで個別上書き可能: 読取不可系は resend_message、不一致は mismatch_message を優先。
+  let tpl = config.resend_message || config.mismatch_message || DEFAULTS.ng;
+  if (status === 'mismatch') tpl = config.mismatch_message || config.resend_message || DEFAULTS.ng;
+  const msg = fillTemplate(tpl, {
+    orderNumber: orderNumber || '',
+    product: (extracted && (extracted.items || []).map((i) => i && (i.name || i.title)).filter(Boolean).join(' / ')) || '',
+    amount: (extracted && fmtYen(extracted.total_amount)) || '',
+  });
   return {
     status,
     reason,
