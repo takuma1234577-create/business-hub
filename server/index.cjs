@@ -86,6 +86,7 @@ const backupRoutes = require(path.join(__dirname, 'backup.cjs'));
 const shopifyReviewsRoutes = require(path.join(__dirname, 'shopify-reviews.cjs'));
 const fitpeakSnsRoutes = require(path.join(__dirname, 'fitpeak-sns.cjs'));
 const salesAgentRoutes = require(path.join(__dirname, 'sales-agent.cjs'));
+const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verify.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -112,6 +113,7 @@ app.use('/api/backup', backupRoutes);
 app.use('/api/shopify-reviews', shopifyReviewsRoutes);
 app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
 app.use('/api/sales-agent', salesAgentRoutes);
+app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
 function internalGet(routePath) {

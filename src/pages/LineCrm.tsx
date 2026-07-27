@@ -18,10 +18,14 @@ import TagScheduledReplies from './line-crm/TagScheduledReplies'
 import TrafficSources from './line-crm/TrafficSources'
 import FriendsAnalytics from './line-crm/FriendsAnalytics'
 import FitpeakDashboard from './line-crm/FitpeakDashboard'
+import ReviewOrderAdmin from './line-crm/ReviewOrderAdmin'
 import LineAccounts from './line-crm/LineAccounts'
 import { useLineAccounts } from './line-crm/useLineAccounts'
 import { getChannelId, DEFAULT_CHANNEL_ID } from './line-crm/lineAccount'
 import type { Friend } from './line-crm/types'
+
+// 在宅ワーク案件ナビ（Amazonレビュー案件）のチャンネル。注文確認タブはこのアカウントでのみ表示。
+const REVIEW_ORDER_CHANNEL_ID = 'b5f8c901-70d1-4fb7-88bd-02ed32bbe29f'
 
 type MainTabId = 'chat' | 'content' | 'delivery' | 'ai' | 'analytics' | 'accounts'
 
@@ -40,7 +44,7 @@ export default function LineCrm() {
   const [chatView, setChatView] = useState<'threads' | 'friend-detail' | 'detail'>('threads')
 
   // 各グループ内のサブタブ
-  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags'>('templates')
+  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify'>('templates')
   const [deliverySub, setDeliverySub] = useState<'auto-responses' | 'tag-scheduled' | 'broadcasts'>('auto-responses')
   const [aiSub, setAiSub] = useState<'ai-settings' | 'knowledge' | 'email-auto-reply'>('ai-settings')
   const [analyticsSub, setAnalyticsSub] = useState<'friends' | 'traffic' | 'fitpeak'>('friends')
@@ -58,9 +62,21 @@ export default function LineCrm() {
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const currentAccount = accounts.find((a) => a.id === selectedChannelId)
 
+  // 友だち情報画面から戻るとき、開いた元（一覧 or チャット）に戻す
+  const [friendDetailReturnTo, setFriendDetailReturnTo] = useState<'threads' | 'detail'>('threads')
+
+  // 友だち一覧から選択 → 友だち情報へ
   const handleSelectFriend = (friend: Friend) => {
     setSelectedFriend(friend)
+    setFriendDetailReturnTo('threads')
     setChatView('friend-detail')
+    setMainTab('chat')
+  }
+
+  // チャット一覧から選択 → 直接チャットへ
+  const handleSelectFromChat = (friend: Friend) => {
+    setSelectedFriend(friend)
+    setChatView('detail')
     setMainTab('chat')
   }
 
@@ -69,12 +85,18 @@ export default function LineCrm() {
     setChatView('detail')
   }
 
+  // チャット画面の歯車から友だち情報を開く
+  const handleOpenFriendDetailFromChat = () => {
+    setFriendDetailReturnTo('detail')
+    setChatView('friend-detail')
+  }
+
   const handleBackFromChat = () => {
     setChatView('threads')
   }
 
   const handleBackFromFriendDetail = () => {
-    setChatView('threads')
+    setChatView(friendDetailReturnTo)
   }
 
   // ブロック一覧
@@ -205,7 +227,7 @@ export default function LineCrm() {
         {mainTab === 'chat' && (
           <>
             {chatView === 'detail' && selectedFriend ? (
-              <ChatView friend={selectedFriend} onBack={handleBackFromChat} onFriendUpdated={(f) => setSelectedFriend(f)} />
+              <ChatView friend={selectedFriend} onBack={handleBackFromChat} onFriendUpdated={(f) => setSelectedFriend(f)} onOpenFriendDetail={handleOpenFriendDetailFromChat} />
             ) : chatView === 'friend-detail' && selectedFriend ? (
               <FriendDetail friend={selectedFriend} onBack={handleBackFromFriendDetail} onOpenChat={handleOpenChatFromDetail} />
             ) : (
@@ -233,7 +255,7 @@ export default function LineCrm() {
                     <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                       <MessageCircle size={14} /> チャット一覧
                     </h2>
-                    <ChatThreads onSelectFriend={handleSelectFriend} />
+                    <ChatThreads onSelectFriend={handleSelectFromChat} />
                   </div>
                 </div>
               </div>
@@ -314,11 +336,19 @@ export default function LineCrm() {
               <button onClick={() => setContentSub('tags')} className={subTabCls(contentSub === 'tags')}>
                 タグ
               </button>
+              {selectedChannelId === REVIEW_ORDER_CHANNEL_ID && (
+                <button onClick={() => setContentSub('order-verify')} className={subTabCls(contentSub === 'order-verify')}>
+                  注文確認
+                </button>
+              )}
             </div>
             {contentSub === 'templates' && <MessageTemplates />}
             {contentSub === 'rich-menus' && <RichMenus />}
             {contentSub === 'greeting' && <GreetingSettings />}
             {contentSub === 'tags' && <TagManager />}
+            {contentSub === 'order-verify' && selectedChannelId === REVIEW_ORDER_CHANNEL_ID && (
+              <ReviewOrderAdmin channelId={selectedChannelId} />
+            )}
           </>
         )}
 

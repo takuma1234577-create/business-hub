@@ -3168,6 +3168,69 @@ async function replyToLine(channelId, replyToken, textOrMessages) {
   }
 }
 
+// 返信トークンで返信し、失効時はpushでフォールバック
+async function replyOrPush(channelId, replyToken, lineUserId, text) {
+  try {
+    if (replyToken) {
+      await replyToLine(channelId, replyToken, text);
+      return;
+    }
+  } catch (e) {
+    console.warn('[review-order-verify] reply failed, fallback to push:', e.message);
+  }
+  if (!lineUserId) return;
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (!token) return;
+  await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text }] }),
+  });
+}
+
+// 注文確認: スクショを解析・照合し、結果に応じてタグ付与＋自動返信を行う
+async function runReviewOrderVerification({ channelId, friendId, lineUserId, imageUrl, replyToken, messageId }) {
+  const { verifyReviewOrderFromImage } = require('./review-order-verify.cjs');
+  const result = await verifyReviewOrderFromImage({ channelId, friendId, lineUserId, imageUrl, messageId });
+  if (!result || result.status === 'disabled') return; // このチャンネルでは無効
+
+  // 照合OK: 「注文完了」タグ付与＋タグ連動配信で次工程へ
+  if (result.status === 'verified' && result.applyTagId) {
+    try {
+      const { data: existing } = await supabase
+        .from('friend_tags')
+        .select('tag_id')
+        .eq('friend_id', friendId)
+        .eq('tag_id', result.applyTagId)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from('friend_tags').insert({ friend_id: friendId, tag_id: result.applyTagId });
+        enqueueTagDelivery(friendId, result.applyTagId).catch(() => {});
+      }
+    } catch (e) {
+      console.error('[review-order-verify] tag apply error:', e.message);
+    }
+  }
+
+  // 自動返信
+  if (result.autoReply && result.replyText) {
+    try {
+      await replyOrPush(channelId, replyToken, lineUserId, result.replyText);
+      // 送信ログを残す
+      await supabase.from('chat_messages').insert({
+        channel_id: channelId,
+        friend_id: friendId,
+        direction: 'outgoing',
+        message_type: 'text',
+        content: { text: result.replyText, source: 'review_order_verify', status: result.status },
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('[review-order-verify] auto-reply error:', e.message);
+    }
+  }
+}
+
 async function logWebhookMessage(channelId, event, userMessage, aiReply) {
   // 既存の chat_messages テーブルは channel_id / friend_id が必須なので、
   // 友だちを解決できた場合のみ記録する（失敗してもWebhook本処理を止めない）
@@ -3644,7 +3707,7 @@ async function processWebhookEvents(channelId, events) {
               contentData.packageId = event.message.packageId;
             }
 
-            await supabase.from('chat_messages').insert({
+            const { data: insertedMsg } = await supabase.from('chat_messages').insert({
               channel_id: friend.channel_id,
               friend_id: friend.id,
               direction: 'incoming',
@@ -3652,7 +3715,19 @@ async function processWebhookEvents(channelId, events) {
               content: contentData,
               line_message_id: event.message.id,
               created_at: new Date().toISOString(),
-            });
+            }).select('id').maybeSingle();
+
+            // 注文確認システム: 在宅ワーク案件ナビ等で「注文完了スクショ」を受けたら自動照合
+            if (msgType === 'image' && contentData.url) {
+              await runReviewOrderVerification({
+                channelId: friend.channel_id,
+                friendId: friend.id,
+                lineUserId,
+                imageUrl: contentData.url,
+                replyToken: event.replyToken,
+                messageId: insertedMsg?.id || null,
+              }).catch((e) => console.error('[review-order-verify] hook error:', e.message));
+            }
           }
         } catch (err) {
           console.error('[line-webhook] non-text message log error:', err.message);
@@ -4704,7 +4779,82 @@ router.post('/fitpeak/referrals/:id/mark-sent', async (req, res) => {
 
     const { error } = await supabase.from('referral_uses').update(update).eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
+
+    // 引き当て済みギフトコードも送付済みにする
+    const sides = side === 'both' ? ['referrer', 'referred'] : [side];
+    await supabase.from('gift_codes')
+      .update({ status: 'sent', sent_at: now })
+      .eq('referral_use_id', id).in('side', sides).eq('status', 'assigned');
+
     res.json({ ok: true, status: update.status || row.status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /fitpeak/gift-codes/stats - 在庫件数
+router.get('/fitpeak/gift-codes/stats', async (_req, res) => {
+  try {
+    const stats = {};
+    for (const s of ['available', 'assigned', 'sent']) {
+      const { count } = await supabase.from('gift_codes')
+        .select('id', { count: 'exact', head: true }).eq('status', s);
+      stats[s] = count || 0;
+    }
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /fitpeak/gift-codes/import - コードを在庫に一括登録（1行1コード）
+router.post('/fitpeak/gift-codes/import', async (req, res) => {
+  try {
+    const { codes, amount = 500 } = req.body || {};
+    const raw = Array.isArray(codes) ? codes : String(codes || '').split(/\r?\n/);
+    const list = [...new Set(raw.map((c) => String(c).trim()).filter(Boolean))];
+    if (list.length === 0) return res.status(400).json({ error: 'コードがありません' });
+
+    // 既存コードを除外
+    const { data: existing } = await supabase.from('gift_codes')
+      .select('code').in('code', list);
+    const have = new Set((existing || []).map((r) => r.code));
+    const rows = list.filter((c) => !have.has(c)).map((c) => ({ code: c, amount: Number(amount) || 500 }));
+    if (rows.length) {
+      const { error } = await supabase.from('gift_codes').insert(rows);
+      if (error) return res.status(500).json({ error: error.message });
+    }
+    res.json({ added: rows.length, skipped: list.length - rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /fitpeak/referrals/:id/assign-code - プールから未使用コードを1件引き当て（side指定）
+router.post('/fitpeak/referrals/:id/assign-code', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { side } = req.body || {};
+    if (!['referrer', 'referred'].includes(side)) return res.status(400).json({ error: 'invalid side' });
+
+    const { data: row } = await supabase.from('referral_uses').select('*').eq('id', id).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'not found' });
+
+    const codeField = side === 'referrer' ? 'referrer_gift_code' : 'referred_gift_code';
+    if (row[codeField]) return res.json({ code: row[codeField], alreadyAssigned: true });
+
+    // 未使用コードを1件取得 → 排他更新（単一運用なので競合はほぼ無い）
+    const { data: avail } = await supabase.from('gift_codes')
+      .select('id, code').eq('status', 'available').order('created_at', { ascending: true }).limit(1).maybeSingle();
+    if (!avail) return res.status(409).json({ error: '在庫がありません。ギフト券コードを追加してください。' });
+
+    const { data: claimed } = await supabase.from('gift_codes')
+      .update({ status: 'assigned', referral_use_id: id, side, assigned_at: new Date().toISOString() })
+      .eq('id', avail.id).eq('status', 'available').select('code').maybeSingle();
+    if (!claimed) return res.status(409).json({ error: '在庫の引き当てに失敗しました。再度お試しください。' });
+
+    await supabase.from('referral_uses').update({ [codeField]: claimed.code }).eq('id', id);
+    res.json({ code: claimed.code });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
