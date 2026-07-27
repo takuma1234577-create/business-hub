@@ -334,7 +334,7 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   // レビュー提出フォームのURLを発行（本人紐付けトークン付き）
   let reviewFormUrl = '';
   try {
-    const link = await createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName: rawProduct, purchaseDate: order.PurchaseDate || null });
+    const link = await createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName: rawProduct, purchaseDate: order.PurchaseDate || null, orderTotal: parseYen(order.OrderTotal?.Amount) });
     reviewFormUrl = link.url;
   } catch (e) {
     console.error('[review-order-verify] createReviewSubmission error:', e.message);

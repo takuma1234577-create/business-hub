@@ -8,7 +8,7 @@ interface Submission {
   token: string
   product_name: string | null
   order_number: string | null
-  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'verified' | 'rejected'
+  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'awaiting_invoice' | 'invoice_submitted' | 'completed' | 'rejected'
   draft_title: string | null
   draft_body: string | null
   draft_image_url: string | null
@@ -16,7 +16,11 @@ interface Submission {
   verify_status: string | null
   verify_reason: string | null
   review_date: string | null
+  order_total: number | null
+  invoice_verify_status: string | null
+  invoice_verify_reason: string | null
 }
+interface BillTo { company: string; address: string; email: string }
 
 function formatJpDate(iso: string | null): string {
   if (!iso) return ''
@@ -41,6 +45,9 @@ export default function ReviewForm() {
   const [body, setBody] = useState('')
   const [draftImage, setDraftImage] = useState<File | null>(null)
   const [proofImage, setProofImage] = useState<File | null>(null)
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
+  const [billAmount, setBillAmount] = useState<number | null>(null)
+  const [billTo, setBillTo] = useState<BillTo | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [flash, setFlash] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -52,6 +59,8 @@ export default function ReviewForm() {
       setSub(r.data.submission)
       setTitle(r.data.submission.draft_title || '')
       setBody(r.data.submission.draft_body || '')
+      setBillAmount(r.data.bill_amount ?? null)
+      setBillTo(r.data.bill_to ?? null)
     } catch {
       setNotFound(true)
     }
@@ -100,6 +109,27 @@ export default function ReviewForm() {
     setSubmitting(false)
   }
 
+  const submitInvoice = async () => {
+    if (!invoiceFile) { setFlash({ type: 'err', text: '請求書ファイル（PDF）を選択してください' }); return }
+    setSubmitting(true); setFlash(null)
+    try {
+      const fd = new FormData()
+      fd.append('t', token)
+      fd.append('file', invoiceFile)
+      const r = await api.post('/invoice', fd)
+      if (r.data.verify_status === 'verified') {
+        setFlash({ type: 'ok', text: '請求書を受け付けました。確認後、お振込いたします。ありがとうございました。' })
+      } else {
+        setFlash({ type: 'err', text: `請求書の内容を確認できませんでした（${r.data.reason || ''}）。内容をご確認のうえ、もう一度お送りください。` })
+      }
+      await load()
+    } catch (e) {
+      const err = e as { response?: { data?: { error?: string } } }
+      setFlash({ type: 'err', text: err.response?.data?.error || '送信に失敗しました。時間をおいて再度お試しください。' })
+    }
+    setSubmitting(false)
+  }
+
   const card = 'w-full max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6'
   const label = 'block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5'
   const input = 'w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500'
@@ -138,14 +168,27 @@ export default function ReviewForm() {
       )}
 
       {/* 完了 */}
-      {sub.status === 'verified' && (
+      {sub.status === 'completed' && (
         <div className={card}>
           <div className="text-center">
             <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center mb-3">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-600"><path d="M20 6L9 17l-5-5" /></svg>
             </div>
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">レビュー確認が完了しました</h2>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">ご協力ありがとうございました。特典のご案内は公式LINEにてお送りします。</p>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">すべての工程が完了しました</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">ご協力ありがとうございました。以降のご案内は公式LINEにてお送りします。</p>
+          </div>
+        </div>
+      )}
+
+      {/* 請求書提出待ち（確認中） */}
+      {sub.status === 'invoice_submitted' && (
+        <div className={card}>
+          <div className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mb-3">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            </div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">請求書を受け付けました</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">内容を確認しています。確認後、お振込のうえ公式LINEにてご連絡します。今しばらくお待ちください。</p>
           </div>
         </div>
       )}
@@ -243,6 +286,47 @@ export default function ReviewForm() {
             <button className={btn} onClick={submitProof} disabled={submitting}>{submitting ? '確認中...' : 'スクショを送信して確認する'}</button>
           </div>
           )}
+        </div>
+      )}
+
+      {/* ステップ3: 請求書の提出（銀行振込の方のみ） */}
+      {sub.status === 'awaiting_invoice' && (
+        <div className={card}>
+          <div className="mb-4">
+            <span className="text-xs font-semibold text-emerald-600">最後のステップ</span>
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-0.5">請求書の提出（PDF）</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">お振込のため、下記の内容で作成した請求書（PDF）をアップロードしてください。</p>
+          </div>
+
+          <div className="mb-4 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-500 dark:text-slate-400">請求金額（税込）</span>
+              <span className="font-bold text-slate-800 dark:text-slate-100">{billAmount != null ? '¥' + billAmount.toLocaleString() : '—'}</span>
+            </div>
+            <p className="text-[11px] text-slate-400">※商品代金 ＋ 1,000円</p>
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">宛先（下記宛に作成してください）</p>
+              <p className="text-slate-800 dark:text-slate-100">{billTo?.company}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">{billTo?.address}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">{billTo?.email}</p>
+            </div>
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">差出人（あなたの情報を記載）</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">会社名または個人名 / 住所 / メールアドレス / 振込先情報</p>
+            </div>
+          </div>
+
+          {sub.invoice_verify_status && sub.invoice_verify_status !== 'verified' && (
+            <div className="mb-3 text-xs text-amber-600">前回の確認結果: {sub.invoice_verify_reason || '確認できませんでした'}。内容をご確認のうえ、もう一度お送りください。</div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className={label}>請求書ファイル（PDF）</label>
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)} className="block w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200" />
+            </div>
+            <button className={btn} onClick={submitInvoice} disabled={submitting}>{submitting ? '確認中...' : '請求書を送信する'}</button>
+          </div>
         </div>
       )}
 

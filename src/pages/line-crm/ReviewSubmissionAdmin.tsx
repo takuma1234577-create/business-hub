@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { RefreshCw, X, Star, Check, Ban, MessageSquareText, Image as ImageIcon } from 'lucide-react'
+import { RefreshCw, X, Star, Check, Ban, MessageSquareText, Image as ImageIcon, FileText } from 'lucide-react'
 
 const api = axios.create({ baseURL: '/api/review-submission' })
 api.interceptors.request.use((config) => {
@@ -11,11 +11,12 @@ api.interceptors.request.use((config) => {
 
 interface Submission {
   id: string
-  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'verified' | 'rejected'
+  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'awaiting_invoice' | 'invoice_submitted' | 'completed' | 'rejected'
   order_number: string | null
   product_name: string | null
   purchase_date: string | null
   review_date: string | null
+  order_total: number | null
   draft_title: string | null
   draft_body: string | null
   draft_image_url: string | null
@@ -23,6 +24,10 @@ interface Submission {
   verify_status: string | null
   verify_reason: string | null
   verify_result: { reviewer_name?: string; star_rating?: number; title?: string; body?: string } | null
+  invoice_url: string | null
+  invoice_verify_status: string | null
+  invoice_verify_reason: string | null
+  invoice_result: { total_amount?: number; invoice_date?: string; sender?: { name?: string; bank_info?: string } } | null
   admin_note: string | null
   created_at: string
   friend?: { id: string; display_name: string; picture_url: string | null } | null
@@ -30,18 +35,21 @@ interface Submission {
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   awaiting_draft: { label: '下書き待ち', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  draft_received: { label: '承認待ち', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  approved: { label: '承認済/投稿待ち', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  verified: { label: 'レビュー確認OK', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  draft_received: { label: '下書き承認待ち', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved: { label: '投稿待ち', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  awaiting_invoice: { label: '請求書待ち', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  invoice_submitted: { label: '請求書承認待ち', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  completed: { label: '完了', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
   rejected: { label: '却下', cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 const STATUS_TABS = [
   { key: '', label: 'すべて' },
-  { key: 'draft_received', label: '承認待ち' },
+  { key: 'draft_received', label: '下書き承認待ち' },
+  { key: 'invoice_submitted', label: '請求書承認待ち' },
   { key: 'approved', label: '投稿待ち' },
-  { key: 'verified', label: '確認OK' },
-  { key: 'awaiting_draft', label: '下書き待ち' },
+  { key: 'awaiting_invoice', label: '請求書待ち' },
+  { key: 'completed', label: '完了' },
   { key: 'rejected', label: '却下' },
 ]
 
@@ -98,6 +106,26 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
     setBusyId(null)
   }
 
+  const advanceReview = async (id: string) => {
+    setBusyId(id)
+    try {
+      const r = await api.post(`/submissions/${id}/advance`)
+      setFlash(r.data?.status === 'completed' ? '完了にしました（クラウドワークス経由）。' : '請求書の提出を依頼しました。')
+      await fetchSubs(); await fetchStats()
+    } catch { setFlash('操作に失敗しました。') }
+    setBusyId(null)
+  }
+
+  const completeInvoice = async (id: string) => {
+    setBusyId(id)
+    try {
+      const r = await api.post(`/submissions/${id}/complete`)
+      setFlash(r.data?.notified ? '完了にし、ユーザーへ通知しました。お振込をお願いします。' : '完了にしました（LINE通知は失敗）。')
+      await fetchSubs(); await fetchStats()
+    } catch { setFlash('操作に失敗しました。') }
+    setBusyId(null)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -122,10 +150,10 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
         {[
-          { k: 'draft_received', label: '承認待ち' },
-          { k: 'approved', label: '投稿待ち' },
-          { k: 'verified', label: '確認OK' },
-          { k: 'rejected', label: '却下' },
+          { k: 'draft_received', label: '下書き承認待ち' },
+          { k: 'invoice_submitted', label: '請求書承認待ち' },
+          { k: 'awaiting_invoice', label: '請求書待ち' },
+          { k: 'completed', label: '完了' },
         ].map(({ k, label }) => (
           <div key={k} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-center">
             <div className="text-xl font-bold text-slate-800 dark:text-slate-100">{counts[k] || 0}</div>
@@ -193,6 +221,24 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                   </div>
                 </div>
 
+                {/* 請求書 */}
+                {(s.invoice_url || s.status === 'awaiting_invoice' || s.status === 'invoice_submitted' || s.status === 'completed') && (
+                  <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs text-slate-400 mb-1 flex items-center gap-1"><FileText size={12} /> 請求書</p>
+                    {s.invoice_url ? (
+                      <div className="text-xs space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <span>請求額: <b>{s.invoice_result?.total_amount != null ? '¥' + Number(s.invoice_result.total_amount).toLocaleString() : '—'}</b></span>
+                          <span className="text-slate-400">正: ¥{((s.order_total || 0) + 1000).toLocaleString()}</span>
+                          {s.invoice_result?.sender?.bank_info && <span className="text-slate-500">振込先: {s.invoice_result.sender.bank_info.slice(0, 30)}</span>}
+                        </div>
+                        <div className={s.invoice_verify_status === 'verified' ? 'text-emerald-600' : 'text-amber-600'}>{s.invoice_verify_reason || s.invoice_verify_status}</div>
+                        <a href={s.invoice_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline inline-block mt-0.5">請求書を開く</a>
+                      </div>
+                    ) : <p className="text-xs text-slate-400">未提出</p>}
+                  </div>
+                )}
+
                 {/* アクション */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
                   {s.status === 'draft_received' && (
@@ -202,12 +248,18 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                     </button>
                   )}
                   {s.status === 'approved' && (
-                    <button onClick={() => update(s.id, { status: 'verified' })} disabled={busyId === s.id}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                      <Check size={13} /> 確認OK（最終）
+                    <button onClick={() => advanceReview(s.id)} disabled={busyId === s.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-emerald-300 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-50">
+                      <Check size={13} /> レビュー確認を手動でOK→次へ
                     </button>
                   )}
-                  {s.status !== 'rejected' && s.status !== 'verified' && (
+                  {s.status === 'invoice_submitted' && (
+                    <button onClick={() => completeInvoice(s.id)} disabled={busyId === s.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <Check size={13} /> 請求書を承認して完了（振込は手動）
+                    </button>
+                  )}
+                  {s.status !== 'rejected' && s.status !== 'completed' && (
                     <button onClick={() => update(s.id, { status: 'rejected' })} disabled={busyId === s.id}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50">
                       <Ban size={13} /> 却下
