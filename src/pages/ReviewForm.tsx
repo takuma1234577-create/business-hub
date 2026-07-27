@@ -110,6 +110,10 @@ export default function ReviewForm() {
       <div className="w-6 h-6 border-2 border-slate-300 border-t-emerald-600 rounded-full animate-spin" />
     </div>
   }
+  // レビュー投稿日（実行日）以降のみアップロード可。日本時間の「今日」で判定。
+  const jstToday = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+  const canUpload = !sub?.review_date || jstToday >= sub.review_date
+
   if (notFound || !sub) {
     return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
       <div className={card}>
@@ -225,6 +229,12 @@ export default function ReviewForm() {
             <div className="mb-3 text-xs text-amber-600">前回の確認結果: {sub.verify_reason || '一致しませんでした'}。もう一度お送りください。</div>
           )}
 
+          {!canUpload ? (
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-center">
+              <p className="text-sm text-slate-600 dark:text-slate-300">レビュー投稿日になりましたら、この画面から確認スクショをアップロードできます。</p>
+              <p className="text-xs text-slate-400 mt-1">それまでは投稿をお待ちください。</p>
+            </div>
+          ) : (
           <div className="space-y-4">
             <div>
               <label className={label}>投稿後の確認スクリーンショット</label>
@@ -232,6 +242,7 @@ export default function ReviewForm() {
             </div>
             <button className={btn} onClick={submitProof} disabled={submitting}>{submitting ? '確認中...' : 'スクショを送信して確認する'}</button>
           </div>
+          )}
         </div>
       )}
 

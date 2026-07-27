@@ -59,6 +59,11 @@ function toDateOnly(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// 日本時間での「今日」の YYYY-MM-DD（サーバーはUTCのため+9h）
+function jstToday() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 // 友だちへLINEプッシュ送信
 async function pushLine(channelId, lineUserId, text) {
   if (!lineUserId) return false;
@@ -253,6 +258,16 @@ publicRouter.post('/proof', upload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'image required' });
     const { data: sub } = await supabase.from('review_submissions').select('*').eq('token', token).maybeSingle();
     if (!sub) return res.status(404).json({ error: 'not found' });
+
+    // 承認前・下書き未提出はアップロード不可
+    if (sub.status !== 'approved' && sub.status !== 'verified') {
+      return res.status(400).json({ error: 'まだアップロードできません。担当者の承認後にアップロード可能になります。' });
+    }
+    // レビュー投稿日（実行日）を過ぎるまではアップロード不可
+    if (sub.review_date && jstToday() < sub.review_date) {
+      const disp = formatJpDate(new Date(sub.review_date + 'T00:00:00'));
+      return res.status(400).json({ error: `レビュー投稿日（${disp}）になりましたらアップロードできます。` });
+    }
 
     const imageUrl = await uploadImage('proof', req.file.buffer, req.file.mimetype);
 
