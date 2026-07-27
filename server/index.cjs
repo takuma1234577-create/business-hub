@@ -59,6 +59,10 @@ app.get('/api/public/review-widget.js', cors(), (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'review-widget.js'));
 });
 
+// レビュー管理: 顧客フォーム（認証不要）
+const reviewSubmissionModule = require(path.join(__dirname, 'review-submission.cjs'));
+app.use('/api/public/review-submission', cors(), reviewSubmissionModule.publicRouter);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)
@@ -114,6 +118,7 @@ app.use('/api/shopify-reviews', shopifyReviewsRoutes);
 app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
 app.use('/api/sales-agent', salesAgentRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
+app.use('/api/review-submission', reviewSubmissionModule);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
 function internalGet(routePath) {

@@ -16,6 +16,7 @@ const express = require('express');
 const axios = require('axios');
 const { getSupabase, getAnthropicClient } = require('./shared.cjs');
 const { getAccessToken } = require('./amazon.cjs');
+const { createReviewSubmission } = require('./review-submission.cjs');
 
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const router = express.Router();
@@ -31,7 +32,8 @@ const DEFAULTS = {
     '・商品名：{product}\n' +
     '・合計金額：{amount}\n\n' +
     '【次のステップ】\n' +
-    '商品が届きましたら、実際にお使いいただき、レビュー下書きをお送りください。',
+    '商品が届きましたら実際にお使いいただき、下記フォームから投稿予定のレビュー下書き（タイトル・本文・画像）をご提出ください。\n' +
+    '{review_form_url}',
   // 確認NG（該当なし・不一致・読取不可・キャンセル）共通のチェックリスト文
   ng:
     '注文内容が確認できませんでした。\n' +
@@ -48,11 +50,12 @@ function fmtYen(v) {
 }
 
 // テンプレートのプレースホルダを差し込む
-function fillTemplate(tpl, { orderNumber, product, amount }) {
+function fillTemplate(tpl, { orderNumber, product, amount, reviewFormUrl }) {
   return String(tpl)
     .replace(/\{order_number\}/g, orderNumber || '')
     .replace(/\{product\}/g, product || '')
-    .replace(/\{amount\}/g, amount || '');
+    .replace(/\{amount\}/g, amount || '')
+    .replace(/\{review_form_url\}/g, reviewFormUrl || '');
 }
 
 // ---------------------------------------------------------------------------
@@ -327,11 +330,22 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
     orderTitles.join(' / ') ||
     (extracted.items || []).map((i) => i && (i.name || i.title)).filter(Boolean).join(' / ');
   const productName = rawProduct.length > 48 ? rawProduct.slice(0, 48) + '…' : rawProduct;
+
+  // レビュー提出フォームのURLを発行（本人紐付けトークン付き）
+  let reviewFormUrl = '';
+  try {
+    const link = await createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName: rawProduct });
+    reviewFormUrl = link.url;
+  } catch (e) {
+    console.error('[review-order-verify] createReviewSubmission error:', e.message);
+  }
+
   const successTpl = config.success_message || DEFAULTS.success;
   const replyText = fillTemplate(successTpl, {
     orderNumber,
     product: productName,
     amount: fmtYen(order.OrderTotal?.Amount),
+    reviewFormUrl,
   });
   return {
     status: 'verified',

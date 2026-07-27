@@ -18,6 +18,7 @@ import HpOutreach from './pages/HpOutreach'
 import ShopifyReviews from './pages/ShopifyReviews'
 import FitpeakSns from './pages/FitpeakSns'
 import SalesAgent from './pages/SalesAgent'
+import ReviewForm from './pages/ReviewForm'
 import Login from './pages/Login'
 
 // 全fetchリクエストに認証トークンを自動付与
@@ -38,8 +39,10 @@ window.fetch = function (input, init) {
 
 function App() {
   const [auth, setAuth] = useState<'loading' | 'ok' | 'login'>('loading')
+  const isPublicForm = window.location.pathname === '/review-form'
 
   useEffect(() => {
+    if (isPublicForm) return
     const token = localStorage.getItem('auth_token')
     if (!token) { setAuth('login'); return }
 
@@ -50,6 +53,11 @@ function App() {
       .then(data => setAuth(data.valid ? 'ok' : 'login'))
       .catch(() => setAuth('login'))
   }, [])
+
+  // 顧客向けの公開ページ（レビュー提出フォーム）は管理ログインを通さず表示する
+  if (isPublicForm) {
+    return <ReviewForm />
+  }
 
   if (auth === 'loading') {
     return (

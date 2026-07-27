@@ -19,6 +19,7 @@ import TrafficSources from './line-crm/TrafficSources'
 import FriendsAnalytics from './line-crm/FriendsAnalytics'
 import FitpeakDashboard from './line-crm/FitpeakDashboard'
 import ReviewOrderAdmin from './line-crm/ReviewOrderAdmin'
+import ReviewSubmissionAdmin from './line-crm/ReviewSubmissionAdmin'
 import LineAccounts from './line-crm/LineAccounts'
 import { useLineAccounts } from './line-crm/useLineAccounts'
 import { getChannelId, DEFAULT_CHANNEL_ID } from './line-crm/lineAccount'
@@ -44,7 +45,7 @@ export default function LineCrm() {
   const [chatView, setChatView] = useState<'threads' | 'friend-detail' | 'detail'>('threads')
 
   // 各グループ内のサブタブ
-  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify'>('templates')
+  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify' | 'review-submission'>('templates')
   const [deliverySub, setDeliverySub] = useState<'auto-responses' | 'tag-scheduled' | 'broadcasts'>('auto-responses')
   const [aiSub, setAiSub] = useState<'ai-settings' | 'knowledge' | 'email-auto-reply'>('ai-settings')
   const [analyticsSub, setAnalyticsSub] = useState<'friends' | 'traffic' | 'fitpeak'>('friends')
@@ -353,6 +354,11 @@ export default function LineCrm() {
                   注文確認
                 </button>
               )}
+              {selectedChannelId === REVIEW_ORDER_CHANNEL_ID && (
+                <button onClick={() => setContentSub('review-submission')} className={subTabCls(contentSub === 'review-submission')}>
+                  レビュー管理
+                </button>
+              )}
             </div>
             {contentSub === 'templates' && <MessageTemplates />}
             {contentSub === 'rich-menus' && <RichMenus />}
@@ -360,6 +366,9 @@ export default function LineCrm() {
             {contentSub === 'tags' && <TagManager />}
             {contentSub === 'order-verify' && selectedChannelId === REVIEW_ORDER_CHANNEL_ID && (
               <ReviewOrderAdmin channelId={selectedChannelId} />
+            )}
+            {contentSub === 'review-submission' && selectedChannelId === REVIEW_ORDER_CHANNEL_ID && (
+              <ReviewSubmissionAdmin channelId={selectedChannelId} />
             )}
           </>
         )}
