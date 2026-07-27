@@ -11,9 +11,11 @@ api.interceptors.request.use((config) => {
 
 interface Submission {
   id: string
-  status: 'awaiting_draft' | 'draft_received' | 'verified' | 'rejected'
+  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'verified' | 'rejected'
   order_number: string | null
   product_name: string | null
+  purchase_date: string | null
+  review_date: string | null
   draft_title: string | null
   draft_body: string | null
   draft_image_url: string | null
@@ -28,18 +30,27 @@ interface Submission {
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   awaiting_draft: { label: '下書き待ち', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
-  draft_received: { label: '下書き受領/投稿待ち', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  draft_received: { label: '承認待ち', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved: { label: '承認済/投稿待ち', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   verified: { label: 'レビュー確認OK', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
   rejected: { label: '却下', cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 }
 
 const STATUS_TABS = [
   { key: '', label: 'すべて' },
-  { key: 'draft_received', label: '下書き受領/投稿待ち' },
+  { key: 'draft_received', label: '承認待ち' },
+  { key: 'approved', label: '投稿待ち' },
   { key: 'verified', label: '確認OK' },
   { key: 'awaiting_draft', label: '下書き待ち' },
   { key: 'rejected', label: '却下' },
 ]
+
+function formatJpDate(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso + 'T00:00:00')
+  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`
+}
 
 export default function ReviewSubmissionAdmin({ channelId }: { channelId: string }) {
   const [subs, setSubs] = useState<Submission[]>([])
@@ -48,6 +59,7 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [zoom, setZoom] = useState<string | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
 
   const fetchSubs = useCallback(async () => {
     setLoading(true)
@@ -71,6 +83,21 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
     setBusyId(null)
   }
 
+  const approveDraft = async (id: string) => {
+    setBusyId(id)
+    try {
+      const r = await api.post(`/submissions/${id}/approve`)
+      const rd = r.data?.review_date ? formatJpDate(r.data.review_date) : ''
+      setFlash(r.data?.notified
+        ? `承認しました。レビュー投稿日（${rd}）をユーザーへ通知しました。`
+        : `承認しました（投稿日 ${rd}）。ただしLINE通知に失敗しました。友だちのLINE連携をご確認ください。`)
+      await fetchSubs(); await fetchStats()
+    } catch {
+      setFlash('承認に失敗しました。時間をおいて再度お試しください。')
+    }
+    setBusyId(null)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -86,11 +113,18 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
         </button>
       </div>
 
+      {flash && (
+        <div className="mb-4 px-4 py-3 rounded-xl text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-start justify-between gap-3">
+          <span>{flash}</span>
+          <button onClick={() => setFlash(null)} className="shrink-0"><X size={16} /></button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
         {[
-          { k: 'draft_received', label: '投稿待ち' },
+          { k: 'draft_received', label: '承認待ち' },
+          { k: 'approved', label: '投稿待ち' },
           { k: 'verified', label: '確認OK' },
-          { k: 'awaiting_draft', label: '下書き待ち' },
           { k: 'rejected', label: '却下' },
         ].map(({ k, label }) => (
           <div key={k} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-center">
@@ -123,6 +157,7 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                   {s.friend?.display_name && <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.friend.display_name}</span>}
                   {s.product_name && <span className="text-xs text-slate-400">{s.product_name.slice(0, 30)}</span>}
+                  {s.review_date && <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">投稿日: {formatJpDate(s.review_date)}</span>}
                   <span className="text-xs text-slate-400 ml-auto">{new Date(s.created_at).toLocaleString('ja-JP')}</span>
                 </div>
 
@@ -159,14 +194,20 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                 </div>
 
                 {/* アクション */}
-                <div className="flex items-center gap-2 mt-3">
-                  {s.status !== 'verified' && (
-                    <button onClick={() => update(s.id, { status: 'verified' })} disabled={busyId === s.id}
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  {s.status === 'draft_received' && (
+                    <button onClick={() => approveDraft(s.id)} disabled={busyId === s.id}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                      <Check size={13} /> 承認（確認OK）
+                      <Check size={13} /> 下書きを承認（投稿日を通知）
                     </button>
                   )}
-                  {s.status !== 'rejected' && (
+                  {s.status === 'approved' && (
+                    <button onClick={() => update(s.id, { status: 'verified' })} disabled={busyId === s.id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                      <Check size={13} /> 確認OK（最終）
+                    </button>
+                  )}
+                  {s.status !== 'rejected' && s.status !== 'verified' && (
                     <button onClick={() => update(s.id, { status: 'rejected' })} disabled={busyId === s.id}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50">
                       <Ban size={13} /> 却下

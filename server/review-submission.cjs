@@ -16,18 +16,60 @@ const express = require('express');
 const crypto = require('crypto');
 const multer = require('multer');
 const axios = require('axios');
-const { getSupabase, getAnthropicClient } = require('./shared.cjs');
+const { getSupabase, getAnthropicClient, getLineCredentials } = require('./shared.cjs');
 
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const VISION_MODEL = 'claude-sonnet-4-5';
 const BASE_URL = process.env.BUSINESS_HUB_URL || 'https://business-hub-beige.vercel.app';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
+// 承認時にユーザーへ送るレビュー実行日の案内文（{review_date} と {review_form_url} を差し込む）
+const APPROVAL_MESSAGE_DEFAULT =
+  'レビュー下書きを確認いたしました。ありがとうございます。\n\n' +
+  'あなたのレビュー投稿日は【{review_date}】です。\n' +
+  'この日になりましたら、ご提出いただいた下書きの内容でAmazonにレビューをご投稿ください。\n\n' +
+  '投稿が完了しましたら、投稿画面のスクリーンショットを下記フォームからアップロードしてください。\n' +
+  '{review_form_url}\n\n' +
+  '※指定日での投稿にご協力いただくことで、特典のご案内がスムーズになります。';
+
 // ---------------------------------------------------------------------------
 // 共通ヘルパー
 // ---------------------------------------------------------------------------
 function newToken() {
   return crypto.randomBytes(24).toString('hex');
+}
+
+// 購入日 + 10〜15日（ユーザーごとにランダム）でレビュー実行日を算出
+function computeReviewDate(purchaseDate) {
+  const base = purchaseDate ? new Date(purchaseDate) : new Date();
+  const days = 10 + Math.floor(Math.random() * 6); // 10〜15
+  const d = new Date(base.getTime());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// 2026年8月10日（月） 形式
+function formatJpDate(d) {
+  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`;
+}
+
+// YYYY-MM-DD（DBのdate列用）
+function toDateOnly(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 友だちへLINEプッシュ送信
+async function pushLine(channelId, lineUserId, text) {
+  if (!lineUserId) return false;
+  const { accessToken } = await getLineCredentials(channelId);
+  if (!accessToken) return false;
+  const res = await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text }] }),
+  });
+  return res.ok;
 }
 
 async function uploadImage(prefix, buffer, contentType) {
@@ -64,7 +106,7 @@ function textSimilarity(a, b) {
 // ---------------------------------------------------------------------------
 // レビュー提出の作成（注文確認OKから呼ばれる）。token付きフォームURLを返す。
 // ---------------------------------------------------------------------------
-async function createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName }) {
+async function createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName, purchaseDate }) {
   // 同一注文で未完了の提出が既にあれば再利用（重複発行を防ぐ）
   if (orderNumber) {
     const { data: existing } = await supabase
@@ -84,6 +126,7 @@ async function createReviewSubmission({ channelId, friendId, lineUserId, orderNu
     token,
     order_number: orderNumber || null,
     product_name: productName || null,
+    purchase_date: purchaseDate || null,
     status: 'awaiting_draft',
   });
   if (error) throw new Error(error.message);
@@ -163,7 +206,7 @@ publicRouter.get('/context', async (req, res) => {
     if (!token) return res.status(400).json({ error: 'token required' });
     const { data, error } = await supabase
       .from('review_submissions')
-      .select('token, product_name, order_number, status, draft_title, draft_body, draft_image_url, proof_image_url, verify_status, verify_reason')
+      .select('token, product_name, order_number, status, draft_title, draft_body, draft_image_url, proof_image_url, verify_status, verify_reason, review_date')
       .eq('token', token)
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
@@ -290,6 +333,69 @@ router.patch('/submissions/:id', async (req, res) => {
   }
 });
 
+// 下書きを承認 → レビュー実行日(購入日+10〜15日ランダム)を確定し、ユーザーへLINE通知
+router.post('/submissions/:id/approve', async (req, res) => {
+  try {
+    const { data: sub, error: e1 } = await supabase.from('review_submissions').select('*').eq('id', req.params.id).maybeSingle();
+    if (e1) return res.status(500).json({ error: e1.message });
+    if (!sub) return res.status(404).json({ error: 'not found' });
+
+    // 購入日: 提出に無ければ注文確認ログ(review_order_verifications)から補完
+    let purchaseDate = sub.purchase_date;
+    if (!purchaseDate && sub.order_number) {
+      const { data: ov } = await supabase
+        .from('review_order_verifications')
+        .select('order_data')
+        .eq('order_number', sub.order_number)
+        .eq('status', 'verified')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      purchaseDate = ov?.order_data?.purchase_date || null;
+    }
+
+    const rd = computeReviewDate(purchaseDate);
+    const reviewDateStr = toDateOnly(rd);
+
+    const { data: updated, error: e2 } = await supabase.from('review_submissions').update({
+      status: 'approved',
+      review_date: reviewDateStr,
+      purchase_date: purchaseDate || sub.purchase_date,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', sub.id).select().single();
+    if (e2) return res.status(500).json({ error: e2.message });
+
+    // ユーザーへレビュー実行日を通知
+    let notified = false;
+    try {
+      const msg = APPROVAL_MESSAGE_DEFAULT
+        .replace(/\{review_date\}/g, formatJpDate(rd))
+        .replace(/\{review_form_url\}/g, `${BASE_URL}/review-form?t=${sub.token}`);
+      notified = await pushLine(sub.channel_id, sub.line_user_id, msg);
+    } catch (err) {
+      console.error('[review-submission] approve notify error:', err.message);
+    }
+
+    res.json({ submission: updated, review_date: reviewDateStr, notified });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 却下
+router.post('/submissions/:id/reject', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('review_submissions')
+      .update({ status: 'rejected', admin_note: req.body?.admin_note || null, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ submission: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 管理者が手動で発行（テスト/個別対応用）
 router.post('/issue', async (req, res) => {
   try {
@@ -308,3 +414,6 @@ module.exports.createReviewSubmission = createReviewSubmission;
 module.exports.extractReviewFromImage = extractReviewFromImage;
 module.exports.judgeReview = judgeReview;
 module.exports.textSimilarity = textSimilarity;
+module.exports.computeReviewDate = computeReviewDate;
+module.exports.formatJpDate = formatJpDate;
+module.exports.toDateOnly = toDateOnly;

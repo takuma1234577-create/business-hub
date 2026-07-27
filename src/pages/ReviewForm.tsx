@@ -8,13 +8,21 @@ interface Submission {
   token: string
   product_name: string | null
   order_number: string | null
-  status: 'awaiting_draft' | 'draft_received' | 'verified' | 'rejected'
+  status: 'awaiting_draft' | 'draft_received' | 'approved' | 'verified' | 'rejected'
   draft_title: string | null
   draft_body: string | null
   draft_image_url: string | null
   proof_image_url: string | null
   verify_status: string | null
   verify_reason: string | null
+  review_date: string | null
+}
+
+function formatJpDate(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso + 'T00:00:00')
+  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`
 }
 
 function useToken() {
@@ -171,14 +179,40 @@ export default function ReviewForm() {
         </div>
       )}
 
-      {/* ステップ2: 投稿後の確認スクショ */}
+      {/* 下書き受領・承認待ち */}
       {sub.status === 'draft_received' && (
+        <div className={card}>
+          <div className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mb-3">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            </div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">下書きを受け付けました</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">担当者が内容を確認しています。承認後、レビュー投稿日を公式LINEにてお知らせします。今しばらくお待ちください。</p>
+          </div>
+          <div className="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-400 mb-1">提出済みの下書き</p>
+            {sub.draft_title && <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{sub.draft_title}</p>}
+            {sub.draft_body && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{sub.draft_body}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ステップ2: 投稿後の確認スクショ（承認後のみ） */}
+      {sub.status === 'approved' && (
         <div className={card}>
           <div className="mb-4">
             <span className="text-xs font-semibold text-emerald-600">ステップ 2 / 2</span>
             <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-0.5">投稿後の確認スクショ</h2>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">下書きどおりにAmazonへレビューを投稿し、投稿が反映された画面のスクリーンショットをアップロードしてください。</p>
           </div>
+
+          {sub.review_date && (
+            <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">レビュー投稿日</p>
+              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-200 mt-0.5">{formatJpDate(sub.review_date)}</p>
+              <p className="text-[11px] text-emerald-600/80 dark:text-emerald-300/80 mt-1">この日になりましたら投稿し、スクショをお送りください</p>
+            </div>
+          )}
 
           {/* 提出済み下書きの表示 */}
           <div className="mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
