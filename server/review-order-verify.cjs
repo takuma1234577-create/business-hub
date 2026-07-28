@@ -299,6 +299,9 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   } else if (realTotal != null && shotTotal == null) {
     reasons.push('スクショの合計金額を読み取れず');
   }
+  // 表示・請求用の合計金額。注文直後(Pending)はSP-APIがOrderTotalを返さないため、
+  // 実注文の金額が無ければスクショから読み取った金額にフォールバックする。
+  const effectiveTotal = realTotal != null ? realTotal : shotTotal;
 
   // (2) 商品照合（許可ASINがあれば必須、なければ自社注文＝OK、名前の緩い一致も確認）
   const orderTitles = items.map((i) => i.Title).filter(Boolean);
@@ -334,7 +337,7 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   // レビュー提出フォームのURLを発行（本人紐付けトークン付き）
   let reviewFormUrl = '';
   try {
-    const link = await createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName: rawProduct, purchaseDate: order.PurchaseDate || null, orderTotal: parseYen(order.OrderTotal?.Amount) });
+    const link = await createReviewSubmission({ channelId, friendId, lineUserId, orderNumber, productName: rawProduct, purchaseDate: order.PurchaseDate || null, orderTotal: effectiveTotal });
     reviewFormUrl = link.url;
   } catch (e) {
     console.error('[review-order-verify] createReviewSubmission error:', e.message);
@@ -344,7 +347,7 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   const replyText = fillTemplate(successTpl, {
     orderNumber,
     product: productName,
-    amount: fmtYen(order.OrderTotal?.Amount),
+    amount: fmtYen(effectiveTotal),
     reviewFormUrl,
   });
   return {

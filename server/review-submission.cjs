@@ -162,12 +162,23 @@ async function createReviewSubmission({ channelId, friendId, lineUserId, orderNu
   if (orderNumber) {
     const { data: existing } = await supabase
       .from('review_submissions')
-      .select('id, token, status')
+      .select('id, token, status, order_total, product_name, purchase_date')
       .eq('channel_id', channelId)
       .eq('order_number', orderNumber)
       .neq('status', 'rejected')
       .maybeSingle();
-    if (existing) return { token: existing.token, url: `${BASE_URL}/review-form?t=${existing.token}`, reused: true };
+    if (existing) {
+      // 既存行に未取得の項目があれば補完（Pending時に金額が取れず後で判明したケース等）
+      const patch = {};
+      if (existing.order_total == null && orderTotal != null) patch.order_total = Math.round(orderTotal);
+      if (!existing.product_name && productName) patch.product_name = productName;
+      if (!existing.purchase_date && purchaseDate) patch.purchase_date = purchaseDate;
+      if (Object.keys(patch).length) {
+        patch.updated_at = new Date().toISOString();
+        await supabase.from('review_submissions').update(patch).eq('id', existing.id);
+      }
+      return { token: existing.token, url: `${BASE_URL}/review-form?t=${existing.token}`, reused: true };
+    }
   }
   const token = newToken();
   const { error } = await supabase.from('review_submissions').insert({
