@@ -50,9 +50,9 @@ const GMAIL_SENDER = 'takuma1234577@gmail.com';
 const DEFAULT_SETTINGS = {
   id: 'default',
   enabled: false,
-  research_mode: 'db_api',   // db_api | manual
-  send_mode: 'approval',     // approval | auto
-  ship_mode: 'approval',     // approval | auto
+  research_mode: 'manual',   // db_api | manual（Cowork中心の既定）
+  send_mode: 'auto',         // approval | auto（メールは送信まで自動が既定）
+  ship_mode: 'approval',     // approval | auto（発送はコストが絡むため承認制が既定）
   daily_research_limit: 20,
   daily_send_limit: 15,
   min_followers: 5000,
