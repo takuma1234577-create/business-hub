@@ -371,11 +371,12 @@ async function draftOutreachForSelected(limit) {
         body: emailBody,
         status: c.email ? 'pending' : 'draft', // emailが無ければ送信不可なのでdraft
       });
-      // DM下書き（送信は人力。参照用に保存）
+      // DM下書き（送信は人力。受け取りフォームURLを付与して住所→発送を自動化）
       if (out.dm_draft) {
+        const dmBody = `${out.dm_draft}\n\n▼受け取りはこちら（タップで住所入力）\n${formUrl}`;
         await sb.from('gifting_messages').insert({
           candidate_id: c.id, channel: 'dm_draft', direction: 'outbound',
-          subject: null, body: out.dm_draft, status: 'draft',
+          subject: null, body: dmBody, status: 'draft',
         });
       }
       await sb.from('gifting_candidates').update({ stage: 'queued', updated_at: new Date().toISOString() }).eq('id', c.id);
@@ -917,6 +918,21 @@ router.get('/stats', async (_req, res) => {
     const sent = (msgs || []).filter((m) => m.status === 'sent').length;
     const pendingSend = (msgs || []).filter((m) => m.status === 'pending' && m.channel === 'email').length;
     res.json({ stages, shipStatus, total_candidates: (cands || []).length, sent, pending_send: pendingSend });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DM下書きを「送信済み」にする（人力でDM送信後に押す）。候補をcontactedへ。
+router.post('/messages/:id/mark-sent', async (req, res) => {
+  const sb = getSupabase();
+  try {
+    const { data: msg } = await sb.from('gifting_messages').select('*').eq('id', req.params.id).maybeSingle();
+    if (!msg) return res.status(404).json({ error: 'メッセージが見つかりません' });
+    await sb.from('gifting_messages').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', req.params.id);
+    // まだ未接触(queued)なら接触済みに進める（返信済み等は維持）
+    await sb.from('gifting_candidates')
+      .update({ stage: 'contacted', last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', msg.candidate_id).eq('stage', 'queued');
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

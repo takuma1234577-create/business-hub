@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Gift, RefreshCw, Send, Sparkles, Settings as SettingsIcon,
   CheckCircle, AlertCircle, PenLine, Save, Package, Mail, Users, Upload, X,
+  MessageCircle, Copy, ExternalLink,
 } from 'lucide-react'
 
 interface Candidate {
@@ -82,7 +83,7 @@ interface Settings {
   min_score: number
 }
 
-type TabId = 'overview' | 'candidates' | 'outreach' | 'shipments' | 'import' | 'settings'
+type TabId = 'overview' | 'candidates' | 'outreach' | 'dm' | 'shipments' | 'import' | 'settings'
 
 const STAGE_LABEL: Record<string, string> = {
   researched: 'リサーチ済', selected: '選定済', rejected: '除外', queued: '文面生成済',
@@ -138,7 +139,7 @@ export default function Gifting() {
     try {
       const [cRes, mRes, sRes, stRes, setRes] = await Promise.all([
         fetch('/api/gifting/candidates'),
-        fetch('/api/gifting/messages?channel=email'),
+        fetch('/api/gifting/messages'),
         fetch('/api/gifting/shipments'),
         fetch('/api/gifting/stats'),
         fetch('/api/gifting/settings'),
@@ -157,7 +158,8 @@ export default function Gifting() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const pendingEmails = messages.filter((m) => m.direction === 'outbound' && m.status === 'pending')
+  const pendingEmails = messages.filter((m) => m.channel === 'email' && m.direction === 'outbound' && m.status === 'pending')
+  const dmDrafts = messages.filter((m) => m.channel === 'dm_draft' && m.status !== 'sent')
   const pendingShipments = shipments.filter((s) => s.status === 'pending_approval')
 
   // ── アクション ──
@@ -218,6 +220,15 @@ export default function Gifting() {
     try { const r = await post(`/api/gifting/shipments/${s.id}/approve`); flash('success', `発送依頼を送信: ${r.mcf_order_id}`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
   }
+  const markDmSent = async (m: Message) => {
+    setBusyId(m.id)
+    try { await post(`/api/gifting/messages/${m.id}/mark-sent`); flash('success', '送信済みにしました'); await fetchAll() }
+    catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
+  }
+  const copyText = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); flash('success', 'コピーしました') }
+    catch { flash('error', 'コピーできませんでした') }
+  }
   const sendAll = async () => {
     if (pendingEmails.length === 0) return
     if (!confirm(`承認待ちのメール ${pendingEmails.length}件をまとめて送信します。よろしいですか？`)) return
@@ -257,7 +268,8 @@ export default function Gifting() {
   const TABS: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'overview', label: '概要', icon: <Gift size={16} /> },
     { id: 'candidates', label: '候補', icon: <Users size={16} />, badge: candidates.filter((c) => c.stage === 'researched' || c.stage === 'selected').length },
-    { id: 'outreach', label: '送信承認', icon: <Mail size={16} />, badge: pendingEmails.length },
+    { id: 'outreach', label: 'メール送信', icon: <Mail size={16} />, badge: pendingEmails.length },
+    { id: 'dm', label: 'DM送信', icon: <MessageCircle size={16} />, badge: dmDrafts.length },
     { id: 'shipments', label: '発送承認', icon: <Package size={16} />, badge: pendingShipments.length },
     { id: 'import', label: '取込', icon: <Upload size={16} /> },
     { id: 'settings', label: '設定', icon: <SettingsIcon size={16} /> },
@@ -417,6 +429,33 @@ export default function Gifting() {
                       </div>
                     </>
                   )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── DM送信（半自動） ── */}
+        {tab === 'dm' && (
+          <div className="mt-5 space-y-3">
+            <div className="text-xs text-gray-600 dark:text-gray-300 bg-pink-50 dark:bg-pink-950/30 border border-pink-100 dark:border-pink-900/50 rounded-lg px-4 py-3">
+              Instagram DMは規約上、自動送信できません（アカウントBAN回避のため）。下書きを<b>コピー</b>→<b>DMを開く</b>→貼り付けて送信、の半自動運用です。相手が受け取りリンクをタップすれば、住所入力→FBA発送準備までは自動で進みます。
+            </div>
+            {dmDrafts.length === 0 && <Empty text="DM下書きはありません。候補を選定→「提案文を生成」で作成されます。" />}
+            {dmDrafts.map((m) => {
+              const c = candMap[m.candidate_id]
+              return (
+                <div key={m.id} className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold">@{c?.handle}</span>
+                    <span className="text-xs text-gray-400">{c?.followers != null ? fmtNum(c.followers) + 'フォロワー' : ''} {c?.fit_segment}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{m.body}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button onClick={() => copyText(m.body || '')} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"><Copy size={13} /> 文面をコピー</button>
+                    <a href={`https://ig.me/m/${c?.handle}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600"><MessageCircle size={13} /> DMを開く <ExternalLink size={11} /></a>
+                    <button disabled={busyId === m.id} onClick={() => markDmSent(m)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-green-300 text-green-700 dark:text-green-400 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950 disabled:opacity-50"><CheckCircle size={13} /> 送信済みにする</button>
+                  </div>
                 </div>
               )
             })}
