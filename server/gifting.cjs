@@ -296,12 +296,13 @@ const OUTREACH_SYSTEM = `あなたはFITPEAK（フィットネス/筋トレ系�
 3. 社会的証明: 補足指示で与えられた実績（販売数・高評価・レビュー数など）を"数字"で1〜2点、押し付けずに信頼づけとして入れる
 4. 低圧オファー: 投稿は必須ではない/気に入れば紹介いただけると嬉しい、という低プレッシャー。ステマにならないようPR表記のお願いは丁寧に一言
 5. 単一CTA: 発送先はフォームから入力いただく旨を明記し、行動を1つに絞る（返信で住所を書く必要はない旨も添える）
+6. 将来性・提携: CTAの後に1〜2文で、投稿の質が良ければFITPEAKアンバサダーとして他製品の提供や、売上に応じたインセンティブ（報酬）での長期的な提携も考えている旨を添える。前のめりになりすぎず「長期的なお付き合いを考えている」という誠実なトーンで（確約はしない）
 
 ## ルール
 - email本文には必ずプレースホルダ {address_form_url} を1回だけ含める（システムが実URLに置換）
 - 件名は開封したくなる具体性（実績や"無償"を匂わせる）。ただし煽りすぎない
-- email本文は250〜400字、絵文字なし、署名は「FITPEAK ${'{from_name}'}」
-- 誇大表現・医療的効果の断定はしない。与えられていない数字を捏造しない
+- email本文は300〜500字、絵文字なし、署名は「FITPEAK代表 ${'{from_name}'}」
+- 誇大表現・医療的効果の断定はしない。与えられていない数字を捏造しない。インセンティブ額は具体的な数字を約束しない（「売上に応じて」程度）
 - dm用(下書き): 120〜180字、カジュアル寄り、絵文字なし、フォームURLは入れない（DMは人力送信のため）
 
 ## 出力（JSONのみ）
@@ -323,7 +324,7 @@ ${settings.gift_message_instructions ? '補足指示: ' + settings.gift_message_
   const resp = await anthropic.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 900,
-    system: OUTREACH_SYSTEM.replace('${from_name}', settings.from_name),
+    system: OUTREACH_SYSTEM.replace(/\{from_name\}/g, settings.from_name),
     messages: [{ role: 'user', content: userMsg }],
   });
   const text = resp.content?.[0]?.text || '{}';
