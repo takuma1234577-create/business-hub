@@ -20,6 +20,7 @@ import FitpeakSns from './pages/FitpeakSns'
 import SalesAgent from './pages/SalesAgent'
 import Gifting from './pages/Gifting'
 import ReviewForm from './pages/ReviewForm'
+import GiftAddressForm from './pages/GiftAddressForm'
 import Login from './pages/Login'
 
 // 全fetchリクエストに認証トークンを自動付与
@@ -41,9 +42,10 @@ window.fetch = function (input, init) {
 function App() {
   const [auth, setAuth] = useState<'loading' | 'ok' | 'login'>('loading')
   const isPublicForm = window.location.pathname === '/review-form'
+  const isGiftForm = window.location.pathname === '/gift-address'
 
   useEffect(() => {
-    if (isPublicForm) return
+    if (isPublicForm || isGiftForm) return
     const token = localStorage.getItem('auth_token')
     if (!token) { setAuth('login'); return }
 
@@ -58,6 +60,11 @@ function App() {
   // 顧客向けの公開ページ（レビュー提出フォーム）は管理ログインを通さず表示する
   if (isPublicForm) {
     return <ReviewForm />
+  }
+
+  // インフルエンサー向け住所入力フォーム（認証不要）
+  if (isGiftForm) {
+    return <GiftAddressForm />
   }
 
   if (auth === 'loading') {

@@ -45,6 +45,15 @@ const { getAccessToken } = require('./amazon.cjs');
 
 const CLAUDE_MODEL = 'claude-sonnet-4-5';
 const GMAIL_SENDER = 'takuma1234577@gmail.com';
+const BASE_URL = process.env.BUSINESS_HUB_URL || 'https://business-hub-beige.vercel.app';
+
+// 公開の住所入力フォームURL
+function addressFormUrl(token) {
+  return `${BASE_URL}/gift-address?t=${token}`;
+}
+function genToken() {
+  return require('crypto').randomBytes(24).toString('base64url');
+}
 
 // ── 設定 ──────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -271,7 +280,7 @@ const OUTREACH_SYSTEM = `あなたはFITPEAK（フィットネス/筋トレ系�
 - 相手の発信内容・ジャンルに触れて「あなたに送りたい」パーソナライズを1文入れる
 - 商品を無償でお送りしたい旨、投稿は必須ではなく「気に入れば紹介いただけると嬉しい」という低圧のトーン
 - 見返り要求が強すぎない/ステマにならない自然な依頼（PR明示のお願いは丁寧に一言）
-- 発送のため「お名前・郵便番号・住所」をご返信でいただきたい旨を明記
+- 発送のため「お届け先の入力フォーム」からご入力いただきたい旨を明記（返信で住所を書く必要はない旨も添える）。email本文には必ずプレースホルダ {address_form_url} を1回だけ含める
 - email用: 件名は簡潔、本文は250〜400字、絵文字なし、署名は「FITPEAK ${'{from_name}'}」
 - dm用(下書き): 120〜180字、カジュアル寄り、絵文字なし
 
@@ -315,13 +324,30 @@ async function draftOutreachForSelected(limit) {
   for (const c of rows) {
     try {
       const out = await generateOutreach(anthropic, settings, c);
+
+      // 住所入力フォーム用トークンを用意（候補ごとに1つ）
+      let token = c.address_token;
+      if (!token) {
+        token = genToken();
+        await sb.from('gifting_candidates').update({ address_token: token }).eq('id', c.id);
+      }
+      const formUrl = addressFormUrl(token);
+
+      // email本文にフォームURLを反映（プレースホルダ置換。無ければ末尾に追記）
+      let emailBody = out.email_body || '';
+      if (emailBody.includes('{address_form_url}')) {
+        emailBody = emailBody.replace(/\{address_form_url\}/g, formUrl);
+      } else {
+        emailBody += `\n\n▼商品のお届け先はこちらのフォームからご入力ください（ご返信は不要です）\n${formUrl}`;
+      }
+
       // email下書き
       await sb.from('gifting_messages').insert({
         candidate_id: c.id,
         channel: 'email',
         direction: 'outbound',
         subject: out.email_subject || settings.email_subject,
-        body: out.email_body || '',
+        body: emailBody,
         status: c.email ? 'pending' : 'draft', // emailが無ければ送信不可なのでdraft
       });
       // DM下書き（送信は人力。参照用に保存）
@@ -886,4 +912,75 @@ router.get('/cron', async (_req, res) => {
   }
 });
 
+// ===========================================================================
+// 公開ルート（認証不要・トークン式の住所入力フォーム）
+//   /api/public/gifting にマウント（authMiddlewareより前）
+// ===========================================================================
+const publicRouter = express.Router();
+
+// フォーム表示用コンテキスト
+publicRouter.get('/context', async (req, res) => {
+  try {
+    const token = String(req.query.t || '');
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const sb = getSupabase();
+    const { data: c } = await sb.from('gifting_candidates')
+      .select('handle, full_name, stage, recipient_name, postal_code, address_line1, address_line2, city, state_or_region')
+      .eq('address_token', token).maybeSingle();
+    if (!c) return res.status(404).json({ error: 'not found' });
+    const settings = await getSettings();
+    const done = ['address_collected', 'ship_pending', 'shipped'].includes(c.stage);
+    res.json({
+      candidate: { handle: c.handle, full_name: c.full_name },
+      product_name: settings.product_name,
+      from_name: settings.from_name,
+      already_submitted: done,
+      current: done ? {
+        recipient_name: c.recipient_name, postal_code: c.postal_code,
+        address_line1: c.address_line1, address_line2: c.address_line2,
+        city: c.city, state_or_region: c.state_or_region,
+      } : null,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 住所送信 → 発送準備(pending_approval)まで自動化
+publicRouter.post('/address', async (req, res) => {
+  try {
+    const token = String(req.query.t || req.body.t || '');
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const sb = getSupabase();
+    const { data: c } = await sb.from('gifting_candidates').select('*').eq('address_token', token).maybeSingle();
+    if (!c) return res.status(404).json({ error: 'not found' });
+
+    const b = req.body || {};
+    const recipient_name = (b.recipient_name || '').trim();
+    const postal_code = (b.postal_code || '').trim();
+    const address_line1 = (b.address_line1 || '').trim();
+    if (!recipient_name || !postal_code || !address_line1) {
+      return res.status(400).json({ error: 'お名前・郵便番号・住所は必須です' });
+    }
+
+    await sb.from('gifting_candidates').update({
+      stage: 'address_collected',
+      recipient_name,
+      postal_code,
+      address_line1,
+      address_line2: (b.address_line2 || '').trim() || null,
+      city: (b.city || '').trim() || null,
+      state_or_region: (b.state_or_region || '').trim() || null,
+      country_code: 'JP',
+      updated_at: new Date().toISOString(),
+    }).eq('id', c.id);
+
+    // 発送準備（SKU未設定なら住所保存のみで、発送準備はダッシュボードから）
+    let shipmentPrepared = false;
+    try { await prepareShipment(c.id); shipmentPrepared = true; }
+    catch (e) { console.warn(`[gifting] public prepare-ship skipped @${c.handle}:`, e.message); }
+
+    res.json({ ok: true, shipmentPrepared });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
+module.exports.publicRouter = publicRouter;

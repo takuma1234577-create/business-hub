@@ -63,6 +63,10 @@ app.get('/api/public/review-widget.js', cors(), (req, res) => {
 const reviewSubmissionModule = require(path.join(__dirname, 'review-submission.cjs'));
 app.use('/api/public/review-submission', cors(), reviewSubmissionModule.publicRouter);
 
+// ギフティング: インフルエンサー向け住所入力フォーム（認証不要）
+const giftingModule = require(path.join(__dirname, 'gifting.cjs'));
+app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)
