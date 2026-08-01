@@ -14,6 +14,7 @@ import {
   Globe,
   Video,
   Target,
+  Gift,
   ShieldCheck,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -128,6 +129,16 @@ const tools: Tool[] = [
     path: '/sales-agent',
     color: 'text-indigo-600 dark:text-indigo-400',
     bgColor: 'bg-indigo-50 dark:bg-indigo-950/50',
+    status: 'active',
+  },
+  {
+    id: 'gifting',
+    name: 'ギフティング エージェント',
+    description: 'インフルエンサーへの商品ギフティングを、リサーチ→選定→文面送信→返信対応→FBA(MCF)発送まで半自動化。送信・発送は承認ゲート付き。',
+    icon: <Gift size={28} />,
+    path: '/gifting',
+    color: 'text-pink-600 dark:text-pink-400',
+    bgColor: 'bg-pink-50 dark:bg-pink-950/50',
     status: 'active',
   },
   {

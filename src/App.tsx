@@ -18,6 +18,7 @@ import HpOutreach from './pages/HpOutreach'
 import ShopifyReviews from './pages/ShopifyReviews'
 import FitpeakSns from './pages/FitpeakSns'
 import SalesAgent from './pages/SalesAgent'
+import Gifting from './pages/Gifting'
 import ReviewForm from './pages/ReviewForm'
 import Login from './pages/Login'
 
@@ -91,6 +92,7 @@ function App() {
       <Route path="/hp-outreach" element={<HpOutreach />} />
       <Route path="/fitpeak-sns/*" element={<FitpeakSns />} />
       <Route path="/sales-agent" element={<SalesAgent />} />
+      <Route path="/gifting" element={<Gifting />} />
     </Routes>
   )
 }

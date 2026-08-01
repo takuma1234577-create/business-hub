@@ -91,6 +91,7 @@ const shopifyReviewsRoutes = require(path.join(__dirname, 'shopify-reviews.cjs')
 const fitpeakSnsRoutes = require(path.join(__dirname, 'fitpeak-sns.cjs'));
 const salesAgentRoutes = require(path.join(__dirname, 'sales-agent.cjs'));
 const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verify.cjs'));
+const giftingRoutes = require(path.join(__dirname, 'gifting.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -117,6 +118,7 @@ app.use('/api/backup', backupRoutes);
 app.use('/api/shopify-reviews', shopifyReviewsRoutes);
 app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
 app.use('/api/sales-agent', salesAgentRoutes);
+app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 app.use('/api/review-submission', reviewSubmissionModule);
 
@@ -170,6 +172,8 @@ app.get('/api/daily-cron', async (req, res) => {
     surveyFollowups:     '/api/line-crm/survey-followups/process',
     // 営業エージェント: 提案生成（既定は無効。設定でenabled、mode='auto'のときのみ送信）
     salesAgent:          '/api/sales-agent/cron',
+    // ギフティング: 返信チェック→住所収集→発送準備。研究/送信/発送の自動度は設定に従う（既定は承認制）
+    gifting:             '/api/gifting/cron',
     dailyBackup:         '/api/backup/run',
   };
 
