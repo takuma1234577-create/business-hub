@@ -988,5 +988,42 @@ publicRouter.post('/address', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 取込エンドポイント（トークン保護）。クラウドのリサーチ・ルーティーンから候補を投入する。
+//   POST /api/public/gifting/ingest
+//   body: { token, candidates: [{handle, platform, email, full_name, followers, engagement_rate, niche, bio, profile_url}] }
+publicRouter.post('/ingest', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const token = req.body?.token || req.get('x-gifting-ingest-token');
+    if (!settings.ingest_token || token !== settings.ingest_token) {
+      return res.status(401).json({ error: 'invalid token' });
+    }
+    const items = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+    if (items.length === 0) return res.status(400).json({ error: 'candidates配列が空です' });
+
+    const rows = items.map((it) => ({
+      source: it.source || 'cowork',
+      platform: it.platform || 'instagram',
+      handle: String(it.handle || '').replace(/^@/, '').trim(),
+      profile_url: it.profile_url || null,
+      full_name: it.full_name || null,
+      email: it.email || null,
+      followers: it.followers != null ? Number(it.followers) : null,
+      engagement_rate: it.engagement_rate != null ? Number(it.engagement_rate) : null,
+      niche: it.niche || null,
+      country: it.country || 'JP',
+      bio: it.bio || null,
+    })).filter((r) => r.handle);
+
+    const result = await upsertCandidates(rows);
+
+    // 取り込んだ候補をすぐ採点・選定（ドラフト/送信は日次cronに任せる）
+    let scored = null;
+    try { scored = await scoreUnscored(rows.length + 5); } catch (e) { scored = { error: e.message }; }
+
+    res.json({ inserted: result.inserted, scored });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.publicRouter = publicRouter;
