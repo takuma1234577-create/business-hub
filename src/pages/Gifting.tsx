@@ -218,6 +218,20 @@ export default function Gifting() {
     try { const r = await post(`/api/gifting/shipments/${s.id}/approve`); flash('success', `発送依頼を送信: ${r.mcf_order_id}`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
   }
+  const sendAll = async () => {
+    if (pendingEmails.length === 0) return
+    if (!confirm(`承認待ちのメール ${pendingEmails.length}件をまとめて送信します。よろしいですか？`)) return
+    setBusyId('send-all')
+    try { const r = await post('/api/gifting/messages/send-all'); flash('success', `${r.sent}件送信${r.failed ? `・${r.failed}件失敗` : ''}`); await fetchAll() }
+    catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
+  }
+  const approveAllShip = async () => {
+    if (pendingShipments.length === 0) return
+    if (!confirm(`承認待ちの発送 ${pendingShipments.length}件をまとめてFBA(MCF)発送します。よろしいですか？`)) return
+    setBusyId('ship-all')
+    try { const r = await post('/api/gifting/shipments/approve-all'); flash('success', `${r.submitted}件発送${r.failed ? `・${r.failed}件失敗` : ''}`); await fetchAll() }
+    catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
+  }
   const doImport = async () => {
     setImporting(true)
     try {
@@ -366,6 +380,14 @@ export default function Gifting() {
         {/* ── 送信承認 ── */}
         {tab === 'outreach' && (
           <div className="mt-5 space-y-3">
+            {pendingEmails.length > 0 && (
+              <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900 rounded-lg px-4 py-3">
+                <span className="text-sm text-green-800 dark:text-green-300">承認待ちのメール {pendingEmails.length}件</span>
+                <button disabled={busyId === 'send-all'} onClick={sendAll} className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                  {busyId === 'send-all' ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />} ワンクリック一括送信
+                </button>
+              </div>
+            )}
             {pendingEmails.length === 0 && <Empty text="送信待ちのメールはありません。候補を選定→「提案文を生成」で作成されます。" />}
             {pendingEmails.map((m) => {
               const c = candMap[m.candidate_id]
@@ -404,6 +426,14 @@ export default function Gifting() {
         {/* ── 発送承認 ── */}
         {tab === 'shipments' && (
           <div className="mt-5 space-y-3">
+            {pendingShipments.length > 0 && (
+              <div className="flex items-center justify-between bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-900 rounded-lg px-4 py-3">
+                <span className="text-sm text-cyan-800 dark:text-cyan-300">承認待ちの発送 {pendingShipments.length}件</span>
+                <button disabled={busyId === 'ship-all'} onClick={approveAllShip} className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50">
+                  {busyId === 'ship-all' ? <RefreshCw size={15} className="animate-spin" /> : <Package size={15} />} ワンクリック一括発送
+                </button>
+              </div>
+            )}
             {shipments.length === 0 && <Empty text="発送レコードはありません。住所収集済みの候補を「発送準備」すると表示されます。" />}
             {shipments.map((s) => {
               const c = candMap[s.candidate_id]

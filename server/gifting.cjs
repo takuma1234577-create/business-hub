@@ -920,6 +920,45 @@ router.get('/stats', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ワンクリック一括送信: 承認待ち(pending)のemailを全送信
+router.post('/messages/send-all', async (_req, res) => {
+  const sb = getSupabase();
+  try {
+    const { data: pend } = await sb.from('gifting_messages')
+      .select('*').eq('channel', 'email').eq('direction', 'outbound').eq('status', 'pending')
+      .order('created_at', { ascending: true }).limit(200);
+    let sent = 0, failed = 0; const errors = [];
+    for (const m of pend || []) {
+      try { await sendMessage(m); sent++; await sleep(1500 + Math.random() * 1500); }
+      catch (e) {
+        failed++;
+        await sb.from('gifting_messages').update({ status: 'failed', error: e.message }).eq('id', m.id);
+        errors.push({ id: m.id, error: e.message });
+      }
+    }
+    res.json({ sent, failed, errors: errors.slice(0, 10) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ワンクリック一括発送承認: pending_approvalの発送を全てMCFへ送信
+router.post('/shipments/approve-all', async (_req, res) => {
+  const sb = getSupabase();
+  try {
+    const { data: ships } = await sb.from('gifting_shipments')
+      .select('*').eq('status', 'pending_approval').order('created_at', { ascending: true }).limit(200);
+    let submitted = 0, failed = 0; const errors = [];
+    for (const s of ships || []) {
+      try { await submitShipment(s); submitted++; }
+      catch (e) {
+        failed++;
+        await sb.from('gifting_shipments').update({ status: 'failed', error: e.message, updated_at: new Date().toISOString() }).eq('id', s.id);
+        errors.push({ id: s.id, error: e.message });
+      }
+    }
+    res.json({ submitted, failed, errors: errors.slice(0, 10) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 日次cron: enabled時にパイプラインを実行
 router.get('/cron', async (_req, res) => {
   try {
