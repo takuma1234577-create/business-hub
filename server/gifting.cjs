@@ -198,11 +198,14 @@ const SCORING_SYSTEM = `あなたはFITPEAK（フィットネス/筋トレ系ギ
 - ターゲット: 筋トレ・ボディメイク・ジム通い・健康志向の20〜40代
 
 ## 評価観点
-- ジャンル適合（フィットネス/筋トレ/健康/ボディメイク/食トレ 等に強いほど高い）
-- フォロワー規模（マイクロ〜ミドルが費用対効果高。数百万の大型は優先度中）
+- ジャンル適合（対象商品に合うほど高い）
+- フォロワー規模（マイクロ〜ミドルが費用対効果高）
 - エンゲージメント率（高いほど良い。1.5%以上が目安）
 - 商業利用のしやすさ（連絡先=email がある方が全自動送信でき高評価）
 - ブランド毀損リスク（過度な炎上/アンチ多め/ジャンル不一致は減点）
+
+## 選定基準（最優先で厳守）
+ユーザーからの「選定基準」が与えられた場合は絶対条件として扱う。基準の除外カテゴリに該当する発信者、または対象ジャンルに明確に合致しない発信者は recommend=false かつ score を低く（0.3未満）すること。
 
 ## 出力（JSONのみ。前後に文章を書かない）
 {"score":0.0〜1.0,"fit_segment":"マイクロ筋トレ系 等の一言","reasoning":"社内向けの簡潔な根拠","recommend":true/false}`;
@@ -220,10 +223,11 @@ async function scoreCandidate(anthropic, settings, c) {
 連絡先email: ${c.email ? 'あり' : 'なし'}
 bio: ${(c.bio || '').slice(0, 400)}
 
-# 選定基準
+# 選定基準（厳守）
+${settings.selection_criteria || '（特になし）'}
+フォロワー許容範囲: ${settings.min_followers}〜${settings.max_followers}
 最低スコア(推奨閾値): ${settings.min_score}
-狙うニッチ: ${settings.target_niches}
-${settings.gift_message_instructions ? '補足指示: ' + settings.gift_message_instructions : ''}`;
+狙うニッチ: ${settings.target_niches}`;
 
   const resp = await anthropic.messages.create({
     model: CLAUDE_MODEL,
@@ -248,6 +252,16 @@ async function scoreUnscored(limit = 50) {
   let scored = 0, selected = 0;
   for (const c of rows) {
     try {
+      // フォロワー数が判明していて許容範囲外なら、採点せず即除外（ハードゲート）
+      if (c.followers != null && (c.followers < settings.min_followers || c.followers > settings.max_followers)) {
+        await sb.from('gifting_candidates').update({
+          stage: 'rejected',
+          score_reasoning: `フォロワー${c.followers}が許容範囲(${settings.min_followers}〜${settings.max_followers})外`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', c.id);
+        scored++;
+        continue;
+      }
       const r = await scoreCandidate(anthropic, settings, c);
       const passes = Number(r.score) >= Number(settings.min_score) && r.recommend !== false;
       await sb.from('gifting_candidates').update({
