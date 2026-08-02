@@ -55,6 +55,15 @@ function genToken() {
   return require('crypto').randomBytes(24).toString('base64url');
 }
 
+// 日本の郵便番号を Amazon が受け付ける "###-####" に整形（全角数字/スペース/ハイフン無しに対応）
+function formatJpPostal(pc) {
+  if (!pc) return pc;
+  const half = String(pc).replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+  const digits = half.replace(/[^0-9]/g, '');
+  if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return half.trim();
+}
+
 // ── 設定 ──────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
   id: 'default',
@@ -633,7 +642,7 @@ async function submitShipment(shipment) {
       addressLine2: shipment.address_line2 || '',
       city: shipment.city || '',
       stateOrRegion: shipment.state_or_region || '',
-      postalCode: shipment.postal_code,
+      postalCode: formatJpPostal(shipment.postal_code),
       countryCode: shipment.country_code || 'JP',
     },
     items: [{
