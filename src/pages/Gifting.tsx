@@ -35,7 +35,7 @@ interface Candidate {
 interface Message {
   id: string
   candidate_id: string
-  channel: 'email' | 'dm_draft'
+  channel: 'email' | 'dm_draft' | 'dm_shipping'
   direction: 'outbound' | 'inbound'
   subject: string | null
   body: string | null
@@ -159,7 +159,7 @@ export default function Gifting() {
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const pendingEmails = messages.filter((m) => m.channel === 'email' && m.direction === 'outbound' && m.status === 'pending')
-  const dmDrafts = messages.filter((m) => m.channel === 'dm_draft' && m.status !== 'sent')
+  const dmDrafts = messages.filter((m) => (m.channel === 'dm_draft' || m.channel === 'dm_shipping') && m.status !== 'sent')
   const pendingShipments = shipments.filter((s) => s.status === 'pending_approval')
 
   // ── アクション ──
@@ -187,6 +187,11 @@ export default function Gifting() {
   const doCheckReplies = async () => {
     setBusyId('replies')
     try { const r = await post('/api/gifting/check-replies', { limit: 30 }); flash('success', `返信${r.replied}件、住所${r.addresses}件を収集`); await fetchAll() }
+    catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
+  }
+  const doRefreshTracking = async () => {
+    setBusyId('track')
+    try { const r = await post('/api/gifting/shipments/refresh-tracking'); flash('success', `追跡確認${r.checked}件・番号取得${r.updated}件`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
   }
   const selectCand = async (id: string, reject = false) => {
@@ -344,6 +349,7 @@ export default function Gifting() {
                 <ActionBtn onClick={doScore} busy={busyId === 'score'} icon={<Sparkles size={15} />}>採点・選定</ActionBtn>
                 <ActionBtn onClick={doDraft} busy={busyId === 'draft'} icon={<PenLine size={15} />}>提案文を生成</ActionBtn>
                 <ActionBtn onClick={doCheckReplies} busy={busyId === 'replies'} icon={<Mail size={15} />}>返信をチェック</ActionBtn>
+                <ActionBtn onClick={doRefreshTracking} busy={busyId === 'track'} icon={<Package size={15} />}>追跡番号を更新</ActionBtn>
               </div>
             </div>
 
@@ -453,7 +459,12 @@ export default function Gifting() {
               return (
                 <div key={m.id} className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold">@{c?.handle}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">@{c?.handle}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] ${m.channel === 'dm_shipping' ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300' : 'bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300'}`}>
+                        {m.channel === 'dm_shipping' ? '発送通知' : '打診DM'}
+                      </span>
+                    </div>
                     <span className="text-xs text-gray-400">{c?.followers != null ? fmtNum(c.followers) + 'フォロワー' : ''} {c?.fit_segment}</span>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{m.body}</p>

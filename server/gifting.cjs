@@ -691,6 +691,63 @@ async function submitShipment(shipment) {
   return up;
 }
 
+// 発送済みMCF注文の追跡番号をSP-APIから取得し、取れたら発送通知DMを自動作成する。
+async function refreshTracking() {
+  const sb = getSupabase();
+  const axios = require('axios');
+  const { data: ships } = await sb.from('gifting_shipments')
+    .select('*').eq('status', 'submitted').is('tracking_number', null)
+    .not('mcf_order_id', 'is', null).limit(50);
+  if (!ships || ships.length === 0) return { checked: 0, updated: 0 };
+
+  const { token, endpoint } = await getAccessToken();
+  let updated = 0;
+  for (const s of ships) {
+    try {
+      const r = await axios.get(
+        `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders/${s.mcf_order_id}`,
+        { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+      );
+      const fo = r.data?.payload || {};
+      let tracking = null;
+      for (const fsh of fo.fulfillmentShipments || []) {
+        for (const pkg of fsh.fulfillmentShipmentPackage || []) {
+          if (pkg.trackingNumber) { tracking = pkg.trackingNumber; break; }
+        }
+        if (tracking) break;
+      }
+      if (tracking) {
+        await sb.from('gifting_shipments').update({ tracking_number: tracking, updated_at: new Date().toISOString() }).eq('id', s.id);
+        await createShippingNotification(s.candidate_id, tracking);
+        updated++;
+      }
+    } catch (e) {
+      console.error(`[gifting] tracking refresh error ${s.id}:`, e.message);
+    }
+  }
+  return { checked: ships.length, updated };
+}
+
+// 発送通知DM（追跡番号入り）を作成。候補ごとに1回だけ。DM送信タブに現れる。
+async function createShippingNotification(candidateId, tracking) {
+  const sb = getSupabase();
+  const settings = await getSettings();
+  const { data: dup } = await sb.from('gifting_messages')
+    .select('id').eq('candidate_id', candidateId).eq('channel', 'dm_shipping').maybeSingle();
+  if (dup) return;
+  const body =
+`この度はご住所をお送りいただきありがとうございました。FITPEAK ${settings.product_name} を発送いたしました。
+
+お問い合わせ伝票番号: ${tracking}
+
+到着まで今しばらくお待ちください。お手元に届きましたら、ぜひ使ってみてください。気に入っていただけたら、PR表記と #FITPEAK でご紹介いただけると嬉しいです。
+
+FITPEAK代表 ${settings.from_name}`;
+  await sb.from('gifting_messages').insert({
+    candidate_id: candidateId, channel: 'dm_shipping', direction: 'outbound', body, status: 'draft',
+  });
+}
+
 // ============================================================
 // パイプライン（cronから呼ぶ）
 // ============================================================
@@ -745,6 +802,9 @@ async function runPipeline(settings) {
       console.error(`[gifting] ship prepare error @${c.handle}:`, e.message);
     }
   }
+
+  // 発送済みの追跡番号を取得し、取れたら発送通知DMを自動作成
+  try { out.tracking = await refreshTracking(); } catch (e) { out.tracking = { error: e.message }; }
 
   return out;
 }
@@ -911,6 +971,11 @@ router.get('/shipments', async (req, res) => {
     if (error) throw error;
     res.json(data || []);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/shipments/refresh-tracking', async (_req, res) => {
+  try { res.json(await refreshTracking()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.post('/candidates/:id/prepare-ship', async (req, res) => {
