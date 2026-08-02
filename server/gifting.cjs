@@ -335,17 +335,17 @@ ${settings.gift_message_instructions ? '補足指示: ' + settings.gift_message_
 async function draftOutreachForSelected(limit) {
   const sb = getSupabase();
   const settings = await getSettings();
-  const anthropic = await getAnthropicClient();
   const { data: rows } = await sb.from('gifting_candidates')
     .select('*').eq('stage', 'selected')
     .order('score', { ascending: false }).limit(limit || settings.daily_send_limit);
   if (!rows || rows.length === 0) return { drafted: 0 };
 
+  const tpl = (settings.email_template || '').trim();
+  let anthropic = null; // 固定テンプレ運用ではAIを使わない（遅延取得）
+
   let drafted = 0;
   for (const c of rows) {
     try {
-      const out = await generateOutreach(anthropic, settings, c);
-
       // 住所入力フォーム用トークンを用意（候補ごとに1つ）
       let token = c.address_token;
       if (!token) {
@@ -354,26 +354,35 @@ async function draftOutreachForSelected(limit) {
       }
       const formUrl = addressFormUrl(token);
 
-      // email本文にフォームURLを反映（プレースホルダ置換。無ければ末尾に追記）
-      let emailBody = out.email_body || '';
-      if (emailBody.includes('{address_form_url}')) {
-        emailBody = emailBody.replace(/\{address_form_url\}/g, formUrl);
+      let subject = settings.email_subject;
+      let emailBody, dmBody;
+
+      if (tpl) {
+        // 固定テンプレ運用: この文面を必ず使い、フォームURLだけ差し込む（メール・DM共通）
+        const filled = tpl.includes('{address_form_url}')
+          ? tpl.replace(/\{address_form_url\}/g, formUrl)
+          : `${tpl}\n\n▼受け取りはこちら（タップで住所入力）\n${formUrl}`;
+        emailBody = filled;
+        dmBody = filled;
       } else {
-        emailBody += `\n\n▼商品のお届け先はこちらのフォームからご入力ください（ご返信は不要です）\n${formUrl}`;
+        // AI生成（テンプレ未設定時）
+        if (!anthropic) anthropic = await getAnthropicClient();
+        const out = await generateOutreach(anthropic, settings, c);
+        subject = out.email_subject || settings.email_subject;
+        const eb = out.email_body || '';
+        emailBody = eb.includes('{address_form_url}')
+          ? eb.replace(/\{address_form_url\}/g, formUrl)
+          : `${eb}\n\n▼商品のお届け先はこちらのフォームからご入力ください（ご返信は不要です）\n${formUrl}`;
+        dmBody = out.dm_draft ? `${out.dm_draft}\n\n▼受け取りはこちら（タップで住所入力）\n${formUrl}` : null;
       }
 
-      // email下書き
+      // email下書き（emailが無ければ送信不可なのでdraft）
       await sb.from('gifting_messages').insert({
-        candidate_id: c.id,
-        channel: 'email',
-        direction: 'outbound',
-        subject: out.email_subject || settings.email_subject,
-        body: emailBody,
-        status: c.email ? 'pending' : 'draft', // emailが無ければ送信不可なのでdraft
+        candidate_id: c.id, channel: 'email', direction: 'outbound',
+        subject, body: emailBody, status: c.email ? 'pending' : 'draft',
       });
-      // DM下書き（送信は人力。受け取りフォームURLを付与して住所→発送を自動化）
-      if (out.dm_draft) {
-        const dmBody = `${out.dm_draft}\n\n▼受け取りはこちら（タップで住所入力）\n${formUrl}`;
+      // DM下書き（送信は人力）
+      if (dmBody) {
         await sb.from('gifting_messages').insert({
           candidate_id: c.id, channel: 'dm_draft', direction: 'outbound',
           subject: null, body: dmBody, status: 'draft',
@@ -740,7 +749,7 @@ router.put('/settings', async (req, res) => {
       'enabled', 'research_mode', 'send_mode', 'ship_mode', 'daily_research_limit', 'daily_send_limit',
       'min_followers', 'max_followers', 'min_engagement', 'target_niches', 'target_country', 'platforms',
       'product_sku', 'product_name', 'gift_qty', 'from_name', 'email_subject',
-      'gift_message_instructions', 'reply_instructions', 'min_score',
+      'gift_message_instructions', 'reply_instructions', 'min_score', 'email_template', 'selection_criteria',
     ];
     const patch = { id: 'default', updated_at: new Date().toISOString() };
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
