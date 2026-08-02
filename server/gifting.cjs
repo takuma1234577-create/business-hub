@@ -619,7 +619,8 @@ async function submitShipment(shipment) {
   if (shipment.mcf_order_id) throw new Error(`この発送は既にMCF依頼済みです (${shipment.mcf_order_id})`);
 
   const { token, endpoint } = await getAccessToken();
-  const mcfOrderId = `GIFT-${shipment.id}`;
+  // Amazonの sellerFulfillmentOrderId は最大40文字。UUIDのハイフンを除いて37文字に収める。
+  const mcfOrderId = `GIFT-${String(shipment.id).replace(/-/g, '')}`;
   const mcfBody = {
     sellerFulfillmentOrderId: mcfOrderId,
     displayableOrderId: mcfOrderId.slice(0, 40),
@@ -661,11 +662,18 @@ async function submitShipment(shipment) {
     if (!notFound) throw e;
   }
 
-  await axios.post(
-    `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
-    mcfBody,
-    { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
-  );
+  try {
+    await axios.post(
+      `${endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`,
+      mcfBody,
+      { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
+    );
+  } catch (e) {
+    // Amazonの詳細エラーを保存して原因を追えるようにする
+    const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+    const err = new Error(`MCF発送失敗: ${detail}`);
+    throw err;
+  }
 
   const { data: up } = await sb.from('gifting_shipments').update({
     status: 'submitted', mcf_order_id: mcfOrderId, error: null, updated_at: new Date().toISOString(),
