@@ -229,6 +229,12 @@ export default function Gifting() {
     try { await navigator.clipboard.writeText(text); flash('success', 'コピーしました') }
     catch { flash('error', 'コピーできませんでした') }
   }
+  // DMを開く＝文面コピー＋Instagram DMを開く＋送信済み化 をワンクリックで
+  const openCopySend = (m: Message, handle?: string | null) => {
+    try { navigator.clipboard?.writeText(m.body || '') } catch { /* noop */ }
+    if (handle) window.open(`https://ig.me/m/${handle}`, '_blank', 'noopener')
+    markDmSent(m)
+  }
   const sendAll = async () => {
     if (pendingEmails.length === 0) return
     if (!confirm(`承認待ちのメール ${pendingEmails.length}件をまとめて送信します。よろしいですか？`)) return
@@ -452,9 +458,11 @@ export default function Gifting() {
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{m.body}</p>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <button onClick={() => copyText(m.body || '')} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"><Copy size={13} /> 文面をコピー</button>
-                    <a href={`https://ig.me/m/${c?.handle}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600"><MessageCircle size={13} /> DMを開く <ExternalLink size={11} /></a>
-                    <button disabled={busyId === m.id} onClick={() => markDmSent(m)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-green-300 text-green-700 dark:text-green-400 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950 disabled:opacity-50"><CheckCircle size={13} /> 送信済みにする</button>
+                    <button disabled={busyId === m.id} onClick={() => openCopySend(m, c?.handle)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600 disabled:opacity-50">
+                      {busyId === m.id ? <RefreshCw size={13} className="animate-spin" /> : <MessageCircle size={13} />} DMを開く（コピー＆送信済み） <ExternalLink size={11} />
+                    </button>
+                    <button onClick={() => copyText(m.body || '')} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"><Copy size={13} /> コピーのみ</button>
+                    <button disabled={busyId === m.id} onClick={() => markDmSent(m)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-green-300 text-green-700 dark:text-green-400 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950 disabled:opacity-50"><CheckCircle size={13} /> 送信済みのみ</button>
                   </div>
                 </div>
               )
