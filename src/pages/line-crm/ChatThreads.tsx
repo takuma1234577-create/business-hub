@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, MessageCircle, User } from 'lucide-react'
 import { chatApi, friendApi } from './api'
+import { getChannelId } from './lineAccount'
 import type { Friend } from './types'
 
 interface ChatThreadsProps {
@@ -8,6 +9,11 @@ interface ChatThreadsProps {
 }
 
 type Thread = Awaited<ReturnType<typeof chatApi.listThreads>>[number]
+
+// チャット一覧はアカウント(channel)ごとにメモリキャッシュ。
+// 画面を離れて戻っても即表示（3秒待ちを解消）し、裏でポーリング更新する。
+const threadsCache: Record<string, Thread[]> = {}
+const POLL_MS = 4000
 
 const extractText = (content: unknown): string => {
   if (content == null) return ''
@@ -34,25 +40,49 @@ const formatTime = (iso?: string): string => {
 }
 
 export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
-  const [threads, setThreads] = useState<Thread[]>([])
-  const [loading, setLoading] = useState(false)
+  const channelId = getChannelId()
+  const [threads, setThreads] = useState<Thread[]>(() => threadsCache[channelId] || [])
+  // キャッシュがあればスピナーは出さない（即表示）
+  const [loading, setLoading] = useState(!threadsCache[channelId])
   const [search, setSearch] = useState('')
+  const fetchingRef = useRef(false)
 
   const fetchThreads = useCallback(async () => {
-    setLoading(true)
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     try {
-      const res = await chatApi.listThreads(search || undefined)
+      const res = await chatApi.listThreads()
+      threadsCache[channelId] = res
       setThreads(res)
     } catch (err) {
       console.error('Failed to fetch chat threads:', err)
     } finally {
+      fetchingRef.current = false
       setLoading(false)
     }
-  }, [search])
+  }, [channelId])
 
   useEffect(() => {
+    // 表示は即キャッシュ、裏で最新を取得
+    if (threadsCache[channelId]) { setThreads(threadsCache[channelId]); setLoading(false) }
     fetchThreads()
-  }, [fetchThreads])
+    // リアルタイム更新（ポーリング）＋タブ復帰時に即更新
+    const iv = setInterval(fetchThreads, POLL_MS)
+    const onVisible = () => { if (!document.hidden) fetchThreads() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      clearInterval(iv)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [fetchThreads, channelId])
+
+  // 検索はクライアント側で絞り込み（再取得しない＝キャッシュ維持・即応答）
+  const q = search.trim().toLowerCase()
+  const visibleThreads = q
+    ? threads.filter(t => (t.friend.display_name || '').toLowerCase().includes(q))
+    : threads
 
   const handleClick = async (t: Thread) => {
     // 完全なFriendオブジェクトを取得してからChatViewへ
@@ -82,7 +112,7 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">チャット一覧</h2>
-          <p className="text-sm text-slate-500">{threads.length} 件のトーク</p>
+          <p className="text-sm text-slate-500">{visibleThreads.length} 件のトーク</p>
         </div>
       </div>
 
@@ -102,18 +132,18 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
 
       {/* Threads */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-        {loading ? (
+        {loading && threads.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-2 border-[#06C755] border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : threads.length === 0 ? (
+        ) : visibleThreads.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <MessageCircle size={40} className="mx-auto mb-3 opacity-50" />
-            <p>トークはまだありません</p>
+            <p>{q ? '該当するトークがありません' : 'トークはまだありません'}</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-            {threads.map(t => {
+            {visibleThreads.map(t => {
               const text = extractText(t.last_message?.content)
               const isOut = t.last_message?.direction === 'outgoing'
               const unread = t.friend.unread_count || 0

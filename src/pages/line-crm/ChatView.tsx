@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck } from 'lucide-react'
+import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck, Settings } from 'lucide-react'
 import { chatApi } from './api'
 import type { Friend, ChatMessage } from './types'
 
@@ -7,9 +7,10 @@ interface ChatViewProps {
   friend: Friend
   onBack: () => void
   onFriendUpdated?: (friend: Friend) => void
+  onOpenFriendDetail?: () => void
 }
 
-export default function ChatView({ friend, onBack, onFriendUpdated }: ChatViewProps) {
+export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriendDetail }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -442,6 +443,15 @@ export default function ChatView({ friend, onBack, onFriendUpdated }: ChatViewPr
         >
           {currentStatus === 'blocked' ? <ShieldBan size={20} /> : <ShieldCheck size={20} />}
         </button>
+        {onOpenFriendDetail && (
+          <button
+            onClick={onOpenFriendDetail}
+            title="友だち情報"
+            className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+          >
+            <Settings size={20} />
+          </button>
+        )}
       </div>
 
       {/* Messages Area */}

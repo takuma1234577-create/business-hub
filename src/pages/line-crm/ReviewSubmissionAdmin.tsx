@@ -19,6 +19,7 @@ interface Submission {
   order_total: number | null
   draft_title: string | null
   draft_body: string | null
+  draft_rating: number | null
   draft_image_url: string | null
   proof_image_url: string | null
   verify_status: string | null
@@ -68,6 +69,13 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
   const [busyId, setBusyId] = useState<string | null>(null)
   const [zoom, setZoom] = useState<string | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = (id: string) => setExpanded(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
 
   const fetchSubs = useCallback(async () => {
     setLoading(true)
@@ -195,8 +203,20 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                     <p className="text-xs text-slate-400 mb-1">レビュー下書き</p>
                     {s.draft_title ? (
                       <>
+                        {s.draft_rating && (
+                          <p className="text-sm text-amber-500">{'★'.repeat(s.draft_rating)}{'☆'.repeat(5 - s.draft_rating)}</p>
+                        )}
                         <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{s.draft_title}</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap line-clamp-4">{s.draft_body}</p>
+                        <p className={`text-xs text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap ${expanded.has(s.id) ? '' : 'line-clamp-4'}`}>{s.draft_body}</p>
+                        {s.draft_body && s.draft_body.length > 100 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(s.id)}
+                            className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {expanded.has(s.id) ? '閉じる' : 'もっと見る'}
+                          </button>
+                        )}
                         {s.draft_image_url && (
                           <img src={s.draft_image_url} onClick={() => setZoom(s.draft_image_url!)} className="mt-2 w-16 h-16 object-cover rounded-lg cursor-zoom-in border border-slate-200 dark:border-slate-700" />
                         )}

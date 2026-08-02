@@ -11,6 +11,7 @@ interface Submission {
   status: 'awaiting_draft' | 'draft_received' | 'approved' | 'awaiting_invoice' | 'invoice_submitted' | 'completed' | 'rejected'
   draft_title: string | null
   draft_body: string | null
+  draft_rating: number | null
   draft_image_url: string | null
   proof_image_url: string | null
   verify_status: string | null
@@ -43,6 +44,7 @@ export default function ReviewForm() {
   // draft inputs
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [rating, setRating] = useState(5)
   const [draftImage, setDraftImage] = useState<File | null>(null)
   const [proofImage, setProofImage] = useState<File | null>(null)
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
@@ -59,6 +61,7 @@ export default function ReviewForm() {
       setSub(r.data.submission)
       setTitle(r.data.submission.draft_title || '')
       setBody(r.data.submission.draft_body || '')
+      setRating(r.data.submission.draft_rating || 5)
       setBillAmount(r.data.bill_amount ?? null)
       setBillTo(r.data.bill_to ?? null)
     } catch {
@@ -77,6 +80,7 @@ export default function ReviewForm() {
       fd.append('t', token)
       fd.append('title', title)
       fd.append('body', body)
+      fd.append('rating', String(rating))
       if (draftImage) fd.append('image', draftImage)
       await api.post('/draft', fd)
       setFlash({ type: 'ok', text: 'レビュー下書きを送信しました。ありがとうございます。' })
@@ -210,6 +214,25 @@ export default function ReviewForm() {
           </div>
           <div className="space-y-4">
             <div>
+              <label className={label}>評価</label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRating(n)}
+                    aria-label={`星${n}`}
+                    className="p-0.5"
+                  >
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill={n <= rating ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="1.5">
+                      <path d="M12 2.5l2.9 6.02 6.6.77-4.85 4.6 1.27 6.6L12 17.3l-5.92 3.19 1.27-6.6-4.85-4.6 6.6-.77z" />
+                    </svg>
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">{rating} / 5</span>
+              </div>
+            </div>
+            <div>
               <label className={label}>レビュータイトル</label>
               <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: 使いやすくて満足です" />
             </div>
@@ -238,6 +261,7 @@ export default function ReviewForm() {
           </div>
           <div className="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
             <p className="text-xs text-slate-400 mb-1">提出済みの下書き</p>
+            {sub.draft_rating && <p className="text-sm text-amber-500">{"★".repeat(sub.draft_rating)}{"☆".repeat(5 - sub.draft_rating)}</p>}
             {sub.draft_title && <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{sub.draft_title}</p>}
             {sub.draft_body && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{sub.draft_body}</p>}
           </div>
@@ -264,6 +288,7 @@ export default function ReviewForm() {
           {/* 提出済み下書きの表示 */}
           <div className="mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
             <p className="text-xs text-slate-400 mb-1">提出済みの下書き</p>
+            {sub.draft_rating && <p className="text-sm text-amber-500">{"★".repeat(sub.draft_rating)}{"☆".repeat(5 - sub.draft_rating)}</p>}
             {sub.draft_title && <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{sub.draft_title}</p>}
             {sub.draft_body && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{sub.draft_body}</p>}
           </div>

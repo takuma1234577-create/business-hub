@@ -100,14 +100,18 @@ function jstToday() {
 
 // 友だちへLINEプッシュ送信
 async function pushLine(channelId, lineUserId, text) {
-  if (!lineUserId) return false;
+  if (!lineUserId) { console.error('[review-submission] pushLine: line_user_id なし'); return false; }
   const { accessToken } = await getLineCredentials(channelId);
-  if (!accessToken) return false;
+  if (!accessToken) { console.error('[review-submission] pushLine: accessToken なし channel=', channelId); return false; }
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text }] }),
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error('[review-submission] pushLine failed:', res.status, body.slice(0, 300));
+  }
   return res.ok;
 }
 
@@ -300,11 +304,12 @@ function judgeReview(extracted, submission) {
     return { verify_status: 'unreadable', reason: 'Amazonレビュー画面と判定できませんでした' };
   }
   const reasons = [];
-  // 星5の確認
+  // 下書きで選択された星の数と一致するか確認（未選択時は星5を既定とする）
+  const expectedRating = submission.draft_rating || 5;
   if (extracted.star_rating == null) {
     reasons.push('星の数を読み取れません');
-  } else if (Number(extracted.star_rating) !== 5) {
-    reasons.push(`星5ではありません（星${extracted.star_rating}）`);
+  } else if (Number(extracted.star_rating) !== expectedRating) {
+    reasons.push(`星${expectedRating}ではありません（星${extracted.star_rating}）`);
   }
   // タイトル照合
   if (submission.draft_title && extracted.title) {
@@ -315,7 +320,7 @@ function judgeReview(extracted, submission) {
     if (textSimilarity(submission.draft_body, extracted.body) < 0.5) reasons.push('本文が下書きと一致しません');
   }
   if (reasons.length > 0) return { verify_status: 'mismatch', reason: reasons.join(' / ') };
-  return { verify_status: 'verified', reason: '星5・投稿レビューと下書きが一致しました' };
+  return { verify_status: 'verified', reason: `星${expectedRating}・投稿レビューと下書きが一致しました` };
 }
 
 // 友だちが「クラウドワークス経由」タグを持つか
@@ -359,7 +364,7 @@ publicRouter.get('/context', async (req, res) => {
     if (!token) return res.status(400).json({ error: 'token required' });
     const { data, error } = await supabase
       .from('review_submissions')
-      .select('token, product_name, order_number, status, draft_title, draft_body, draft_image_url, proof_image_url, verify_status, verify_reason, review_date, order_total, invoice_verify_status, invoice_verify_reason')
+      .select('token, product_name, order_number, status, draft_title, draft_body, draft_rating, draft_image_url, proof_image_url, verify_status, verify_reason, review_date, order_total, invoice_verify_status, invoice_verify_reason')
       .eq('token', token)
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
@@ -374,8 +379,12 @@ publicRouter.get('/context', async (req, res) => {
 // POST /draft — 下書き提出（multipart: t, title, body, image?）
 publicRouter.post('/draft', upload.single('image'), async (req, res) => {
   try {
-    const { t: token, title, body } = req.body;
+    const { t: token, title, body, rating } = req.body;
     if (!token) return res.status(400).json({ error: 'token required' });
+    const ratingNum = Number(rating);
+    if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: '評価（星1〜5）を選択してください' });
+    }
     const { data: sub } = await supabase.from('review_submissions').select('id, status').eq('token', token).maybeSingle();
     if (!sub) return res.status(404).json({ error: 'not found' });
     if (sub.status === 'rejected') return res.status(400).json({ error: 'この案件は受付を終了しています' });
@@ -386,6 +395,7 @@ publicRouter.post('/draft', upload.single('image'), async (req, res) => {
     const updates = {
       draft_title: title || null,
       draft_body: body || null,
+      draft_rating: ratingNum,
       draft_submitted_at: new Date().toISOString(),
       status: 'draft_received',
       updated_at: new Date().toISOString(),
@@ -587,6 +597,28 @@ router.post('/submissions/:id/approve', async (req, res) => {
     }
 
     res.json({ submission: updated, review_date: reviewDateStr, notified });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 承認通知を再送（承認済みのみ）: LINE送信が失敗していた場合の救済
+router.post('/submissions/:id/resend-approval', async (req, res) => {
+  try {
+    const { data: sub } = await supabase.from('review_submissions').select('*').eq('id', req.params.id).maybeSingle();
+    if (!sub) return res.status(404).json({ error: 'not found' });
+    if (sub.status !== 'approved' || !sub.review_date) {
+      return res.status(400).json({ error: '承認済み（レビュー投稿日確定）の案件のみ再送できます' });
+    }
+    const rd = new Date(sub.review_date + 'T00:00:00');
+    const msg = APPROVAL_MESSAGE_DEFAULT
+      .replace(/\{review_date\}/g, formatJpDate(rd))
+      .replace(/\{review_form_url\}/g, `${BASE_URL}/review-form?t=${sub.token}`);
+    let notified = false;
+    let errMsg = null;
+    try { notified = await pushLine(sub.channel_id, sub.line_user_id, msg); }
+    catch (err) { errMsg = err.message; console.error('[review-submission] resend-approval error:', err.message); }
+    res.json({ notified, error: notified ? null : (errMsg || 'LINE送信に失敗しました') });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
