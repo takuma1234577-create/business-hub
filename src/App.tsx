@@ -9,15 +9,8 @@ import ReturnRequest from './pages/ReturnRequest'
 import ReturnSettings from './pages/ReturnSettings'
 import ReturnLogs from './pages/ReturnLogs'
 import MyFitpeak from './pages/MyFitpeak'
-import AmazonConsulting from './pages/AmazonConsulting'
-import Outreach from './pages/Outreach'
-import SalesEmail from './pages/SalesEmail'
-import StreamerClip from './pages/StreamerClip'
 import AmazonAnalytics from './pages/AmazonAnalytics'
-import HpOutreach from './pages/HpOutreach'
 import ShopifyReviews from './pages/ShopifyReviews'
-import FitpeakSns from './pages/FitpeakSns'
-import SalesAgent from './pages/SalesAgent'
 import Gifting from './pages/Gifting'
 import ReviewForm from './pages/ReviewForm'
 import GiftAddressForm from './pages/GiftAddressForm'
@@ -87,18 +80,11 @@ function App() {
       <Route path="/amazon/*" element={<AmazonAutoShip />} />
       <Route path="/line-crm/*" element={<LineCrm />} />
       <Route path="/my-fitpeak/*" element={<MyFitpeak />} />
-      <Route path="/consulting" element={<AmazonConsulting />} />
-      <Route path="/outreach" element={<Outreach />} />
       <Route path="/return-request" element={<ReturnRequest />} />
       <Route path="/return-settings" element={<ReturnSettings />} />
       <Route path="/return-logs" element={<ReturnLogs />} />
-      <Route path="/sales-email" element={<SalesEmail />} />
-      <Route path="/streamer-clip/*" element={<StreamerClip />} />
       <Route path="/amazon-analytics/*" element={<AmazonAnalytics />} />
       <Route path="/shopify-reviews" element={<ShopifyReviews />} />
-      <Route path="/hp-outreach" element={<HpOutreach />} />
-      <Route path="/fitpeak-sns/*" element={<FitpeakSns />} />
-      <Route path="/sales-agent" element={<SalesAgent />} />
       <Route path="/gifting" element={<Gifting />} />
     </Routes>
   )
