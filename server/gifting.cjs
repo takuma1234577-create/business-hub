@@ -765,16 +765,16 @@ async function refreshTracking() {
         { headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' } }
       );
       const fo = r.data?.payload || {};
-      let tracking = null;
+      let tracking = null, carrier = null;
       for (const fsh of fo.fulfillmentShipments || []) {
         for (const pkg of fsh.fulfillmentShipmentPackage || []) {
-          if (pkg.trackingNumber) { tracking = pkg.trackingNumber; break; }
+          if (pkg.trackingNumber) { tracking = pkg.trackingNumber; carrier = pkg.carrierCode || null; break; }
         }
         if (tracking) break;
       }
       if (tracking) {
-        await sb.from('gifting_shipments').update({ tracking_number: tracking, updated_at: new Date().toISOString() }).eq('id', s.id);
-        await createShippingNotification(s.candidate_id, tracking);
+        await sb.from('gifting_shipments').update({ tracking_number: tracking, tracking_carrier: carrier, updated_at: new Date().toISOString() }).eq('id', s.id);
+        await createShippingNotification(s.candidate_id, tracking, carrier);
         updated++;
       }
     } catch (e) {
@@ -784,21 +784,34 @@ async function refreshTracking() {
   return { checked: ships.length, updated };
 }
 
-// 発送通知DM（追跡番号入り）を作成。候補ごとに1回だけ。DM送信タブに現れる。
-async function createShippingNotification(candidateId, tracking) {
+// 配送業者コードから追跡URLを生成（日本の主要キャリア。不明は日本郵便追跡にフォールバック）
+function buildTrackingUrl(carrier, number) {
+  if (!number) return '';
+  const c = String(carrier || '').toLowerCase();
+  if (c.includes('yamato') || c.includes('kuroneko')) return `https://toi.kuronekoyamato.co.jp/cgi-bin/tneko?number=${number}`;
+  if (c.includes('sagawa')) return `https://k2k.sagawa-exp.co.jp/p/web/okurijoNoInput.do?okurijoNo=${number}`;
+  return `https://trackings.post.japanpost.jp/services/srv/search/direct?reqCodeNo1=${number}&searchKind=S002&locale=ja`;
+}
+
+// 発送通知DM（伝票番号＋配送状況URL入り）を作成。候補ごとに1回だけ。DM送信タブに現れる。
+async function createShippingNotification(candidateId, tracking, carrier) {
   const sb = getSupabase();
   const settings = await getSettings();
   const { data: dup } = await sb.from('gifting_messages')
     .select('id').eq('candidate_id', candidateId).eq('channel', 'dm_shipping').maybeSingle();
   if (dup) return;
-  const body =
-`この度はご住所をお送りいただきありがとうございました。FITPEAK ${settings.product_name} を発送いたしました。
-
-お問い合わせ伝票番号: ${tracking}
-
-到着まで今しばらくお待ちください。お手元に届きましたら、ぜひ使ってみてください。気に入っていただけたら、PR表記と #FITPEAK でご紹介いただけると嬉しいです。
-
-FITPEAK代表 ${settings.from_name}`;
+  const { data: c } = await sb.from('gifting_candidates').select('selected_variation').eq('id', candidateId).maybeSingle();
+  const productDisplay = c?.selected_variation
+    ? `FITPEAK リストラップ（${String(c.selected_variation).replace(' / ', ' ')}）`
+    : settings.product_name;
+  const trackingUrl = buildTrackingUrl(carrier, tracking);
+  const tpl = (settings.shipping_template || '').trim();
+  const body = tpl
+    ? tpl.replace(/\{product\}/g, productDisplay)
+         .replace(/\{tracking_number\}/g, tracking || '')
+         .replace(/\{tracking_url\}/g, trackingUrl)
+         .replace(/\{from_name\}/g, settings.from_name)
+    : `この度はご住所をお送りいただきありがとうございました。${productDisplay} を発送いたしました。\n\nお問い合わせ伝票番号: ${tracking}\n配送状況：${trackingUrl}\n\nFITPEAK代表 ${settings.from_name}`;
   await sb.from('gifting_messages').insert({
     candidate_id: candidateId, channel: 'dm_shipping', direction: 'outbound', body, status: 'draft',
   });
@@ -883,6 +896,7 @@ router.put('/settings', async (req, res) => {
       'min_followers', 'max_followers', 'min_engagement', 'target_niches', 'target_country', 'platforms',
       'product_sku', 'product_name', 'gift_qty', 'from_name', 'email_subject',
       'gift_message_instructions', 'reply_instructions', 'min_score', 'email_template', 'selection_criteria',
+      'shipping_template', 'product_parent_asin',
     ];
     const patch = { id: 'default', updated_at: new Date().toISOString() };
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];

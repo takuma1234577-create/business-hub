@@ -130,22 +130,17 @@ export default function GiftAddressForm() {
 
             {ctx?.variations && ctx.variations.length > 0 && (
               <div>
-                <label className="text-xs font-medium text-gray-600">
-                  サイズ・カラー<span className="text-pink-500 ml-0.5">*</span>
-                  <span className="ml-1 text-gray-400 font-normal">（在庫があるものだけ表示）</span>
-                </label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium text-gray-600">サイズ・カラー<span className="text-pink-500 ml-0.5">*</span></label>
+                <select
+                  value={selectedSku}
+                  onChange={(e) => setSelectedSku(e.target.value)}
+                  className="mt-1 w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 bg-white focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none"
+                >
+                  <option value="">選択してください</option>
                   {ctx.variations.map((v) => (
-                    <button
-                      key={v.sellerSku}
-                      type="button"
-                      onClick={() => setSelectedSku(v.sellerSku)}
-                      className={`text-left px-3 py-2.5 rounded-lg border text-sm transition ${selectedSku === v.sellerSku ? 'border-pink-500 ring-1 ring-pink-400 bg-pink-50' : 'border-gray-300 hover:border-pink-300'}`}
-                    >
-                      <span className="font-medium text-gray-900">{v.label}</span>
-                    </button>
+                    <option key={v.sellerSku} value={v.sellerSku}>{v.label}</option>
                   ))}
-                </div>
+                </select>
               </div>
             )}
 
