@@ -4,10 +4,16 @@ import axios from 'axios'
 // インフルエンサー向けの公開フォーム。認証不要・素のaxios。
 const api = axios.create({ baseURL: '/api/public/gifting' })
 
+interface Variation {
+  sellerSku: string
+  label: string
+  stock: number
+}
 interface Ctx {
   candidate: { handle: string; full_name: string | null }
   product_name: string
   from_name: string
+  variations: Variation[]
   already_submitted: boolean
 }
 
@@ -30,6 +36,7 @@ export default function GiftAddressForm() {
   const [city, setCity] = useState('')
   const [line1, setLine1] = useState('')
   const [line2, setLine2] = useState('')
+  const [selectedSku, setSelectedSku] = useState('')
 
   const load = useCallback(async () => {
     if (!token) { setNotFound(true); setLoading(false); return }
@@ -52,6 +59,10 @@ export default function GiftAddressForm() {
       setErr('お名前・郵便番号・住所（番地）は必須です')
       return
     }
+    if (ctx && ctx.variations && ctx.variations.length > 0 && !selectedSku) {
+      setErr('サイズ・カラーをお選びください')
+      return
+    }
     setSubmitting(true)
     try {
       await api.post('/address', {
@@ -61,6 +72,7 @@ export default function GiftAddressForm() {
         city,
         address_line1: line1,
         address_line2: line2,
+        sku: selectedSku || undefined,
       }, { params: { t: token } })
       setDone(true)
     } catch (e) {
@@ -113,8 +125,29 @@ export default function GiftAddressForm() {
           <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
             <p className="text-sm text-gray-600 leading-relaxed">
               このたびは {ctx?.product_name} のギフトをお受け取りいただきありがとうございます。<br />
-              下記に発送先をご入力ください。ご返信は不要です。
+              {ctx?.variations && ctx.variations.length > 0 ? 'ご希望のサイズ・カラーを選び、発送先をご入力ください。' : '下記に発送先をご入力ください。'}ご返信は不要です。
             </p>
+
+            {ctx?.variations && ctx.variations.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-600">
+                  サイズ・カラー<span className="text-pink-500 ml-0.5">*</span>
+                  <span className="ml-1 text-gray-400 font-normal">（在庫があるものだけ表示）</span>
+                </label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {ctx.variations.map((v) => (
+                    <button
+                      key={v.sellerSku}
+                      type="button"
+                      onClick={() => setSelectedSku(v.sellerSku)}
+                      className={`text-left px-3 py-2.5 rounded-lg border text-sm transition ${selectedSku === v.sellerSku ? 'border-pink-500 ring-1 ring-pink-400 bg-pink-50' : 'border-gray-300 hover:border-pink-300'}`}
+                    >
+                      <span className="font-medium text-gray-900">{v.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <Field label="お名前" required value={recipientName} onChange={setRecipientName} placeholder="山田 太郎" />
             <Field label="郵便番号" required value={postalCode} onChange={setPostalCode} placeholder="150-0001" inputMode="numeric" />

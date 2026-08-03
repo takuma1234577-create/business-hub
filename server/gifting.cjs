@@ -587,6 +587,60 @@ function extractPlainText(payload) {
 }
 
 // ============================================================
+// 在庫連携: 在庫があるサイズ/カラーのバリエーション一覧
+// ============================================================
+let _varCache = null;
+let _varCacheAt = 0;
+
+async function getAvailableVariations() {
+  if (_varCache && Date.now() - _varCacheAt < 10 * 60 * 1000) return _varCache;
+  const sb = getSupabase();
+  const settings = await getSettings();
+  const parent = settings.product_parent_asin || 'B0F7HG9JCF';
+
+  // 子ASIN → バリエーション表示名
+  const { data: catalog } = await sb.from('amazon_catalog_cache')
+    .select('asin, variation, item_name').eq('parent_asin', parent);
+  const asinLabel = {};
+  for (const r of catalog || []) asinLabel[r.asin] = r.variation || r.item_name;
+  const childAsins = new Set(Object.keys(asinLabel));
+  if (childAsins.size === 0) return [];
+
+  // FBA在庫サマリ（在庫がある子ASINのsellerSkuを拾う）
+  const axios = require('axios');
+  const { token, endpoint, marketplaceId } = await getAccessToken();
+  const best = {}; // asin -> {sellerSku, stock}
+  let nextToken = null, pages = 0;
+  do {
+    const params = { granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId, details: 'false' };
+    if (nextToken) params.nextToken = nextToken;
+    const res = await axios.get(`${endpoint}/fba/inventory/v1/summaries`, { headers: { 'x-amz-access-token': token }, params });
+    for (const s of res.data?.payload?.inventorySummaries || []) {
+      const qty = s.totalQuantity || 0;
+      if (childAsins.has(s.asin) && qty > 0) {
+        if (!best[s.asin] || qty > best[s.asin].stock) best[s.asin] = { sellerSku: s.sellerSku, stock: qty };
+      }
+    }
+    nextToken = res.data?.pagination?.nextToken;
+    pages++;
+    await sleep(400);
+  } while (nextToken && pages < 20);
+
+  const variations = Object.entries(best)
+    .map(([asin, v]) => ({ asin, sellerSku: v.sellerSku, label: cleanVariationLabel(asinLabel[asin]), stock: v.stock }))
+    .sort((a, b) => b.stock - a.stock);
+  _varCache = variations;
+  _varCacheAt = Date.now();
+  return variations;
+}
+
+// "ブラック / 60cm / トラディショナル" → "ブラック / 60cm"
+function cleanVariationLabel(label) {
+  if (!label) return label;
+  return String(label).split('/').slice(0, 2).map((s) => s.trim()).join(' / ');
+}
+
+// ============================================================
 // ⑤ FBA(MCF)発送
 // ============================================================
 // 住所収集済み候補の発送レコードを作成（pending_approval）。ship_mode=autoなら即発送。
@@ -596,7 +650,9 @@ async function prepareShipment(candidateId) {
   const { data: c } = await sb.from('gifting_candidates').select('*').eq('id', candidateId).maybeSingle();
   if (!c) throw new Error('候補が見つかりません');
   if (!c.address_line1 || !c.postal_code) throw new Error('配送先住所が未収集です');
-  if (!settings.product_sku) throw new Error('発送するSKU(product_sku)が設定で未指定です');
+  // 候補が選んだバリエーション優先。無ければ設定の既定SKU
+  const sku = c.selected_sku || settings.product_sku;
+  if (!sku) throw new Error('発送するSKUが未指定です（候補未選択かつ既定SKU未設定）');
 
   // 既存の未完了発送があれば再利用
   const { data: existing } = await sb.from('gifting_shipments')
@@ -605,7 +661,7 @@ async function prepareShipment(candidateId) {
 
   const { data: ship } = await sb.from('gifting_shipments').insert({
     candidate_id: c.id,
-    sku: settings.product_sku,
+    sku,
     quantity: settings.gift_qty || 1,
     recipient_name: c.recipient_name || c.full_name,
     postal_code: c.postal_code,
@@ -1097,10 +1153,14 @@ publicRouter.get('/context', async (req, res) => {
     if (!c) return res.status(404).json({ error: 'not found' });
     const settings = await getSettings();
     const done = ['address_collected', 'ship_pending', 'shipped'].includes(c.stage);
+    let variations = [];
+    try { variations = await getAvailableVariations(); }
+    catch (e) { console.error('[gifting] variations error:', e.message); }
     res.json({
       candidate: { handle: c.handle, full_name: c.full_name },
       product_name: settings.product_name,
       from_name: settings.from_name,
+      variations,
       already_submitted: done,
       current: done ? {
         recipient_name: c.recipient_name, postal_code: c.postal_code,
@@ -1128,6 +1188,16 @@ publicRouter.post('/address', async (req, res) => {
       return res.status(400).json({ error: 'お名前・郵便番号・住所は必須です' });
     }
 
+    // 選択されたバリエーションSKUを検証（在庫リストに含まれるものだけ採用）
+    let selected_sku = null, selected_variation = null;
+    if (b.sku) {
+      try {
+        const variations = await getAvailableVariations();
+        const match = variations.find((v) => v.sellerSku === b.sku);
+        if (match) { selected_sku = match.sellerSku; selected_variation = match.label; }
+      } catch (e) { console.error('[gifting] variation validate error:', e.message); }
+    }
+
     await sb.from('gifting_candidates').update({
       stage: 'address_collected',
       recipient_name,
@@ -1137,6 +1207,8 @@ publicRouter.post('/address', async (req, res) => {
       city: (b.city || '').trim() || null,
       state_or_region: (b.state_or_region || '').trim() || null,
       country_code: 'JP',
+      selected_sku,
+      selected_variation,
       updated_at: new Date().toISOString(),
     }).eq('id', c.id);
 
