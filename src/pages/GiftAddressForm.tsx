@@ -13,6 +13,7 @@ interface Ctx {
   candidate: { handle: string; full_name: string | null }
   product_name: string
   from_name: string
+  amazon_url: string | null
   variations: Variation[]
   already_submitted: boolean
 }
@@ -112,6 +113,18 @@ export default function GiftAddressForm() {
             {ctx?.candidate?.handle && <span>@{ctx.candidate.handle} 様</span>}
           </p>
         </div>
+
+        {ctx?.amazon_url && (
+          <a
+            href={ctx.amazon_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 w-full mb-4 py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold text-sm transition"
+          >
+            Amazon商品ページを見る
+            <span aria-hidden>↗</span>
+          </a>
+        )}
 
         {done ? (
           <div className="bg-white rounded-2xl p-8 shadow-sm text-center">

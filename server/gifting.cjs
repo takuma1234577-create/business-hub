@@ -896,7 +896,7 @@ router.put('/settings', async (req, res) => {
       'min_followers', 'max_followers', 'min_engagement', 'target_niches', 'target_country', 'platforms',
       'product_sku', 'product_name', 'gift_qty', 'from_name', 'email_subject',
       'gift_message_instructions', 'reply_instructions', 'min_score', 'email_template', 'selection_criteria',
-      'shipping_template', 'product_parent_asin',
+      'shipping_template', 'product_parent_asin', 'amazon_url',
     ];
     const patch = { id: 'default', updated_at: new Date().toISOString() };
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
@@ -1174,6 +1174,7 @@ publicRouter.get('/context', async (req, res) => {
       candidate: { handle: c.handle, full_name: c.full_name },
       product_name: settings.product_name,
       from_name: settings.from_name,
+      amazon_url: settings.amazon_url,
       variations,
       already_submitted: done,
       current: done ? {
