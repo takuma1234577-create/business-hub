@@ -55,6 +55,22 @@ function genToken() {
   return require('crypto').randomBytes(24).toString('base64url');
 }
 
+// 郵便番号から住所（都道府県/市区町村/町域）を引く（zipcloud・無料）
+async function lookupAddress(postal) {
+  try {
+    const axios = require('axios');
+    const zip = String(postal || '').replace(/[^0-9]/g, '');
+    if (zip.length !== 7) return null;
+    const r = await axios.get(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`, { timeout: 6000 });
+    const res = r.data?.results?.[0];
+    if (!res) return null;
+    return { prefecture: res.address1 || '', city: res.address2 || '', town: res.address3 || '' };
+  } catch (e) {
+    console.error('[gifting] lookupAddress error:', e.message);
+    return null;
+  }
+}
+
 // 日本の郵便番号を Amazon が受け付ける "###-####" に整形（全角数字/スペース/ハイフン無しに対応）
 function formatJpPostal(pc) {
   if (!pc) return pc;
@@ -684,6 +700,20 @@ async function submitShipment(shipment) {
   if (shipment.mcf_order_id) throw new Error(`この発送は既にMCF依頼済みです (${shipment.mcf_order_id})`);
 
   const { token, endpoint } = await getAccessToken();
+
+  // 都道府県/市区町村が空なら郵便番号から補完（Amazonは StateOrProvinceCode 必須）
+  let stateOrRegion = shipment.state_or_region;
+  let city = shipment.city;
+  if (!stateOrRegion || !city) {
+    const a = await lookupAddress(shipment.postal_code);
+    if (a) {
+      stateOrRegion = stateOrRegion || a.prefecture;
+      city = city || `${a.city}${a.town || ''}`;
+      await sb.from('gifting_shipments').update({ state_or_region: stateOrRegion || null, city: city || null }).eq('id', shipment.id);
+    }
+  }
+  if (!stateOrRegion) throw new Error('都道府県が特定できませんでした。郵便番号をご確認ください。');
+
   // Amazonの sellerFulfillmentOrderId は最大40文字。UUIDのハイフンを除いて37文字に収める。
   const mcfOrderId = `GIFT-${String(shipment.id).replace(/-/g, '')}`;
   const mcfBody = {
@@ -696,8 +726,8 @@ async function submitShipment(shipment) {
       name: shipment.recipient_name,
       addressLine1: shipment.address_line1,
       addressLine2: shipment.address_line2 || '',
-      city: shipment.city || '',
-      stateOrRegion: shipment.state_or_region || '',
+      city: city || '',
+      stateOrRegion: stateOrRegion || '',
       postalCode: formatJpPostal(shipment.postal_code),
       countryCode: shipment.country_code || 'JP',
     },
@@ -1184,6 +1214,12 @@ publicRouter.get('/context', async (req, res) => {
       } : null,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 郵便番号→住所（フォームの自動入力用）
+publicRouter.get('/postal', async (req, res) => {
+  try { res.json((await lookupAddress(String(req.query.zip || ''))) || {}); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // 住所送信 → 発送準備(pending_approval)まで自動化

@@ -54,10 +54,22 @@ export default function GiftAddressForm() {
 
   useEffect(() => { load() }, [load])
 
+  // 郵便番号が7桁になったら都道府県・市区町村を自動入力
+  const onPostalChange = (v: string) => {
+    setPostalCode(v)
+    const zip = v.replace(/[^0-9]/g, '')
+    if (zip.length === 7) {
+      api.get('/postal', { params: { zip } }).then((r) => {
+        if (r.data?.prefecture) setPrefecture((p) => p || r.data.prefecture)
+        if (r.data?.city || r.data?.town) setCity((c) => c || `${r.data.city || ''}${r.data.town || ''}`)
+      }).catch(() => { /* noop */ })
+    }
+  }
+
   const submit = async () => {
     setErr(null)
-    if (!recipientName.trim() || !postalCode.trim() || !line1.trim()) {
-      setErr('お名前・郵便番号・住所（番地）は必須です')
+    if (!recipientName.trim() || !postalCode.trim() || !line1.trim() || !prefecture.trim()) {
+      setErr('お名前・郵便番号・都道府県・住所（番地）は必須です')
       return
     }
     if (ctx && ctx.variations && ctx.variations.length > 0 && !selectedSku) {
@@ -158,9 +170,9 @@ export default function GiftAddressForm() {
             )}
 
             <Field label="お名前" required value={recipientName} onChange={setRecipientName} placeholder="山田 太郎" />
-            <Field label="郵便番号" required value={postalCode} onChange={setPostalCode} placeholder="150-0001" inputMode="numeric" />
+            <Field label="郵便番号（入力で住所が自動表示）" required value={postalCode} onChange={onPostalChange} placeholder="150-0001" inputMode="numeric" />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="都道府県" value={prefecture} onChange={setPrefecture} placeholder="東京都" />
+              <Field label="都道府県" required value={prefecture} onChange={setPrefecture} placeholder="東京都" />
               <Field label="市区町村" value={city} onChange={setCity} placeholder="渋谷区神宮前" />
             </div>
             <Field label="番地" required value={line1} onChange={setLine1} placeholder="1-2-3" />
