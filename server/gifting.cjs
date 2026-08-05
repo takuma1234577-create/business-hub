@@ -650,6 +650,23 @@ async function getAvailableVariations() {
   return variations;
 }
 
+// 在庫バリエーションをDBにキャッシュ（cronが定期更新。フォームはこれを即読み）
+async function refreshVariationsCache() {
+  _varCacheAt = 0; // 強制リフレッシュ
+  const variations = await getAvailableVariations();
+  await getSupabase().from('gifting_settings')
+    .update({ variations_cache: variations, variations_cached_at: new Date().toISOString() })
+    .eq('id', 'default');
+  return variations;
+}
+
+// フォーム/検証用: まずDBキャッシュ、無ければ都度取得しつつキャッシュに保存
+async function getVariationsFast(settings) {
+  const cached = settings && Array.isArray(settings.variations_cache) ? settings.variations_cache : [];
+  if (cached.length > 0) return cached;
+  try { return await refreshVariationsCache(); } catch (e) { console.error('[gifting] getVariationsFast:', e.message); return []; }
+}
+
 // "ブラック / 60cm / トラディショナル" → "ブラック / 60cm"
 function cleanVariationLabel(label) {
   if (!label) return label;
@@ -904,6 +921,9 @@ async function runPipeline(settings) {
 
   // 発送済みの追跡番号を取得し、取れたら発送通知DMを自動作成
   try { out.tracking = await refreshTracking(); } catch (e) { out.tracking = { error: e.message }; }
+
+  // 在庫バリエーションのキャッシュを更新（フォームの高速表示用）
+  try { await refreshVariationsCache(); } catch (e) { /* noop */ }
 
   return out;
 }
@@ -1197,9 +1217,7 @@ publicRouter.get('/context', async (req, res) => {
     if (!c) return res.status(404).json({ error: 'not found' });
     const settings = await getSettings();
     const done = ['address_collected', 'ship_pending', 'shipped'].includes(c.stage);
-    let variations = [];
-    try { variations = await getAvailableVariations(); }
-    catch (e) { console.error('[gifting] variations error:', e.message); }
+    const variations = await getVariationsFast(settings);
     res.json({
       candidate: { handle: c.handle, full_name: c.full_name },
       product_name: settings.product_name,
@@ -1243,7 +1261,7 @@ publicRouter.post('/address', async (req, res) => {
     let selected_sku = null, selected_variation = null;
     if (b.sku) {
       try {
-        const variations = await getAvailableVariations();
+        const variations = await getVariationsFast(await getSettings());
         const match = variations.find((v) => v.sellerSku === b.sku);
         if (match) { selected_sku = match.sellerSku; selected_variation = match.label; }
       } catch (e) { console.error('[gifting] variation validate error:', e.message); }

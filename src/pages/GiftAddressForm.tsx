@@ -27,6 +27,7 @@ export default function GiftAddressForm() {
   const [ctx, setCtx] = useState<Ctx | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -41,13 +42,17 @@ export default function GiftAddressForm() {
 
   const load = useCallback(async () => {
     if (!token) { setNotFound(true); setLoading(false); return }
+    setLoading(true)
+    setLoadError(false)
     try {
-      const r = await api.get('/context', { params: { t: token } })
+      const r = await api.get('/context', { params: { t: token }, timeout: 25000 })
       setCtx(r.data)
       if (r.data.candidate?.full_name) setRecipientName(r.data.candidate.full_name)
       if (r.data.already_submitted) setDone(true)
-    } catch {
-      setNotFound(true)
+    } catch (e) {
+      const ax = e as { response?: { status?: number } }
+      if (ax.response?.status === 404) setNotFound(true)
+      else setLoadError(true) // タイムアウト等はリンク無効ではなく読み込み失敗として扱う
     }
     setLoading(false)
   }, [token])
@@ -100,6 +105,18 @@ export default function GiftAddressForm() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-gray-800">読み込みに失敗しました</p>
+          <p className="text-sm text-gray-500 mt-2">通信状況によることがあります。もう一度お試しください。</p>
+          <button onClick={load} className="mt-4 px-5 py-2.5 rounded-xl bg-pink-500 text-white font-semibold text-sm hover:bg-pink-600">再読み込み</button>
+        </div>
       </div>
     )
   }

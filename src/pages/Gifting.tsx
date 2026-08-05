@@ -510,9 +510,14 @@ export default function Gifting() {
                       {s.mcf_order_id && <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">MCF: {s.mcf_order_id}</p>}
                       {s.error && <p className="text-xs text-red-500 mt-0.5">{s.error}</p>}
                     </div>
-                    {s.status === 'pending_approval' && (
-                      <button disabled={busyId === s.id} onClick={() => approveShip(s)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-cyan-500 text-white hover:bg-cyan-600 disabled:opacity-50"><Package size={13} /> 承認して発送</button>
-                    )}
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      {c?.handle && (
+                        <a href={`https://www.instagram.com/${c.handle}/`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-md border border-pink-300 text-pink-600 hover:bg-pink-50 dark:border-pink-800 dark:text-pink-400 dark:hover:bg-pink-950"><MessageCircle size={13} /> プロフィール確認 <ExternalLink size={11} /></a>
+                      )}
+                      {s.status === 'pending_approval' && (
+                        <button disabled={busyId === s.id} onClick={() => approveShip(s)} className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-md bg-cyan-500 text-white hover:bg-cyan-600 disabled:opacity-50"><Package size={13} /> 承認して発送</button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
