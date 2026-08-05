@@ -3660,18 +3660,25 @@ async function processWebhookEvents(channelId, events) {
 
           if (friend) {
             let contentData = { source: 'line_webhook', type: msgType };
+            if (msgType === 'file' && event.message.fileName) {
+              contentData.fileName = event.message.fileName;
+            }
 
-            // 画像・動画: LINE Content APIからダウンロードしてSupabase Storageに保存
-            if ((msgType === 'image' || msgType === 'video') && event.message.id) {
+            // 画像・動画・ファイル(PDF等)・音声: LINE Content APIからダウンロードしてSupabase Storageに保存
+            if ((msgType === 'image' || msgType === 'video' || msgType === 'file' || msgType === 'audio') && event.message.id) {
               try {
                 const { accessToken: token } = await getLineCredentials(channelId);
                 const contentRes = await axios.get(
                   `https://api-data.line.me/v2/bot/message/${event.message.id}/content`,
                   { headers: { Authorization: `Bearer ${token}` }, responseType: 'arraybuffer' }
                 );
-                const ext = msgType === 'video' ? 'mp4' : 'jpg';
+                const extFromFileName = msgType === 'file' && event.message.fileName
+                  ? (event.message.fileName.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+                  : '';
+                const ext = extFromFileName || (msgType === 'video' ? 'mp4' : msgType === 'audio' ? 'm4a' : msgType === 'file' ? 'bin' : 'jpg');
                 const fileName = `line-media/${friend.id}/${Date.now()}.${ext}`;
-                const contentType = contentRes.headers['content-type'] || (msgType === 'video' ? 'video/mp4' : 'image/jpeg');
+                const defaultContentType = msgType === 'video' ? 'video/mp4' : msgType === 'audio' ? 'audio/m4a' : msgType === 'file' ? 'application/octet-stream' : 'image/jpeg';
+                const contentType = contentRes.headers['content-type'] || defaultContentType;
 
                 const { error: uploadErr } = await supabase.storage
                   .from('chat-media')

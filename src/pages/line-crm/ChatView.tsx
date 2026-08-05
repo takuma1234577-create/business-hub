@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck, Settings } from 'lucide-react'
+import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck, Settings, FileText, Music, Download } from 'lucide-react'
 import { chatApi } from './api'
 import type { Friend, ChatMessage } from './types'
 
@@ -284,6 +284,45 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             動画
+          </div>
+        )
+      }
+      // ファイル(PDF等)
+      if (obj.type === 'file' || msg.message_type === 'file') {
+        const fileUrl = (obj.url || obj.originalContentUrl || '') as string
+        const fileLabel = (obj.fileName as string) || 'ファイル'
+        if (fileUrl) {
+          return (
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={fileLabel}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors max-w-[240px]"
+            >
+              <FileText size={18} className="shrink-0" />
+              <span className="truncate flex-1">{fileLabel}</span>
+              <Download size={14} className="shrink-0" />
+            </a>
+          )
+        }
+        return (
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500">
+            <FileText size={18} />
+            {fileLabel}
+          </div>
+        )
+      }
+      // 音声
+      if (obj.type === 'audio' || msg.message_type === 'audio') {
+        const audioUrl = (obj.url || obj.originalContentUrl || '') as string
+        if (audioUrl) {
+          return <audio src={audioUrl} controls className="max-w-[240px]" />
+        }
+        return (
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500">
+            <Music size={18} />
+            音声
           </div>
         )
       }
