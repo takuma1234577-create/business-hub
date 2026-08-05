@@ -245,9 +245,12 @@ async function verifyReviewOrderFromImage({ channelId, friendId, lineUserId, ima
   }
 
   // 注文完了画面でない / 確度が低い
+  // Amazonの注文とは無関係な画像（レビュー投稿フォームのスクショ等）である可能性が高く、
+  // 「注文完了画面ではない」ことをもって注文確認の再送を促す自動返信を送ると誤爆になるため、
+  // このケースはログのみ記録し、自動返信はしない。
   if (!extracted.is_order_screen || (typeof extracted.confidence === 'number' && extracted.confidence < 0.4)) {
     await logResult({ ...record, status: 'not_order', reason: '注文完了画面と判定できず', extracted, order_data: null, order_number: null });
-    return decide('not_order', '注文完了画面ではない', config, DEFAULTS.resend, extracted);
+    return { status: 'not_order', reason: '注文完了画面ではない', replyText: null, autoReply: false, applyTagId: null, extracted };
   }
 
   const orderNumber = normalizeOrderNumber(extracted.order_number);
