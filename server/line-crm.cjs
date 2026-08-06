@@ -5,6 +5,7 @@ const { getSupabase, getLineCredentials, DEFAULT_CHANNEL_ID } = require('./share
 const { notifyEmailAboutLine } = require('./cross-channel-notify.cjs');
 const { registerUserByEmail, getLinkedOrders, generateAutoLoginUrl } = require('./shopify-line.cjs');
 const { updateFriendChatSummary } = require('./fitpeak-rag.cjs');
+const { generateTagReplyAI } = require('./tag-reply-ai.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const router = express.Router();
 
@@ -1014,13 +1015,18 @@ router.get('/tag-scheduled-replies', async (req, res) => {
 
 router.post('/tag-scheduled-replies', async (req, res) => {
   try {
-    const { tag_id, delay_hours, response_messages, name, channel_id: channelId } = req.body;
+    const { tag_id, delay_hours, response_messages, name, reply_mode, ai_knowledge, channel_id: channelId } = req.body;
     if (!tag_id || !delay_hours || !response_messages) {
       return res.status(400).json({ error: 'tag_id, delay_hours, response_messages are required' });
     }
     const { data, error } = await supabase
       .from('tag_scheduled_replies')
-      .insert({ tag_id, delay_hours, response_messages, name: name || '', is_active: true, channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID })
+      .insert({
+        tag_id, delay_hours, response_messages, name: name || '', is_active: true,
+        reply_mode: reply_mode === 'ai' ? 'ai' : 'manual',
+        ai_knowledge: ai_knowledge || null,
+        channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
+      })
       .select()
       .single();
     if (error) return res.status(500).json({ error: error.message });
@@ -3936,6 +3942,61 @@ async function processWebhookEvents(channelId, events) {
       console.error('[line-webhook] auto_responses check error:', err.message);
       // マッチしたルールがあればAI返信に流さない
       if (matched) continue;
+    }
+
+    // タグ遅延配信への返信チェック: 直前の送信がタグ遅延配信メッセージの場合、
+    // そのルールの reply_mode に従う（ai: ルール専用ナレッジのみで返信 / manual: 自動返信せず担当者対応に任せる）。
+    // どちらの場合も、ここでcontinueして下の一般的なAI即時返信（FITPEAK AI等）には流さない。
+    try {
+      const { data: friendForTagReply } = await supabase
+        .from('friends')
+        .select('id')
+        .eq('line_user_id', lineUserId)
+        .eq('channel_id', channelId)
+        .maybeSingle();
+      if (friendForTagReply) {
+        const { data: lastOutgoing } = await supabase
+          .from('chat_messages')
+          .select('content')
+          .eq('friend_id', friendForTagReply.id)
+          .eq('direction', 'outgoing')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const lastRuleId = lastOutgoing?.[0]?.content?.source === 'tag_scheduled_reply'
+          ? lastOutgoing[0].content.rule_id
+          : null;
+        if (lastRuleId) {
+          const { data: rule } = await supabase
+            .from('tag_scheduled_replies')
+            .select('id, name, reply_mode, ai_knowledge')
+            .eq('id', lastRuleId)
+            .maybeSingle();
+          if (rule && rule.reply_mode === 'ai') {
+            const { reply } = await generateTagReplyAI(userMessage, {
+              knowledge: rule.ai_knowledge,
+              ruleName: rule.name,
+              lineUserId,
+            });
+            await replyToLine(channelId, event.replyToken, reply);
+            await supabase.from('chat_messages').insert({
+              channel_id: channelId,
+              friend_id: friendForTagReply.id,
+              direction: 'outgoing',
+              message_type: 'text',
+              content: { text: reply, source: 'tag_scheduled_ai_reply', rule_id: lastRuleId },
+            });
+            logWebhookMessage(channelId, event, userMessage, null);
+            continue;
+          }
+          if (rule) {
+            // manual: 自動では何もしない（担当者が手動で返信する）
+            logWebhookMessage(channelId, event, userMessage, null);
+            continue;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[line-webhook] tag_scheduled_reply check error:', err.message);
     }
 
     // メールアドレスの登録チェック

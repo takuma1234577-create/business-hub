@@ -11,6 +11,8 @@ interface TagScheduledReply {
   delay_hours: number
   response_messages: Array<{ type: string; text?: string } & Record<string, unknown>>
   is_active: boolean
+  reply_mode: 'manual' | 'ai'
+  ai_knowledge: string | null
   created_at: string
   tags?: { id: string; name: string; color: string }
 }
@@ -56,6 +58,8 @@ type FormData = {
   response_text: string
   template_id: string
   is_active: boolean
+  reply_mode: 'manual' | 'ai'
+  ai_knowledge: string
 }
 
 const emptyForm: FormData = {
@@ -66,6 +70,8 @@ const emptyForm: FormData = {
   response_text: '',
   template_id: '',
   is_active: true,
+  reply_mode: 'manual',
+  ai_knowledge: '',
 }
 
 export default function TagScheduledReplies() {
@@ -132,6 +138,8 @@ export default function TagScheduledReplies() {
       response_text: textParts,
       template_id: '',
       is_active: rule.is_active,
+      reply_mode: rule.reply_mode || 'manual',
+      ai_knowledge: rule.ai_knowledge || '',
     })
     setEditingId(rule.id)
     setShowForm(true)
@@ -158,12 +166,19 @@ export default function TagScheduledReplies() {
 
     if (response_messages.length === 0) return
 
+    if (form.reply_mode === 'ai' && !form.ai_knowledge.trim()) {
+      alert('AIに返信させる場合は、根拠となるナレッジベース/配信意図を入力してください')
+      return
+    }
+
     const payload = {
       name: form.name,
       tag_id: form.tag_id,
       delay_hours: totalHours,
       response_messages,
       is_active: form.is_active,
+      reply_mode: form.reply_mode,
+      ai_knowledge: form.reply_mode === 'ai' ? form.ai_knowledge.trim() : null,
     }
 
     try {
@@ -279,6 +294,11 @@ export default function TagScheduledReplies() {
                       <span className="text-xs text-slate-500 flex items-center gap-1">
                         <Clock size={12} />
                         {Math.round(rule.delay_hours / 24)}日後に送信
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        rule.reply_mode === 'ai' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
+                      }`}>
+                        返信: {rule.reply_mode === 'ai' ? 'AI' : '手動'}
                       </span>
                     </div>
                     {rule.name && (
@@ -508,6 +528,45 @@ export default function TagScheduledReplies() {
                         <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
+                  </div>
+                )}
+              </div>
+
+              {/* このメッセージへの返信対応 */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">このメッセージへお客様が返信した場合</label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => setForm(f => ({ ...f, reply_mode: 'manual' }))}
+                    className={`px-3 py-1.5 text-xs rounded-lg cursor-pointer ${
+                      form.reply_mode === 'manual' ? 'bg-[#06C755] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    自分で返信する
+                  </button>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, reply_mode: 'ai' }))}
+                    className={`px-3 py-1.5 text-xs rounded-lg cursor-pointer ${
+                      form.reply_mode === 'ai' ? 'bg-[#06C755] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    AIに返信させる
+                  </button>
+                </div>
+                {form.reply_mode === 'manual' ? (
+                  <p className="text-xs text-slate-400">自動では返信しません。チャット画面から手動で返信してください。</p>
+                ) : (
+                  <div>
+                    <textarea
+                      value={form.ai_knowledge}
+                      onChange={e => setForm(f => ({ ...f, ai_knowledge: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm resize-none"
+                      rows={5}
+                      placeholder={"この配信の目的や、想定されるお客様からの質問と回答をできるだけ具体的に書いてください。\n例:\nこの配信は商品到着3日後に使い心地を尋ねるもの。\n「使い方が分からない」→ 商品ページの使い方動画（URL）を案内する。\n「壊れた/不良品だった」→ ここには回答を書かず、担当者に確認してもらう。"}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                      AIはここに書いた内容だけを根拠に返信します。書かれていない質問には答えず「担当者が確認します」と返信して人に引き継ぎます。
+                    </p>
                   </div>
                 )}
               </div>
