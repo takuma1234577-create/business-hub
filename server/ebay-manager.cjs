@@ -127,12 +127,24 @@ function calcProfit(s, priceUsd, costJpy, category, kg) {
   return { profit_jpy: Math.round(profit), margin_pct: Math.round(margin * 10) / 10, revenue_jpy: Math.round(revenue) };
 }
 
+/**
+ * 判定。ロングテール戦略（ニッチを数千点出して、たまに大きく取る）に合わせている。
+ *
+ * 合格ライン(○)は「利益率20% **または** 粗利5,000円」。ANDにすると、
+ * 単価が低いが利益率の高い商品と、利益率は並だが1件で大きい商品の
+ * どちらも落ちてしまい、ロングテールの母数が作れない。
+ *
+ * Sold件数の下限は10件ではなく1件。ニッチは90日で1〜4件しか売れないのが
+ * 普通で、10件を要求すると競合過密な人気型番しか残らない。そこは日本人
+ * セラーの裁定で価格差が既に潰れている（実測で確認済み）。
+ * ただし0件＝海外需要が確認できていないので候補にしない。
+ */
 function verdictOf(margin, profit, soldCount) {
-  if (soldCount != null && soldCount < 10) return '✕';
-  if (margin >= 20 && profit >= 5000) return '◎';
-  if (margin >= 15) return '○';
-  if (profit > 0) return '△';
-  return '✕';
+  if (soldCount != null && soldCount < 1) return '✕';
+  if (profit <= 0) return '✕';
+  if (margin >= 20 && profit >= 5000) return '◎';   // 両方満たす
+  if (margin >= 20 || profit >= 5000) return '○';   // 合格ライン
+  return '△';
 }
 
 // ── 仕入先スクレイパー ──────────────────────────────────
