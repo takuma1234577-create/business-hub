@@ -616,6 +616,73 @@ async function scrapeSource(source, keyword, excludeWords, includeWords) {
   }
 }
 
+// ── eBay API 認証 ───────────────────────────────────────
+/**
+ * eBayのアクセストークンを取得する。
+ *
+ * EBAY_CLIENT_ID / EBAY_CLIENT_SECRET / EBAY_REFRESH_TOKEN があれば
+ * リフレッシュトークンから発行する（推奨。ユーザートークンは2時間で切れるため）。
+ * 暫定で EBAY_OAUTH_TOKEN を直接置いてもよい。
+ */
+let ebayTokenCache = { token: null, expiresAt: 0 };
+
+async function getEbayToken() {
+  if (ebayTokenCache.token && Date.now() < ebayTokenCache.expiresAt - 60_000) {
+    return ebayTokenCache.token;
+  }
+  const { EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_REFRESH_TOKEN, EBAY_OAUTH_TOKEN } = process.env;
+
+  if (EBAY_CLIENT_ID && EBAY_CLIENT_SECRET && EBAY_REFRESH_TOKEN) {
+    const basic = Buffer.from(`${EBAY_CLIENT_ID}:${EBAY_CLIENT_SECRET}`).toString('base64');
+    const res = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: EBAY_REFRESH_TOKEN,
+        scope: [
+          'https://api.ebay.com/oauth/api_scope/sell.inventory',
+          'https://api.ebay.com/oauth/api_scope/sell.account',
+        ].join(' '),
+      }).toString(),
+    });
+    if (!res.ok) throw new Error(`eBayトークン取得失敗 HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const j = await res.json();
+    ebayTokenCache = { token: j.access_token, expiresAt: Date.now() + j.expires_in * 1000 };
+    return j.access_token;
+  }
+  if (EBAY_OAUTH_TOKEN) return EBAY_OAUTH_TOKEN;
+  return null;
+}
+
+/** Sell API を叩く共通処理 */
+async function ebayApi(method, path, body, extraHeaders = {}) {
+  const token = await getEbayToken();
+  if (!token) throw new Error('eBayの認証情報が未設定です（EBAY_CLIENT_ID / EBAY_CLIENT_SECRET / EBAY_REFRESH_TOKEN）');
+  const res = await fetch(`https://api.ebay.com${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Content-Language': 'en-US',
+      Accept: 'application/json',
+      ...extraHeaders,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { /* 204などは本文なし */ }
+  if (!res.ok) {
+    const msg = json?.errors?.map((e) => `${e.errorId}: ${e.message}${e.parameters ? ' (' + e.parameters.map(p => p.value).join(',') + ')' : ''}`).join(' / ')
+      || text.slice(0, 300) || `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
 // ── eBay出品の取り下げ ──────────────────────────────────
 /**
  * EBAY_OAUTH_TOKEN があれば実際にeBayの出品を終了する。
@@ -1301,6 +1368,158 @@ router.post('/watch/:id/refresh', async (req, res) => {
     const { data: item } = await sb.from('ebay_profit_watch').select('*').eq('id', req.params.id).single();
     if (!item) return res.status(404).json({ error: 'not found' });
     res.json(await refreshWatchItem(item, settings));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// eBay 下書き作成（未公開オファーまで）
+// ══════════════════════════════════════════════════════
+
+/**
+ * Sell Inventory API の流れ:
+ *   1. createOrReplaceInventoryItem … SKUと商品情報を登録（この時点では出品ではない）
+ *   2. createOffer                  … 価格・カテゴリ・ポリシーを付けたオファーを作る（未公開＝下書き）
+ *   3. publishOffer                 … 公開して実際の出品になる
+ *
+ * このモジュールは 1 と 2 までしか行わない。**publishOffer は絶対に呼ばない。**
+ * 未公開オファーはバイヤーからは見えず、Seller Hubの下書きとして残る。
+ * 公開は人がSeller Hubの「出品する」を押して行う。
+ */
+
+/** アカウントの取引ポリシーと在庫ロケーションを取得（設定画面で選ぶため） */
+router.get('/account/policies', async (_req, res) => {
+  try {
+    const settings = await getSettings();
+    const mkt = settings.ebay_marketplace_id || 'EBAY_US';
+    const [pay, ful, ret, loc] = await Promise.all([
+      ebayApi('GET', `/sell/account/v1/payment_policy?marketplace_id=${mkt}`).catch((e) => ({ error: e.message })),
+      ebayApi('GET', `/sell/account/v1/fulfillment_policy?marketplace_id=${mkt}`).catch((e) => ({ error: e.message })),
+      ebayApi('GET', `/sell/account/v1/return_policy?marketplace_id=${mkt}`).catch((e) => ({ error: e.message })),
+      ebayApi('GET', '/sell/inventory/v1/location?limit=50').catch((e) => ({ error: e.message })),
+    ]);
+    res.json({
+      marketplace_id: mkt,
+      payment: pay.paymentPolicies?.map((p) => ({ id: p.paymentPolicyId, name: p.name })) ?? pay,
+      fulfillment: ful.fulfillmentPolicies?.map((p) => ({ id: p.fulfillmentPolicyId, name: p.name })) ?? ful,
+      return: ret.returnPolicies?.map((p) => ({ id: p.returnPolicyId, name: p.name })) ?? ret,
+      locations: loc.locations?.map((l) => ({ key: l.merchantLocationKey, name: l.name })) ?? loc,
+      current: {
+        payment: settings.ebay_payment_policy_id,
+        fulfillment: settings.ebay_fulfillment_policy_id,
+        return: settings.ebay_return_policy_id,
+        location: settings.ebay_location_key,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** 下書き作成の事前チェック。足りないものを全部返す */
+function draftPreflight(listing, settings) {
+  const missing = [];
+  if (!listing.sku) missing.push('SKU');
+  if (!listing.title_en) missing.push('英語タイトル');
+  if (!listing.ebay_category_id) missing.push('eBayカテゴリID');
+  if (!listing.price_usd) missing.push('売価');
+  if (!listing.image_urls) missing.push('画像URL（自社撮影分。仕入先写真の転載は不可）');
+  if (!settings.ebay_payment_policy_id) missing.push('支払いポリシーID（設定）');
+  if (!settings.ebay_fulfillment_policy_id) missing.push('配送ポリシーID（設定）');
+  if (!settings.ebay_return_policy_id) missing.push('返品ポリシーID（設定）');
+  if (!settings.ebay_location_key) missing.push('在庫ロケーション（設定）');
+  return missing;
+}
+
+/**
+ * POST /listings/:id/draft
+ * eBayに未公開オファー（下書き）を作る。公開はしない。
+ */
+router.post('/listings/:id/draft', async (req, res) => {
+  const sb = getSupabase();
+  try {
+    const settings = await getSettings();
+    const { data: listing } = await sb.from('ebay_listings').select('*').eq('id', req.params.id).single();
+    if (!listing) return res.status(404).json({ error: 'not found' });
+
+    const missing = draftPreflight(listing, settings);
+    if (missing.length) {
+      return res.status(400).json({ error: '下書きを作る前に足りない項目があります', missing });
+    }
+
+    const mkt = settings.ebay_marketplace_id || 'EBAY_US';
+    const images = String(listing.image_urls).split(',').map((u) => u.trim()).filter(Boolean);
+
+    // 1) インベントリアイテム（この時点では出品ではない）
+    await ebayApi('PUT', `/sell/inventory/v1/inventory_item/${encodeURIComponent(listing.sku)}`, {
+      availability: { shipToLocationAvailability: { quantity: 1 } },
+      condition: 'USED_EXCELLENT',
+      product: {
+        title: String(listing.title_en).slice(0, 80),
+        description: listing.description_en || listing.title_en,
+        imageUrls: images,
+        aspects: { 'Country/Region of Manufacture': ['Japan'] },
+      },
+      packageWeightAndSize: {
+        weight: { value: Number(listing.weight_kg) || 0.5, unit: 'KILOGRAM' },
+      },
+    });
+
+    // 2) オファー（未公開＝下書き）
+    const offerBody = {
+      sku: listing.sku,
+      marketplaceId: mkt,
+      format: 'FIXED_PRICE',
+      availableQuantity: 1,
+      categoryId: String(listing.ebay_category_id),
+      listingDescription: listing.description_en || listing.title_en,
+      listingPolicies: {
+        paymentPolicyId: settings.ebay_payment_policy_id,
+        fulfillmentPolicyId: settings.ebay_fulfillment_policy_id,
+        returnPolicyId: settings.ebay_return_policy_id,
+      },
+      pricingSummary: { price: { value: String(Number(listing.price_usd).toFixed(2)), currency: 'USD' } },
+      merchantLocationKey: settings.ebay_location_key,
+    };
+
+    let offerId = listing.ebay_offer_id;
+    if (offerId) {
+      await ebayApi('PUT', `/sell/inventory/v1/offer/${offerId}`, offerBody);
+    } else {
+      const created = await ebayApi('POST', '/sell/inventory/v1/offer', offerBody);
+      offerId = created?.offerId;
+    }
+
+    await sb.from('ebay_listings').update({
+      ebay_offer_id: offerId,
+      draft_created_at: new Date().toISOString(),
+      draft_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', listing.id);
+
+    res.json({
+      ok: true,
+      offer_id: offerId,
+      published: false,
+      note: '未公開の下書きを作成しました。公開はSeller Hubから人が行ってください（このツールはpublishOfferを呼びません）',
+      seller_hub_url: 'https://www.ebay.com/sh/lst/drafts',
+    });
+  } catch (e) {
+    await sb.from('ebay_listings').update({ draft_error: e.message }).eq('id', req.params.id);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** 下書き作成前の事前チェックだけ行う */
+router.get('/listings/:id/draft/preflight', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const settings = await getSettings();
+    const { data: listing } = await sb.from('ebay_listings').select('*').eq('id', req.params.id).single();
+    if (!listing) return res.status(404).json({ error: 'not found' });
+    const missing = draftPreflight(listing, settings);
+    res.json({ ready: missing.length === 0, missing });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
