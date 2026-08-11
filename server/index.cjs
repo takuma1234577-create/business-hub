@@ -96,6 +96,7 @@ const fitpeakSnsRoutes = require(path.join(__dirname, 'fitpeak-sns.cjs'));
 const salesAgentRoutes = require(path.join(__dirname, 'sales-agent.cjs'));
 const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verify.cjs'));
 const giftingRoutes = require(path.join(__dirname, 'gifting.cjs'));
+const ebayManagerRoutes = require(path.join(__dirname, 'ebay-manager.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -124,6 +125,7 @@ app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
 app.use('/api/sales-agent', salesAgentRoutes);
 app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
+app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/review-submission', reviewSubmissionModule);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
@@ -178,6 +180,9 @@ app.get('/api/daily-cron', async (req, res) => {
     salesAgent:          '/api/sales-agent/cron',
     // ギフティング: 返信チェック→住所収集→発送準備。研究/送信/発送の自動度は設定に従う（既定は承認制）
     gifting:             '/api/gifting/cron',
+    // eBay無在庫: 仕入先の在庫追従（消えたら即取り下げ）と利益ウォッチ。cronは10分間隔
+    ebayStockCheck:      '/api/ebay/cron/stock-check',
+    ebayProfitWatch:     '/api/ebay/cron/profit-watch',
     dailyBackup:         '/api/backup/run',
   };
 

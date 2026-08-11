@@ -9,6 +9,7 @@ import {
   Star,
   Gift,
   ShieldCheck,
+  Globe,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -83,6 +84,16 @@ const tools: Tool[] = [
       { label: '審査ルール設定', path: '/return-settings' },
       { label: '審査ログ一覧', path: '/return-logs' },
     ],
+  },
+  {
+    id: 'ebay-manager',
+    name: 'eBay 無在庫管理',
+    description: '仕入先（ヤフオク/メルカリ/駿河屋）を10分ごとに巡回。在庫が消えた出品を自動で取り下げ、受注の仕入進捗と利益候補をリアルタイム監視。',
+    icon: <Globe size={28} />,
+    path: '/ebay',
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bgColor: 'bg-cyan-50 dark:bg-cyan-950/50',
+    status: 'active',
   },
   {
     id: 'gifting',

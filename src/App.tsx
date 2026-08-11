@@ -12,6 +12,7 @@ import MyFitpeak from './pages/MyFitpeak'
 import AmazonAnalytics from './pages/AmazonAnalytics'
 import ShopifyReviews from './pages/ShopifyReviews'
 import Gifting from './pages/Gifting'
+import EbayManager from './pages/EbayManager'
 import ReviewForm from './pages/ReviewForm'
 import GiftAddressForm from './pages/GiftAddressForm'
 import Login from './pages/Login'
@@ -86,6 +87,7 @@ function App() {
       <Route path="/amazon-analytics/*" element={<AmazonAnalytics />} />
       <Route path="/shopify-reviews" element={<ShopifyReviews />} />
       <Route path="/gifting" element={<Gifting />} />
+      <Route path="/ebay" element={<EbayManager />} />
     </Routes>
   )
 }

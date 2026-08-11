@@ -1,0 +1,683 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft, RefreshCw, AlertTriangle, Package, ShoppingCart,
+  TrendingUp, Settings as SettingsIcon, Save, Play, StopCircle,
+  RotateCcw, ExternalLink, Clock,
+} from 'lucide-react'
+
+// ── 型 ──────────────────────────────────────────────────
+interface Source {
+  id: string
+  listing_id: string
+  source: 'yahoo' | 'mercari' | 'suruga' | 'kitamura'
+  search_keyword: string
+  exclude_words: string | null
+  last_price_jpy: number | null
+  last_count: number | null
+  last_available: boolean
+  last_checked_at: string | null
+  last_error: string | null
+  enabled: boolean
+}
+
+interface Listing {
+  id: string
+  ebay_item_id: string | null
+  sku: string | null
+  kataban: string
+  title_en: string
+  category: string
+  price_usd: number
+  weight_kg: number
+  cost_basis_jpy: number | null
+  status: 'draft' | 'active' | 'paused' | 'end_recommended' | 'ended'
+  last_margin_pct: number | null
+  last_min_price_jpy: number | null
+  last_checked_at: string | null
+  alert: string | null
+  sources?: Source[]
+}
+
+interface Order {
+  id: string
+  ebay_order_id: string | null
+  kataban: string | null
+  title_en: string | null
+  sold_price_usd: number | null
+  sold_at: string | null
+  ship_by: string | null
+  procurement_status: 'pending' | 'ordered' | 'received' | 'shipped' | 'cancelled'
+  procurement_cost_jpy: number | null
+  tracking_no: string | null
+}
+
+interface Watch {
+  id: string
+  kataban: string
+  keyword_ja: string
+  keyword_en: string
+  category: string
+  weight_kg: number
+  ebay_sold_median_jpy: number | null
+  ebay_sold_count: number | null
+  best_source: string | null
+  best_price_jpy: number | null
+  yahoo_price_jpy: number | null
+  mercari_price_jpy: number | null
+  suruga_price_jpy: number | null
+  supply_count: number | null
+  profit_jpy: number | null
+  margin_pct: number | null
+  median_price_jpy: number | null
+  profit_median_jpy: number | null
+  margin_median_pct: number | null
+  verdict: string | null
+  enabled: boolean
+  last_checked_at: string | null
+}
+
+interface Stats {
+  listings: { total: number; active: number; end_recommended: number; ended: number; draft: number }
+  orders: { total: number; pending: number; overdue: number }
+  watch: { total: number; good: number }
+  settings: { enabled: boolean; auto_end_listing: boolean; last_run_at: string | null }
+  ebay_api_connected: boolean
+}
+
+const SOURCE_LABEL: Record<string, string> = { yahoo: 'ヤフオク', mercari: 'メルカリ', suruga: '駿河屋', kitamura: 'キタムラ' }
+
+const jpy = (n: number | null | undefined) => (n == null ? '—' : `¥${n.toLocaleString()}`)
+const ago = (iso: string | null) => {
+  if (!iso) return '未チェック'
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return 'たった今'
+  if (min < 60) return `${min}分前`
+  const h = Math.round(min / 60)
+  if (h < 24) return `${h}時間前`
+  return `${Math.round(h / 24)}日前`
+}
+
+export default function EbayManager() {
+  const navigate = useNavigate()
+  const [tab, setTab] = useState<'stock' | 'orders' | 'watch' | 'settings'>('stock')
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [listings, setListings] = useState<Listing[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [watch, setWatch] = useState<Watch[]>([])
+  const [settings, setSettings] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [s, l, o, w, cfg] = await Promise.all([
+        fetch('/api/ebay/stats').then((r) => r.json()),
+        fetch('/api/ebay/listings').then((r) => r.json()),
+        fetch('/api/ebay/orders').then((r) => r.json()),
+        fetch('/api/ebay/watch').then((r) => r.json()),
+        fetch('/api/ebay/settings').then((r) => r.json()),
+      ])
+      setStats(s)
+      setListings(Array.isArray(l) ? l : [])
+      setOrders(Array.isArray(o) ? o : [])
+      setWatch(Array.isArray(w) ? w : [])
+      setSettings(cfg)
+    } catch (e) {
+      setMsg(`読み込みに失敗しました: ${(e as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    // 10分巡回に合わせて画面も自動更新
+    const t = setInterval(load, 120000)
+    return () => clearInterval(t)
+  }, [load])
+
+  const checkOne = async (id: string) => {
+    setBusyId(id)
+    try {
+      const r = await fetch(`/api/ebay/listings/${id}/check`, { method: 'POST' }).then((x) => x.json())
+      setMsg(r.reason ? `${r.action}: ${r.reason}` : '在庫あり・利益条件クリア')
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const endOne = async (id: string) => {
+    if (!confirm('この出品をeBayから取り下げます。よろしいですか？')) return
+    setBusyId(id)
+    try {
+      const r = await fetch(`/api/ebay/listings/${id}/end`, { method: 'POST' }).then((x) => x.json())
+      setMsg(r.ended ? 'eBayの出品を終了しました' : `eBay API未接続のため手動で終了してください（${r.reason}）`)
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const resumeOne = async (id: string) => {
+    setBusyId(id)
+    try {
+      await fetch(`/api/ebay/listings/${id}/resume`, { method: 'POST' })
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const refreshWatch = async (id: string) => {
+    setBusyId(id)
+    try {
+      await fetch(`/api/ebay/watch/${id}/refresh`, { method: 'POST' })
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const saveSettings = async () => {
+    if (!settings) return
+    setLoading(true)
+    try {
+      await fetch('/api/ebay/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      })
+      setMsg('設定を保存しました')
+      await load()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateOrder = async (id: string, patch: Partial<Order>) => {
+    await fetch(`/api/ebay/orders/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    await load()
+  }
+
+  const alerts = listings.filter((l) => l.status === 'end_recommended')
+  const today = new Date().toISOString().slice(0, 10)
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* ヘッダ */}
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">eBay 無在庫管理</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              japan_hikari_store / 仕入先を10分ごとに巡回し、在庫が消えた出品を自動で落とします
+            </p>
+          </div>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            更新
+          </button>
+        </div>
+
+        {msg && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200 text-sm flex justify-between">
+            <span>{msg}</span>
+            <button onClick={() => setMsg(null)}>×</button>
+          </div>
+        )}
+
+        {/* 最優先アラート */}
+        {alerts.length > 0 && (
+          <div className="mb-6 rounded-xl border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4">
+            <div className="flex items-center gap-2 mb-3 text-red-800 dark:text-red-200 font-semibold">
+              <AlertTriangle size={18} />
+              今すぐ取り下げが必要な出品 {alerts.length}件
+            </div>
+            <div className="space-y-2">
+              {alerts.map((l) => (
+                <div key={l.id} className="flex items-center gap-3 text-sm bg-white dark:bg-gray-900 rounded-lg px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{l.kataban}</div>
+                    <div className="text-red-600 dark:text-red-400 text-xs">{l.alert}</div>
+                  </div>
+                  <button
+                    onClick={() => endOne(l.id)}
+                    disabled={busyId === l.id}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs disabled:opacity-50"
+                  >
+                    取り下げる
+                  </button>
+                  <button
+                    onClick={() => resumeOne(l.id)}
+                    disabled={busyId === l.id}
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-xs disabled:opacity-50"
+                  >
+                    継続
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* サマリ */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <Card label="出品中" value={stats.listings.active} icon={<Package size={16} />} />
+            <Card label="要取り下げ" value={stats.listings.end_recommended} tone={stats.listings.end_recommended ? 'danger' : 'normal'} icon={<AlertTriangle size={16} />} />
+            <Card label="未仕入の受注" value={stats.orders.pending} tone={stats.orders.pending ? 'warn' : 'normal'} icon={<ShoppingCart size={16} />} />
+            <Card label="発送期限超過" value={stats.orders.overdue} tone={stats.orders.overdue ? 'danger' : 'normal'} icon={<Clock size={16} />} />
+            <Card label="利益◎○の候補" value={stats.watch.good} tone="good" icon={<TrendingUp size={16} />} />
+          </div>
+        )}
+
+        {stats && !stats.ebay_api_connected && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-sm">
+            eBay APIが未接続です。環境変数 <code className="font-mono">EBAY_OAUTH_TOKEN</code> を設定すると、在庫消失時に自動で出品を終了できます。
+            未設定の間は「要取り下げ」として通知するだけなので、取り下げは手動になります。
+          </div>
+        )}
+
+        {/* タブ */}
+        <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-800">
+          {([
+            ['stock', '在庫追従', <Package key="a" size={15} />],
+            ['orders', '売れた商品', <ShoppingCart key="b" size={15} />],
+            ['watch', '利益ウォッチ', <TrendingUp key="c" size={15} />],
+            ['settings', '設定', <SettingsIcon key="d" size={15} />],
+          ] as const).map(([k, label, icon]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm border-b-2 -mb-px ${
+                tab === k
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-medium'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── 在庫追従 ── */}
+        {tab === 'stock' && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-950/50 text-gray-500 text-xs">
+                  <tr>
+                    <Th>型番 / タイトル</Th>
+                    <Th>状態</Th>
+                    <Th right>売価</Th>
+                    <Th right>仕入(最安)</Th>
+                    <Th right>利益率</Th>
+                    <Th>仕入先</Th>
+                    <Th>最終チェック</Th>
+                    <Th />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {listings.map((l) => (
+                    <tr key={l.id} className={l.status === 'end_recommended' ? 'bg-red-50/60 dark:bg-red-950/20' : ''}>
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{l.kataban}</div>
+                        <div className="text-xs text-gray-500 truncate max-w-xs">{l.title_en}</div>
+                        {l.alert && <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">{l.alert}</div>}
+                      </td>
+                      <td className="px-3 py-2"><StatusBadge status={l.status} /></td>
+                      <td className="px-3 py-2 text-right">${Number(l.price_usd).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {jpy(l.last_min_price_jpy)}
+                        {l.cost_basis_jpy != null && l.last_min_price_jpy != null && l.last_min_price_jpy > l.cost_basis_jpy && (
+                          <span className="text-xs text-amber-600 ml-1">
+                            +{Math.round(((l.last_min_price_jpy - l.cost_basis_jpy) / l.cost_basis_jpy) * 100)}%
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-medium ${
+                        l.last_margin_pct == null ? '' : l.last_margin_pct >= 15 ? 'text-green-600' : l.last_margin_pct > 0 ? 'text-amber-600' : 'text-red-600'
+                      }`}>
+                        {l.last_margin_pct == null ? '—' : `${l.last_margin_pct}%`}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {(l.sources || []).map((s) => {
+                            // 未チェックを「在庫なし」と見せない。緑＝確認済みで在庫あり、だけにする
+                            const unchecked = !s.last_checked_at
+                            // 「読めなかった(灰)」と「在庫が無い(赤)」は必ず見た目で分ける
+                            const unreadable = !!s.last_error
+                            const cls = unchecked || unreadable
+                              ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                              : s.last_available
+                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                            const label = unchecked
+                              ? ' 未チェック'
+                              : unreadable
+                                ? ' 取得不可'
+                                : s.last_price_jpy
+                                  ? ` ${jpy(s.last_price_jpy)}`
+                                  : ' 在庫なし'
+                            return (
+                              <span
+                                key={s.id}
+                                className={`px-1.5 py-0.5 rounded text-xs ${cls}`}
+                                title={`${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}${s.last_error ? ` / ${s.last_error}` : ''}`}
+                              >
+                                {SOURCE_LABEL[s.source] || s.source}
+                                {label}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{ago(l.last_checked_at)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1 justify-end">
+                          <IconBtn title="今すぐ巡回" onClick={() => checkOne(l.id)} disabled={busyId === l.id}>
+                            <Play size={14} />
+                          </IconBtn>
+                          {l.status === 'ended' ? (
+                            <IconBtn title="監視に戻す" onClick={() => resumeOne(l.id)} disabled={busyId === l.id}>
+                              <RotateCcw size={14} />
+                            </IconBtn>
+                          ) : (
+                            <IconBtn title="取り下げる" onClick={() => endOne(l.id)} disabled={busyId === l.id} danger>
+                              <StopCircle size={14} />
+                            </IconBtn>
+                          )}
+                          {l.ebay_item_id && (
+                            <a
+                              href={`https://www.ebay.com/itm/${l.ebay_item_id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                              title="eBayで見る"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!listings.length && (
+                    <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">出品が登録されていません</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── 売れた商品 ── */}
+        {tab === 'orders' && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-950/50 text-gray-500 text-xs">
+                  <tr>
+                    <Th>受注</Th>
+                    <Th>型番</Th>
+                    <Th right>売価</Th>
+                    <Th>発送期限</Th>
+                    <Th>仕入進捗</Th>
+                    <Th right>仕入額</Th>
+                    <Th>追跡番号</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {orders.map((o) => {
+                    const overdue = o.ship_by && o.ship_by < today && o.procurement_status !== 'shipped'
+                    return (
+                      <tr key={o.id} className={overdue ? 'bg-red-50/60 dark:bg-red-950/20' : ''}>
+                        <td className="px-3 py-2">
+                          <div className="font-mono text-xs">{o.ebay_order_id || '—'}</div>
+                          <div className="text-xs text-gray-500">{o.sold_at?.slice(0, 10)}</div>
+                        </td>
+                        <td className="px-3 py-2">{o.kataban}</td>
+                        <td className="px-3 py-2 text-right">{o.sold_price_usd ? `$${Number(o.sold_price_usd).toFixed(2)}` : '—'}</td>
+                        <td className={`px-3 py-2 text-xs ${overdue ? 'text-red-600 font-semibold' : ''}`}>
+                          {o.ship_by || '—'}{overdue && ' 超過'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={o.procurement_status}
+                            onChange={(e) => updateOrder(o.id, { procurement_status: e.target.value as Order['procurement_status'] })}
+                            className="text-xs rounded border border-gray-300 dark:border-gray-700 bg-transparent px-2 py-1"
+                          >
+                            <option value="pending">未仕入</option>
+                            <option value="ordered">仕入先に発注済</option>
+                            <option value="received">倉庫着</option>
+                            <option value="shipped">発送済</option>
+                            <option value="cancelled">キャンセル</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-right">{jpy(o.procurement_cost_jpy)}</td>
+                        <td className="px-3 py-2">
+                          <input
+                            defaultValue={o.tracking_no || ''}
+                            placeholder="追跡番号"
+                            onBlur={(e) => e.target.value !== (o.tracking_no || '') && updateOrder(o.id, { tracking_no: e.target.value })}
+                            className="text-xs w-32 rounded border border-gray-300 dark:border-gray-700 bg-transparent px-2 py-1"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {!orders.length && (
+                    <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">受注はまだありません</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── 利益ウォッチ ── */}
+        {tab === 'watch' && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
+              国内3サイトの価格を10分ごとに取り直し、eBayのSold相場と突き合わせて利益を再計算します。
+              <strong>最安</strong>は「いま出ている1点で受注をさばけるか」、<strong>中央値</strong>は「その型番を継続的に仕入れ続けられるか」。
+              判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。
+              eBay相場が未登録の行は判定を出しません（推測値では埋めません）。
+              メルカリはクライアント描画のためサーバーからは取得できず、常に「—」になります。
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-950/50 text-gray-500 text-xs">
+                  <tr>
+                    <Th>型番</Th>
+                    <Th right>eBay相場</Th>
+                    <Th right>Sold</Th>
+                    <Th right>ヤフオク</Th>
+                    <Th right>メルカリ</Th>
+                    <Th right>駿河屋</Th>
+                    <Th right>最安</Th>
+                    <Th right>最安粗利</Th>
+                    <Th right>中央値</Th>
+                    <Th right>中央値粗利</Th>
+                    <Th right>中央値率</Th>
+                    <Th>判定</Th>
+                    <Th>更新</Th>
+                    <Th />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {watch.map((w) => (
+                    <tr key={w.id}>
+                      <td className="px-3 py-2 font-medium">{w.kataban}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.ebay_sold_median_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{w.ebay_sold_count ?? '—'}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.yahoo_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.mercari_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.suruga_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right font-medium">
+                        {jpy(w.best_price_jpy)}
+                        {w.best_source && <div className="text-xs text-gray-500">{SOURCE_LABEL[w.best_source]}</div>}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${
+                        w.profit_jpy == null ? '' : w.profit_jpy > 0 ? 'text-gray-600 dark:text-gray-300' : 'text-red-600'
+                      }`}>
+                        {jpy(w.profit_jpy)}
+                        {w.margin_pct != null && <div className="text-xs text-gray-400">{w.margin_pct}%</div>}
+                      </td>
+                      <td className="px-3 py-2 text-right">{jpy(w.median_price_jpy)}</td>
+                      <td className={`px-3 py-2 text-right font-medium ${
+                        w.profit_median_jpy == null ? '' : w.profit_median_jpy >= 5000 ? 'text-green-600' : w.profit_median_jpy > 0 ? 'text-amber-600' : 'text-red-600'
+                      }`}>{jpy(w.profit_median_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{w.margin_median_pct == null ? '—' : `${w.margin_median_pct}%`}</td>
+                      <td className="px-3 py-2 text-center text-lg">{w.verdict || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">{ago(w.last_checked_at)}</td>
+                      <td className="px-3 py-2">
+                        <IconBtn title="今すぐ更新" onClick={() => refreshWatch(w.id)} disabled={busyId === w.id}>
+                          <RefreshCw size={14} className={busyId === w.id ? 'animate-spin' : ''} />
+                        </IconBtn>
+                      </td>
+                    </tr>
+                  ))}
+                  {!watch.length && (
+                    <tr><td colSpan={15} className="px-3 py-10 text-center text-gray-400">監視候補が登録されていません</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── 設定 ── */}
+        {tab === 'settings' && settings && (
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 space-y-5 max-w-3xl">
+            <Toggle
+              label="巡回を有効にする"
+              hint="OFFにすると10分ごとのcronが何もしません"
+              checked={!!settings.enabled}
+              onChange={(v) => setSettings({ ...settings, enabled: v })}
+            />
+            <Toggle
+              label="在庫が消えたらeBay出品を自動で取り下げる"
+              hint="無在庫では「取り下げないまま売れる」ほうが致命的なので、既定でONです。EBAY_OAUTH_TOKEN未設定時は通知のみになります"
+              checked={!!settings.auto_end_listing}
+              onChange={(v) => setSettings({ ...settings, auto_end_listing: v })}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Num label="利益率の下限(%)" hint="これを下回ったら取り下げ" value={settings.margin_floor_pct as number} onChange={(v) => setSettings({ ...settings, margin_floor_pct: v })} />
+              <Num label="仕入値の上昇警告(%)" hint="想定仕入からこの%上がったら警告" value={settings.price_jump_pct as number} onChange={(v) => setSettings({ ...settings, price_jump_pct: v })} />
+              <Num label="1回の巡回件数" value={settings.max_checks_per_run as number} onChange={(v) => setSettings({ ...settings, max_checks_per_run: v })} />
+              <Num label="USD/JPY" value={settings.usd_jpy as number} step={0.1} onChange={(v) => setSettings({ ...settings, usd_jpy: v })} />
+              <Num label="為替の安全率" value={settings.fx_safety as number} step={0.01} onChange={(v) => setSettings({ ...settings, fx_safety: v })} />
+              <Num label="米国向け関税(%)" hint="DDU（バイヤー負担）に変えるなら0" value={settings.duty_us_pct as number} step={0.5} onChange={(v) => setSettings({ ...settings, duty_us_pct: v })} />
+              <Num label="送料 〜1kg(円)" value={settings.ship_tier1_jpy as number} onChange={(v) => setSettings({ ...settings, ship_tier1_jpy: v })} />
+              <Num label="送料 1〜2kg(円)" value={settings.ship_tier2_jpy as number} onChange={(v) => setSettings({ ...settings, ship_tier2_jpy: v })} />
+              <Num label="送料 2〜3kg(円)" value={settings.ship_tier3_jpy as number} onChange={(v) => setSettings({ ...settings, ship_tier3_jpy: v })} />
+              <Num label="送料 3kg超(円)" value={settings.ship_tier4_jpy as number} onChange={(v) => setSettings({ ...settings, ship_tier4_jpy: v })} />
+            </div>
+
+            <Toggle
+              label="Slackに通知する"
+              checked={!!settings.notify_slack}
+              onChange={(v) => setSettings({ ...settings, notify_slack: v })}
+            />
+
+            <button onClick={saveSettings} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50">
+              <Save size={16} />
+              保存
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── 小物 ────────────────────────────────────────────────
+function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
+  return <th className={`px-3 py-2 font-medium ${right ? 'text-right' : 'text-left'}`}>{children}</th>
+}
+
+function Card({ label, value, tone = 'normal', icon }: { label: string; value: number; tone?: 'normal' | 'good' | 'warn' | 'danger'; icon?: React.ReactNode }) {
+  const toneCls = {
+    normal: 'text-gray-900 dark:text-gray-100',
+    good: 'text-green-600 dark:text-green-400',
+    warn: 'text-amber-600 dark:text-amber-400',
+    danger: 'text-red-600 dark:text-red-400',
+  }[tone]
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 px-4 py-3">
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">{icon}{label}</div>
+      <div className={`text-2xl font-bold ${toneCls}`}>{value}</div>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: Listing['status'] }) {
+  const map: Record<string, [string, string]> = {
+    draft: ['下書き', 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'],
+    active: ['出品中', 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'],
+    paused: ['停止中', 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'],
+    end_recommended: ['要取り下げ', 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'],
+    ended: ['取り下げ済', 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'],
+  }
+  const [label, cls] = map[status] || ['—', '']
+  return <span className={`px-2 py-0.5 rounded text-xs ${cls}`}>{label}</span>
+}
+
+function IconBtn({ children, onClick, disabled, title, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; title?: string; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 ${danger ? 'text-red-600' : ''}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-start gap-3 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1" />
+      <div>
+        <div className="text-sm font-medium">{label}</div>
+        {hint && <div className="text-xs text-gray-500">{hint}</div>}
+      </div>
+    </label>
+  )
+}
+
+function Num({ label, hint, value, step, onChange }: { label: string; hint?: string; value: number; step?: number; onChange: (v: number) => void }) {
+  return (
+    <label className="block">
+      <div className="text-sm font-medium mb-1">{label}</div>
+      <input
+        type="number"
+        step={step || 1}
+        value={value ?? 0}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent px-3 py-1.5 text-sm"
+      />
+      {hint && <div className="text-xs text-gray-500 mt-0.5">{hint}</div>}
+    </label>
+  )
+}
