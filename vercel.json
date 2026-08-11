@@ -4,13 +4,18 @@
   "framework": "vite",
   "functions": {
     "api/index.js": {
-      "maxDuration": 120,
-      "memory": 1024
+      "maxDuration": 300
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/((?!api/)(?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/)(?!assets/).*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
     {

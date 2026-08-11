@@ -620,6 +620,12 @@ export default function EbayManager() {
             </div>
 
             <Toggle
+              label="Amazon(SP-API)を巡回に含める"
+              hint="1件あたりの所要が最も長く、巡回できる件数がほぼ半分になります。中古カメラ・レトロゲームでは寄与が小さいため既定はOFF"
+              checked={!!settings.use_amazon}
+              onChange={(v) => setSettings({ ...settings, use_amazon: v })}
+            />
+            <Toggle
               label="Slackに通知する"
               checked={!!settings.notify_slack}
               onChange={(v) => setSettings({ ...settings, notify_slack: v })}

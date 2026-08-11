@@ -77,7 +77,7 @@ const DEFAULT_SETTINGS = {
   margin_floor_pct: 5.0,
   price_jump_pct: 25.0,
   check_interval_min: 10,
-  max_checks_per_run: 40,
+  max_checks_per_run: 120,
   usd_jpy: 157.9,
   fx_safety: 0.97,
   variable_fee_pct: 6.35,
@@ -90,6 +90,7 @@ const DEFAULT_SETTINGS = {
   ship_tier3_jpy: 6000,
   ship_tier4_jpy: 7500,
   notify_slack: true,
+  use_amazon: false,
 };
 
 async function getSettings() {
@@ -1078,12 +1079,15 @@ router.delete('/watch/:id', async (req, res) => {
 /** 1候補の国内最安値を取り直し、利益を再計算する */
 async function refreshWatchItem(item, settings) {
   const sb = getSupabase();
+  // AmazonはSP-APIの往復が長く、巡回スループットを半減させるため既定では呼ばない
   const [y, m, s, rk, az] = await Promise.all([
     scrapeSource('yahoo', item.keyword_ja, item.exclude_words, item.include_words),
     scrapeSource('mercari', item.keyword_ja, item.exclude_words, item.include_words),
     scrapeSource('suruga', item.keyword_ja, item.exclude_words, item.include_words),
     scrapeSource('rakuten', item.keyword_ja, item.exclude_words, item.include_words),
-    scrapeSource('amazon', item.keyword_ja, item.exclude_words, item.include_words),
+    settings.use_amazon
+      ? scrapeSource('amazon', item.keyword_ja, item.exclude_words, item.include_words)
+      : Promise.resolve({ source: 'amazon', ok: false, count: null, min: null, median: null, items: [], error: '設定で無効' }),
   ]);
   const all = [y, m, s, rk, az];
 
@@ -1215,7 +1219,40 @@ router.get('/stats', async (_req, res) => {
  *
  * 未処理分は last_checked_at 昇順で次回の先頭に来るので取りこぼさない。
  */
-const CRON_BUDGET_MS = 95_000; // 120秒の上限に対し、応答とDB書き込みの余裕を残す
+const CRON_BUDGET_MS = 260_000; // vercel.json の maxDuration 300秒に対する余裕
+const CRON_CONCURRENCY = 4;     // 同時に処理する件数
+
+/**
+ * 件数を同時実行しつつ、時間予算で打ち切る。
+ *
+ * 処理時間のほとんどは仕入先サイトの応答待ちなので、直列だとCPUが遊ぶ。
+ * 実測で1件10.6秒かかっていたのは待ち時間が支配的だったため。
+ * ただし同時実行を上げすぎると仕入先サイトへの負荷と検知リスクが上がるので4に抑える。
+ */
+async function runWithBudget(items, worker, budgetMs = CRON_BUDGET_MS, concurrency = CRON_CONCURRENCY) {
+  const startedAt = Date.now();
+  let index = 0;
+  let processed = 0;
+  const overBudget = () => Date.now() - startedAt > budgetMs;
+
+  const lanes = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      if (overBudget()) return;
+      const i = index++;
+      if (i >= items.length) return;
+      try {
+        await worker(items[i]);
+      } catch (e) {
+        console.error('[ebay] worker error:', e.message);
+      }
+      processed++;
+      // 仕入先サイトへの負荷を避けるため、レーンごとに間隔を空ける
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+  });
+  await Promise.all(lanes);
+  return { processed, remaining: items.length - processed, elapsedMs: Date.now() - startedAt };
+}
 
 /** 在庫追従。最も長く未チェックの出品から順に巡回する */
 router.get('/cron/stock-check', async (_req, res) => {
@@ -1231,15 +1268,9 @@ router.get('/cron/stock-check', async (_req, res) => {
       .order('last_checked_at', { ascending: true, nullsFirst: true })
       .limit(settings.max_checks_per_run);
 
-    const startedAt = Date.now();
-    const summary = { checked: 0, ok: 0, warn: 0, ended: 0, end_recommended: 0, error: 0, remaining: 0 };
+    const summary = { checked: 0, ok: 0, warn: 0, ended: 0, end_recommended: 0, error: 0 };
 
-    for (const listing of listings || []) {
-      if (Date.now() - startedAt > CRON_BUDGET_MS) {
-        summary.remaining = (listings.length - summary.checked);
-        console.log(`[ebay] stock-check 時間切れ。残り${summary.remaining}件は次回に回す`);
-        break;
-      }
+    const run = await runWithBudget(listings || [], async (listing) => {
       try {
         const result = await checkListing(listing, settings);
         const action = await applyCheckResult(listing, result, settings);
@@ -1253,12 +1284,10 @@ router.get('/cron/stock-check', async (_req, res) => {
         summary.error++;
         console.error(`[ebay] check failed ${listing.kataban}:`, e.message);
       }
-      // 仕入先サイトへの負荷と検知リスクを避けるため間隔を空ける
-      await new Promise((r) => setTimeout(r, 1200));
-    }
+    });
 
     await sb.from('ebay_settings').update({ last_run_at: new Date().toISOString() }).eq('id', 'default');
-    res.json(summary);
+    res.json({ ...summary, remaining: run.remaining, elapsed_sec: Math.round(run.elapsedMs / 1000) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1276,18 +1305,11 @@ router.get('/cron/profit-watch', async (_req, res) => {
       .select('*')
       .eq('enabled', true)
       .order('last_checked_at', { ascending: true, nullsFirst: true })
-      .limit(20);
+      .limit(60);
 
-    const startedAt = Date.now();
     let updated = 0;
-    let remaining = 0;
     const newlyGood = [];
-    for (const item of items || []) {
-      if (Date.now() - startedAt > CRON_BUDGET_MS) {
-        remaining = items.length - updated;
-        console.log(`[ebay] profit-watch 時間切れ。残り${remaining}件は次回に回す`);
-        break;
-      }
+    const run = await runWithBudget(items || [], async (item) => {
       try {
         const before = item.verdict;
         const patch = await refreshWatchItem(item, settings);
@@ -1298,13 +1320,13 @@ router.get('/cron/profit-watch', async (_req, res) => {
       } catch (e) {
         console.error(`[ebay] watch failed ${item.kataban}:`, e.message);
       }
-      await new Promise((r) => setTimeout(r, 1200));
-    }
+    });
+    const remaining = run.remaining;
 
     if (newlyGood.length) {
       await notify(settings, `:moneybag: 利益条件を満たした商品があります\n${newlyGood.join('\n')}`);
     }
-    res.json({ updated, remaining, newlyGood: newlyGood.length });
+    res.json({ updated, remaining, elapsed_sec: Math.round(run.elapsedMs / 1000), newlyGood: newlyGood.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
