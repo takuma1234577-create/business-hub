@@ -112,20 +112,135 @@ function shipJpy(s, kg) {
  * 1商品の粗利と利益率を返す。
  * priceUsd: eBay売価 / costJpy: 国内仕入値 / category: FVF区分 / kg: 重量
  */
-function calcProfit(s, priceUsd, costJpy, category, kg) {
+/**
+ * 1商品の粗利と利益率を返す。
+ *
+ * 仕向地で条件が大きく変わる（references/profit-rules.md）。
+ *   米国   … DDPで関税15%を自社負担。送料無料なので送料収入は0
+ *   米国以外 … 関税なし。地域別定額の送料収入が売上に乗る
+ *              （アジア$15 / カナダ$20 / 欧州・豪州$24 / 中東$35 / 南米・アフリカ$40）
+ *
+ * 米国だけで計算すると、関税15%と送料収入0のぶん実態より2万円近く辛い数字になる。
+ * 実測では同じ商品・同じ仕入値で米国2件/8件 → 非米国8件/8件と結果が反転した。
+ *
+ * @param {number} shippingIncomeUsd 送料収入。米国向けは0
+ * @param {boolean} usBound 米国向けならtrue（関税を乗せる）
+ */
+function calcProfit(s, priceUsd, costJpy, category, kg, shippingIncomeUsd = 0, usBound = true) {
   const rate = Number(s.usd_jpy) * Number(s.fx_safety);
   const fvf = FVF[category] ?? FVF['その他'];
   const P = Number(priceUsd) || 0;
+  const revenueUsd = P + Number(shippingIncomeUsd || 0);
+  const duty = usBound ? Number(s.duty_us_pct) / 100 : 0;
 
-  const revenue = P * rate;
+  const revenue = revenueUsd * rate;
   const fees =
-    (P * fvf + Number(s.fixed_fee_usd) + P * (Number(s.variable_fee_pct) / 100) + P * (Number(s.duty_us_pct) / 100)) *
-    rate;
+    (revenueUsd * fvf + Number(s.fixed_fee_usd) + revenueUsd * (Number(s.variable_fee_pct) / 100) + P * duty) * rate;
   const cost = Number(costJpy || 0) + Number(s.ship_dom_jpy) + Number(s.pack_jpy) + shipJpy(s, kg);
 
   const profit = revenue - fees - cost;
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
   return { profit_jpy: Math.round(profit), margin_pct: Math.round(margin * 10) / 10, revenue_jpy: Math.round(revenue) };
+}
+
+/** 仕向地の代表値。非米国は欧州・豪州($24)を基準にする */
+const INTL_SHIP_INCOME_USD = 24;
+
+/**
+ * 仕向地ごとの条件。
+ *   dutyPct  … 関税率。米国はDDPで自社負担、それ以外は0（バイヤー負担）
+ *   shipMul  … 国際送料の実コスト倍率（〜1kgの米国向けを1.0とした相対値）
+ *   freeShip … 送料無料で出すか（送料を売価に織り込む）
+ *
+ * eBayは1出品につき商品価格は1つしか持てないが、送料は地域別に設定できる。
+ * そのため「商品価格は最も条件の厳しい米国基準で決め、地域別送料で差を吸収する」のが
+ * 実装可能な唯一の形になる。
+ */
+const REGIONS = [
+  { code: 'US', name: '米国',            dutyPct: 15, shipMul: 1.0,  freeShip: true  },
+  { code: 'AS', name: 'アジア',          dutyPct: 0,  shipMul: 0.7,  freeShip: false },
+  { code: 'CA', name: 'カナダ',          dutyPct: 0,  shipMul: 1.0,  freeShip: false },
+  { code: 'EU', name: '欧州・豪州',      dutyPct: 0,  shipMul: 1.15, freeShip: false },
+  { code: 'ME', name: '中東',            dutyPct: 0,  shipMul: 1.35, freeShip: false },
+  { code: 'SA', name: '南米・アフリカ',  dutyPct: 0,  shipMul: 1.5,  freeShip: false },
+];
+
+/** 米国向けと非米国向けの両方を出す。無在庫では仕向地を選べないので両方見る必要がある */
+function calcBoth(s, priceUsd, costJpy, category, kg) {
+  return {
+    us: calcProfit(s, priceUsd, costJpy, category, kg, 0, true),
+    intl: calcProfit(s, priceUsd, costJpy, category, kg, INTL_SHIP_INCOME_USD, false),
+  };
+}
+
+/**
+ * 目標利益率を満たす「商品価格」と「地域別送料」を逆算する。
+ *
+ * eBayは1出品につき商品価格を1つしか持てないが、送料は地域別に設定できる。
+ * そこで価格は最も条件の緩い地域に合わせ、残りの差は地域別送料で回収する。
+ *
+ * さらに重要な点として、**米国のDDP関税は商品価格にのみ掛かる**（送料には掛からない）。
+ * つまり売上を商品価格から送料側に寄せるほど、関税の課税ベースが下がって有利になる。
+ * 「米国は送料無料」という現行ポリシーは、この構造上いちばん損な形になっている。
+ *
+ * mode:
+ *   'per_region' … 価格を最安地域に合わせ、各地域に必要な送料を課金（既定・推奨）
+ *   'us_free'    … 米国送料無料を維持し、価格を米国基準に上げる（現行ポリシー）
+ */
+function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = 'per_region') {
+  const rate = Number(s.usd_jpy) * Number(s.fx_safety);
+  const fvf = FVF[category] ?? FVF['その他'];
+  const fixedCostJpy = Number(costJpy || 0) + Number(s.ship_dom_jpy) + Number(s.pack_jpy);
+  const baseShip = shipJpy(s, kg);
+  const varFee = Number(s.variable_fee_pct) / 100;
+  const fixUsd = Number(s.fixed_fee_usd);
+
+  // ある地域で目標利益率を満たすのに必要な「バイヤー総額(商品価格+送料)」
+  // 関税は商品価格Pにのみ掛かるので、Pを引数に取る
+  const needTotal = (shipCostJpy, dutyPct, P) => {
+    const denom = 1 - targetMargin - fvf - varFee;
+    if (denom <= 0) return null;
+    return ((fixedCostJpy + shipCostJpy) / rate + fixUsd + P * (dutyPct / 100)) / denom;
+  };
+
+  const regionShip = (r) => Math.round(baseShip * r.shipMul);
+  const withShip = (shipCostJpy) => ({
+    ...s, ship_tier1_jpy: shipCostJpy, ship_tier2_jpy: shipCostJpy,
+    ship_tier3_jpy: shipCostJpy, ship_tier4_jpy: shipCostJpy,
+  });
+
+  let priceUsd;
+  if (mode === 'us_free') {
+    // 米国を送料無料のまま満たす価格（関税15%を価格に織り込む）
+    const denomUs = 1 - targetMargin - fvf - varFee - REGIONS[0].dutyPct / 100;
+    if (denomUs <= 0) return null;
+    priceUsd = ((fixedCostJpy + baseShip) / rate + fixUsd) / denomUs;
+  } else {
+    // 最も条件の緩い地域（実送料が最安・関税なし）に価格を合わせる
+    const cheapest = REGIONS.filter((r) => !r.freeShip)
+      .reduce((a, b) => (a.shipMul <= b.shipMul ? a : b));
+    priceUsd = needTotal(regionShip(cheapest), 0, 0);
+  }
+  priceUsd = Math.ceil(priceUsd * 100) / 100;
+
+  const regions = REGIONS.map((r) => {
+    const shipCostJpy = regionShip(r);
+    let charge = 0;
+    if (!(mode === 'us_free' && r.freeShip)) {
+      const need = needTotal(shipCostJpy, r.dutyPct, priceUsd);
+      charge = Math.max(0, need - priceUsd);
+    }
+    charge = Math.ceil(charge * 100) / 100;
+    const res = calcProfit(withShip(shipCostJpy), priceUsd, costJpy, category, 0.5, charge, r.dutyPct > 0);
+    return {
+      code: r.code, name: r.name, duty_pct: r.dutyPct,
+      ship_cost_jpy: shipCostJpy, charge_usd: charge,
+      buyer_total_usd: Math.round((priceUsd + charge) * 100) / 100,
+      profit_jpy: res.profit_jpy, margin_pct: res.margin_pct,
+    };
+  });
+
+  return { mode, price_usd: priceUsd, target_margin: targetMargin, regions };
 }
 
 /**
@@ -596,15 +711,16 @@ async function checkListing(listing, settings) {
 
   const best = alive.reduce((a, b) => (a.min <= b.min ? a : b));
   const { profit_jpy, margin_pct } = calcProfit(
-    settings,
-    listing.price_usd,
-    best.min,
-    listing.category,
-    listing.weight_kg,
+    settings, listing.price_usd, best.min, listing.category, listing.weight_kg,
+  );
+  // 非米国向け（関税なし・送料収入あり）。米国だけで判断すると、
+  // 実際には欧州・アジア向けで十分利益が出る出品まで落としてしまう。
+  const intl = calcProfit(
+    settings, listing.price_usd, best.min, listing.category, listing.weight_kg, INTL_SHIP_INCOME_USD, false,
   );
 
-  // ── 判定2: 利益率が下限割れ → 取り下げ ──
-  if (margin_pct < Number(settings.margin_floor_pct)) {
+  // ── 判定2: 米国・非米国のどちらでも下限割れ → 取り下げ ──
+  if (margin_pct < Number(settings.margin_floor_pct) && intl.margin_pct < Number(settings.margin_floor_pct)) {
     return {
       action: 'end',
       available: true,
@@ -612,8 +728,9 @@ async function checkListing(listing, settings) {
       source_used: best.source,
       total_count: totalCount,
       margin_pct,
+      margin_intl_pct: intl.margin_pct,
       profit_jpy,
-      reason: `仕入値が¥${best.min.toLocaleString()}に上昇し利益率${margin_pct}%（下限${settings.margin_floor_pct}%）を下回った`,
+      reason: `仕入値が¥${best.min.toLocaleString()}に上昇し、米国向け${margin_pct}%・非米国向け${intl.margin_pct}%とも下限${settings.margin_floor_pct}%を下回った`,
     };
   }
 
@@ -627,8 +744,9 @@ async function checkListing(listing, settings) {
       source_used: best.source,
       total_count: totalCount,
       margin_pct,
+      margin_intl_pct: intl.margin_pct,
       profit_jpy,
-      reason: `仕入値が想定¥${basis.toLocaleString()}→¥${best.min.toLocaleString()}に上昇（+${Math.round(((best.min - basis) / basis) * 100)}%）`,
+      reason: `仕入値が想定¥${basis.toLocaleString()}→¥${best.min.toLocaleString()}に上昇（+${Math.round(((best.min - basis) / basis) * 100)}%）。米国${margin_pct}% / 非米国${intl.margin_pct}%`,
     };
   }
 
@@ -639,6 +757,7 @@ async function checkListing(listing, settings) {
     source_used: best.source,
     total_count: totalCount,
     margin_pct,
+    margin_intl_pct: intl.margin_pct,
     profit_jpy,
     reason: null,
   };
@@ -680,6 +799,7 @@ async function applyCheckResult(listing, result, settings) {
     .update({
       status: statusMap[finalAction] || listing.status,
       last_margin_pct: result.margin_pct ?? null,
+      last_margin_intl_pct: result.margin_intl_pct ?? null,
       last_min_price_jpy: result.min_price_jpy ?? null,
       last_checked_at: now,
       alert: finalAction === 'ok' ? null : alert,
@@ -1122,16 +1242,27 @@ async function refreshWatchItem(item, settings) {
     const medCands = all.filter((r) => r.ok && r.median != null);
     const medBest = medCands.length ? medCands.reduce((a, b) => (a.median <= b.median ? a : b)) : null;
     if (medBest) {
+      // 米国向け(DDP関税15%・送料無料)と非米国向け(関税なし・送料収入あり)を両方出す。
+      // 米国だけで見ると実態より2万円近く辛くなり、実測で判定が反転した。
       const atMed = calcProfit(settings, priceUsd, medBest.median, item.category, item.weight_kg);
+      const atMedIntl = calcProfit(
+        settings, priceUsd, medBest.median, item.category, item.weight_kg, INTL_SHIP_INCOME_USD, false,
+      );
       patch.median_price_jpy = medBest.median;
       patch.median_title = medBest.items?.[Math.min(1, medBest.items.length - 1)]?.title ?? null;
       patch.profit_median_jpy = atMed.profit_jpy;
       patch.margin_median_pct = atMed.margin_pct;
       patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count);
+      patch.profit_intl_jpy = atMedIntl.profit_jpy;
+      patch.margin_intl_pct = atMedIntl.margin_pct;
+      patch.verdict_intl = verdictOf(atMedIntl.margin_pct, atMedIntl.profit_jpy, item.ebay_sold_count);
     } else {
       patch.median_price_jpy = null;
       patch.profit_median_jpy = null;
       patch.margin_median_pct = null;
+      patch.profit_intl_jpy = null;
+      patch.margin_intl_pct = null;
+      patch.verdict_intl = null;
       patch.verdict = verdictOf(atMin.margin_pct, atMin.profit_jpy, item.ebay_sold_count);
     }
   } else {
@@ -1141,6 +1272,9 @@ async function refreshWatchItem(item, settings) {
     patch.median_price_jpy = null;
     patch.profit_median_jpy = null;
     patch.margin_median_pct = null;
+    patch.profit_intl_jpy = null;
+    patch.margin_intl_pct = null;
+    patch.verdict_intl = null;
     patch.verdict = '未取得';
   }
 
@@ -1155,6 +1289,50 @@ router.post('/watch/:id/refresh', async (req, res) => {
     const { data: item } = await sb.from('ebay_profit_watch').select('*').eq('id', req.params.id).single();
     if (!item) return res.status(404).json({ error: 'not found' });
     res.json(await refreshWatchItem(item, settings));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// 価格設計（仕向地別）
+// ══════════════════════════════════════════════════════
+
+/**
+ * GET /pricing?cost=6500&kg=0.4&category=その他&margin=20&mode=per_region
+ * 目標利益率を満たす商品価格と地域別送料を返す。
+ */
+router.get('/pricing', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const cost = Number(req.query.cost);
+    if (!cost) return res.status(400).json({ error: 'cost は必須です' });
+    const r = priceForRegions(
+      settings,
+      cost,
+      req.query.category || 'その他',
+      Number(req.query.kg) || 0.5,
+      (Number(req.query.margin) || 20) / 100,
+      req.query.mode === 'us_free' ? 'us_free' : 'per_region',
+    );
+    if (!r) return res.status(400).json({ error: 'その利益率は手数料構成上、達成できません' });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /pricing/bulk  body:{items:[{sku,cost_jpy,category,weight_kg}],margin,mode} */
+router.post('/pricing/bulk', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const margin = (Number(req.body.margin) || 20) / 100;
+    const mode = req.body.mode === 'us_free' ? 'us_free' : 'per_region';
+    const out = (req.body.items || []).map((it) => {
+      const r = priceForRegions(settings, Number(it.cost_jpy), it.category || 'その他', Number(it.weight_kg) || 0.5, margin, mode);
+      return { sku: it.sku, ...(r || { error: '達成不可' }) };
+    });
+    res.json({ mode, margin: margin * 100, items: out });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1334,4 +1512,8 @@ router.get('/cron/profit-watch', async (_req, res) => {
 
 module.exports = router;
 module.exports.calcProfit = calcProfit;
+module.exports.calcBoth = calcBoth;
+module.exports.INTL_SHIP_INCOME_USD = INTL_SHIP_INCOME_USD;
+module.exports.priceForRegions = priceForRegions;
+module.exports.REGIONS = REGIONS;
 module.exports.scrapeSource = scrapeSource;
