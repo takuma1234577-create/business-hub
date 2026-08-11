@@ -163,22 +163,33 @@ function excludeMatcher(excludeWords) {
     .split(',')
     .map((w) => w.trim())
     .filter(Boolean);
-  const all = [...base, ...extra];
-  return (text) => all.some((w) => text.includes(w));
+  const all = [...base, ...extra].map((w) => w.toLowerCase());
+  // 「SMC TAKUMAR」「smc Takumar」のような表記揺れを拾えるよう大文字小文字を無視する
+  return (text) => { const t = (text || '').toLowerCase(); return all.some((w) => t.includes(w)); };
 }
 
 /**
- * 必須キーワード。指定したどれかを含まない出品は同一型番とみなさない。
- * これが無いと「スーパーファミコン本体」の検索でコントローラー単体(¥550)を拾い、
- * その値段で利益を再計算して誤った判定を出してしまう。
+ * 必須キーワード。同一型番かどうかを判定する。
+ *
+ * 書式: カンマ区切りの各条件を「すべて満たす」(AND)。
+ *       1つの条件内で `|` を使うと「どれか1つ」(OR)。
+ *   例: "スーパーファミコン|SFC, 本体"
+ *       → (スーパーファミコン または SFC) かつ 本体
+ *
+ * ANDにしている理由: 楽天のあいまい検索は関連商品まで返すため、OR判定だと
+ * 「セガサターン 本体」の検索でPlayStation本体(¥1,980)が最安として通り、
+ * その値段で利益を再計算して誤った判定を出す。実際に発生した。
  */
 function includeMatcher(includeWords) {
-  const words = (includeWords || '')
+  const groups = (includeWords || '')
     .split(',')
-    .map((w) => w.trim())
-    .filter(Boolean);
-  if (!words.length) return () => true;
-  return (text) => words.some((w) => text.includes(w));
+    .map((g) => g.split('|').map((w) => w.trim().toLowerCase()).filter(Boolean))
+    .filter((g) => g.length);
+  if (!groups.length) return () => true;
+  return (text) => {
+    const t = (text || '').toLowerCase();
+    return groups.every((alts) => alts.some((w) => t.includes(w)));
+  };
 }
 
 /**
@@ -291,7 +302,172 @@ async function scrapeSuruga(keyword, excludeWords, includeWords) {
   };
 }
 
-const SCRAPERS = { yahoo: scrapeYahoo, mercari: scrapeMercari, suruga: scrapeSuruga };
+/**
+ * 楽天市場: 検索結果カードの data-track-price 属性から価格を取る。
+ * RAKUTEN_APP_ID があれば公式の楽天市場APIを使う（スクレイピングより安定するため優先）。
+ */
+async function scrapeRakuten(keyword, excludeWords, includeWords) {
+  const isExcluded = excludeMatcher(excludeWords);
+  const isIncluded = includeMatcher(includeWords);
+  const webUrl = `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(keyword)}/`;
+
+  const appId = process.env.RAKUTEN_APP_ID;
+  if (appId) {
+    try {
+      const api =
+        'https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601' +
+        `?applicationId=${encodeURIComponent(appId)}&keyword=${encodeURIComponent(keyword)}&hits=30&sort=%2BitemPrice`;
+      const res = await fetch(api, { headers: { 'User-Agent': UA } });
+      if (res.ok) {
+        const json = await res.json();
+        const items = (json.Items || [])
+          .map((w) => w.Item || w)
+          .filter((i) => i.itemName && !isExcluded(i.itemName) && isIncluded(i.itemName))
+          .map((i) => ({ price: Number(i.itemPrice), title: String(i.itemName).slice(0, 120) }))
+          .filter((i) => i.price >= 500)
+          .sort((a, b) => a.price - b.price);
+        return {
+          source: 'rakuten',
+          ok: true,
+          count: items.length,
+          min: items[0]?.price ?? null,
+          median: items.length ? items[Math.floor(items.length / 2)].price : null,
+          items: items.slice(0, 5),
+          url: webUrl,
+        };
+      }
+    } catch {
+      // APIが落ちていたらスクレイピングにフォールバックする
+    }
+  }
+
+  let html;
+  try {
+    html = await fetchText(webUrl, { Referer: 'https://www.rakuten.co.jp/' });
+  } catch (e) {
+    return { source: 'rakuten', ok: false, count: null, min: null, items: [], url: webUrl, error: e.message };
+  }
+
+  const cards = html.split('searchresultitem').slice(1);
+  const isEmptyResult = /一致する商品は見つかりませんでした|該当する商品がありませんでした/.test(html);
+  if (!cards.length && !isEmptyResult) {
+    return { source: 'rakuten', ok: false, count: null, min: null, items: [], url: webUrl, error: 'アクセス制限またはレイアウト変更' };
+  }
+
+  const items = [];
+  for (const card of cards) {
+    const pm = card.match(/data-track-price="(\d+)"/);
+    if (!pm) continue;
+    const price = parseInt(pm[1], 10);
+    if (!price || price < 500) continue;
+
+    // 商品名は商品画像の alt 属性に入っている。
+    // カード全体をタグ除去するとCSSクラス名を拾ってしまい、絞り込みが効かなくなる。
+    const am = card.match(/<img[^>]*\salt="([^"]{4,300})"/);
+    if (!am) continue;
+    const title = am[1]
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (isExcluded(title) || !isIncluded(title)) continue;
+    items.push({ price, title: title.slice(0, 120) });
+  }
+  items.sort((a, b) => a.price - b.price);
+  return {
+    source: 'rakuten',
+    ok: true,
+    count: items.length,
+    min: items[0]?.price ?? null,
+    median: items.length ? items[Math.floor(items.length / 2)].price : null,
+    items: items.slice(0, 5),
+    url: webUrl,
+  };
+}
+
+/**
+ * Amazon.co.jp: 検索ページのスクレイピングは価格を削られた簡易版しか返らず、
+ * 規約上も問題があるため行わない。SP-APIのカタログ検索＋オファー取得を使う。
+ *
+ * 中古の無在庫仕入れが目的なので、既定では中古(Used)のオファーを見る。
+ * AMAZON_SP_REFRESH_TOKEN 等が未設定なら ok=false を返して判定から除外する。
+ */
+async function scrapeAmazon(keyword, excludeWords, includeWords) {
+  const webUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(keyword)}`;
+  if (!process.env.AMAZON_SP_REFRESH_TOKEN) {
+    return { source: 'amazon', ok: false, count: null, min: null, items: [], url: webUrl, error: 'SP-API未設定（AMAZON_SP_REFRESH_TOKEN）' };
+  }
+
+  const isExcluded = excludeMatcher(excludeWords);
+  const isIncluded = includeMatcher(includeWords);
+
+  try {
+    const { getAccessToken } = require('./amazon.cjs');
+    const { token, endpoint, marketplaceId } = await getAccessToken();
+    const h = { 'x-amz-access-token': token, Accept: 'application/json' };
+
+    // 1. キーワードでカタログ検索してASINを得る
+    const catUrl =
+      `${endpoint}/catalog/2022-04-01/items?marketplaceIds=${marketplaceId}` +
+      `&keywords=${encodeURIComponent(keyword)}&includedData=summaries&pageSize=10`;
+    const catRes = await fetch(catUrl, { headers: h });
+    if (!catRes.ok) {
+      return { source: 'amazon', ok: false, count: null, min: null, items: [], url: webUrl, error: `catalog HTTP ${catRes.status}` };
+    }
+    const cat = await catRes.json();
+    const asins = (cat.items || [])
+      .map((i) => ({ asin: i.asin, title: i.summaries?.[0]?.itemName || '' }))
+      .filter((i) => i.asin && (!i.title || (!isExcluded(i.title) && isIncluded(i.title))))
+      .slice(0, 5);
+
+    if (!asins.length) {
+      return { source: 'amazon', ok: true, count: 0, min: null, median: null, items: [], url: webUrl };
+    }
+
+    // 2. 各ASINの中古オファーの最安値を取る（SP-APIのレート制限が厳しいので直列＋間隔）
+    const items = [];
+    for (const a of asins) {
+      try {
+        const offUrl =
+          `${endpoint}/products/pricing/v0/items/${a.asin}/offers` +
+          `?MarketplaceId=${marketplaceId}&ItemCondition=Used`;
+        const offRes = await fetch(offUrl, { headers: h });
+        if (!offRes.ok) continue;
+        const off = await offRes.json();
+        const offers = off.payload?.Offers || [];
+        for (const o of offers) {
+          const amount = o.ListingPrice?.Amount;
+          const ship = o.Shipping?.Amount || 0;
+          if (amount) items.push({ price: Math.round(Number(amount) + Number(ship)), title: a.title.slice(0, 120) });
+        }
+      } catch {
+        // 個別ASINの失敗は無視して次へ
+      }
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
+    items.sort((a, b) => a.price - b.price);
+    return {
+      source: 'amazon',
+      ok: true,
+      count: items.length,
+      min: items[0]?.price ?? null,
+      median: items.length ? items[Math.floor(items.length / 2)].price : null,
+      items: items.slice(0, 5),
+      url: webUrl,
+    };
+  } catch (e) {
+    return { source: 'amazon', ok: false, count: null, min: null, items: [], url: webUrl, error: e.message };
+  }
+}
+
+const SCRAPERS = {
+  yahoo: scrapeYahoo,
+  mercari: scrapeMercari,
+  suruga: scrapeSuruga,
+  rakuten: scrapeRakuten,
+  amazon: scrapeAmazon,
+};
 
 async function scrapeSource(source, keyword, excludeWords, includeWords) {
   const fn = SCRAPERS[source];
@@ -372,6 +548,8 @@ async function checkListing(listing, settings) {
         patch.last_price_jpy = r.min;
         patch.last_count = r.count;
         patch.last_available = r.min != null;
+        // 採用した最安値がどの商品だったかを残す。別商品の混入は画面で気づくしかない
+        patch.last_title = r.items?.[0]?.title || null;
       }
       await sb.from('ebay_listing_sources').update(patch).eq('id', src.id);
       return { ...r, src };
@@ -888,22 +1066,28 @@ router.delete('/watch/:id', async (req, res) => {
 /** 1候補の国内最安値を取り直し、利益を再計算する */
 async function refreshWatchItem(item, settings) {
   const sb = getSupabase();
-  const [y, m, s] = await Promise.all([
+  const [y, m, s, rk, az] = await Promise.all([
     scrapeSource('yahoo', item.keyword_ja, item.exclude_words, item.include_words),
     scrapeSource('mercari', item.keyword_ja, item.exclude_words, item.include_words),
     scrapeSource('suruga', item.keyword_ja, item.exclude_words, item.include_words),
+    scrapeSource('rakuten', item.keyword_ja, item.exclude_words, item.include_words),
+    scrapeSource('amazon', item.keyword_ja, item.exclude_words, item.include_words),
   ]);
+  const all = [y, m, s, rk, az];
 
-  const cands = [y, m, s].filter((r) => r.ok && r.min != null);
+  const cands = all.filter((r) => r.ok && r.min != null);
   const best = cands.length ? cands.reduce((a, b) => (a.min <= b.min ? a : b)) : null;
-  const supply = [y, m, s].filter((r) => r.ok).reduce((a, r) => a + (r.count || 0), 0);
+  const supply = all.filter((r) => r.ok).reduce((a, r) => a + (r.count || 0), 0);
 
   const patch = {
     yahoo_price_jpy: y.ok ? y.min : null,
     mercari_price_jpy: m.ok ? m.min : null,
     suruga_price_jpy: s.ok ? s.min : null,
+    rakuten_price_jpy: rk.ok ? rk.min : null,
+    amazon_price_jpy: az.ok ? az.min : null,
     best_source: best?.source ?? null,
     best_price_jpy: best?.min ?? null,
+    best_title: best?.items?.[0]?.title ?? null,
     supply_count: supply,
     last_checked_at: new Date().toISOString(),
   };
@@ -919,11 +1103,12 @@ async function refreshWatchItem(item, settings) {
     // 中央値: 「その型番を継続的に仕入れ続けられるか」の数字。判定はこちらを使う。
     // 最安値だけで判定すると、たまたま出ている1点の安値で◎が付き、
     // 2個目以降が仕入れられない型番を大量に出品してしまう。
-    const medCands = [y, m, s].filter((r) => r.ok && r.median != null);
+    const medCands = all.filter((r) => r.ok && r.median != null);
     const medBest = medCands.length ? medCands.reduce((a, b) => (a.median <= b.median ? a : b)) : null;
     if (medBest) {
       const atMed = calcProfit(settings, priceUsd, medBest.median, item.category, item.weight_kg);
       patch.median_price_jpy = medBest.median;
+      patch.median_title = medBest.items?.[Math.min(1, medBest.items.length - 1)]?.title ?? null;
       patch.profit_median_jpy = atMed.profit_jpy;
       patch.margin_median_pct = atMed.margin_pct;
       patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count);

@@ -188,3 +188,15 @@ alter table ebay_profit_watch add column if not exists margin_median_pct  numeri
 -- 「読めなかった」と「在庫が無い」を画面上でも区別する。
 -- 両者を同じ表示にすると、取得失敗を在庫切れと誤読して不要な取り下げ判断をしてしまう。
 alter table ebay_listing_sources add column if not exists last_error text;
+
+-- ── 仕入先に楽天市場とAmazon.co.jpを追加（同日）──────────
+alter table ebay_profit_watch add column if not exists rakuten_price_jpy int;
+alter table ebay_profit_watch add column if not exists amazon_price_jpy  int;
+
+-- 採用した最安値がどの商品だったかを保存する。
+-- キーワード規則だけでは別商品の混入を完全には防げない（楽天のあいまい検索で
+-- 「スーパーファミコン本体」にソフトのカセットが、「ドリームキャスト本体」に
+-- ビジュアルメモリが混ざった実例あり）。人が画面で気づけるようにするのが最後の砦。
+alter table ebay_listing_sources add column if not exists last_title text;
+alter table ebay_profit_watch    add column if not exists best_title text;
+alter table ebay_profit_watch    add column if not exists median_title text;

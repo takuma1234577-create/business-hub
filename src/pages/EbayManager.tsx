@@ -10,7 +10,7 @@ import {
 interface Source {
   id: string
   listing_id: string
-  source: 'yahoo' | 'mercari' | 'suruga' | 'kitamura'
+  source: 'yahoo' | 'mercari' | 'suruga' | 'rakuten' | 'amazon' | 'kitamura'
   search_keyword: string
   exclude_words: string | null
   last_price_jpy: number | null
@@ -18,6 +18,7 @@ interface Source {
   last_available: boolean
   last_checked_at: string | null
   last_error: string | null
+  last_title: string | null
   enabled: boolean
 }
 
@@ -66,6 +67,8 @@ interface Watch {
   yahoo_price_jpy: number | null
   mercari_price_jpy: number | null
   suruga_price_jpy: number | null
+  rakuten_price_jpy: number | null
+  amazon_price_jpy: number | null
   supply_count: number | null
   profit_jpy: number | null
   margin_pct: number | null
@@ -73,6 +76,8 @@ interface Watch {
   profit_median_jpy: number | null
   margin_median_pct: number | null
   verdict: string | null
+  best_title: string | null
+  median_title: string | null
   enabled: boolean
   last_checked_at: string | null
 }
@@ -85,7 +90,7 @@ interface Stats {
   ebay_api_connected: boolean
 }
 
-const SOURCE_LABEL: Record<string, string> = { yahoo: 'ヤフオク', mercari: 'メルカリ', suruga: '駿河屋', kitamura: 'キタムラ' }
+const SOURCE_LABEL: Record<string, string> = { yahoo: 'ヤフオク', mercari: 'メルカリ', suruga: '駿河屋', rakuten: '楽天', amazon: 'Amazon', kitamura: 'キタムラ' }
 
 const jpy = (n: number | null | undefined) => (n == null ? '—' : `¥${n.toLocaleString()}`)
 const ago = (iso: string | null) => {
@@ -350,6 +355,12 @@ export default function EbayManager() {
                             +{Math.round(((l.last_min_price_jpy - l.cost_basis_jpy) / l.cost_basis_jpy) * 100)}%
                           </span>
                         )}
+                        {(() => {
+                          // 採用した最安値がどの商品かを出す。キーワード規則だけでは
+                          // 別商品（ソフト・周辺機器）の混入を防ぎきれないため目視できるようにする
+                          const t = (l.sources || []).find((s) => s.last_price_jpy === l.last_min_price_jpy)?.last_title
+                          return t ? <div className="text-xs text-gray-400 font-normal max-w-[16rem] truncate" title={t}>{t}</div> : null
+                        })()}
                       </td>
                       <td className={`px-3 py-2 text-right font-medium ${
                         l.last_margin_pct == null ? '' : l.last_margin_pct >= 15 ? 'text-green-600' : l.last_margin_pct > 0 ? 'text-amber-600' : 'text-red-600'
@@ -379,7 +390,7 @@ export default function EbayManager() {
                               <span
                                 key={s.id}
                                 className={`px-1.5 py-0.5 rounded text-xs ${cls}`}
-                                title={`${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}${s.last_error ? ` / ${s.last_error}` : ''}`}
+                                title={`${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}${s.last_error ? ` / ${s.last_error}` : ''}${s.last_title ? `\n最安: ${s.last_title}` : ''}`}
                               >
                                 {SOURCE_LABEL[s.source] || s.source}
                                 {label}
@@ -497,9 +508,9 @@ export default function EbayManager() {
             <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
               国内3サイトの価格を10分ごとに取り直し、eBayのSold相場と突き合わせて利益を再計算します。
               <strong>最安</strong>は「いま出ている1点で受注をさばけるか」、<strong>中央値</strong>は「その型番を継続的に仕入れ続けられるか」。
-              判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。
+              判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。<strong>採用した商品名を必ず確認してください</strong>（あいまい検索でソフトや周辺機器が混ざることがあります）。
               eBay相場が未登録の行は判定を出しません（推測値では埋めません）。
-              メルカリはクライアント描画のためサーバーからは取得できず、常に「—」になります。
+              メルカリはクライアント描画のため、駿河屋はアクセス制限のため、サーバーからは取得できず常に「—」になります。AmazonはSP-APIの中古オファーを見るため AMAZON_SP_REFRESH_TOKEN が必要です。
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -511,6 +522,8 @@ export default function EbayManager() {
                     <Th right>ヤフオク</Th>
                     <Th right>メルカリ</Th>
                     <Th right>駿河屋</Th>
+                    <Th right>楽天</Th>
+                    <Th right>Amazon</Th>
                     <Th right>最安</Th>
                     <Th right>最安粗利</Th>
                     <Th right>中央値</Th>
@@ -530,9 +543,16 @@ export default function EbayManager() {
                       <td className="px-3 py-2 text-right">{jpy(w.yahoo_price_jpy)}</td>
                       <td className="px-3 py-2 text-right">{jpy(w.mercari_price_jpy)}</td>
                       <td className="px-3 py-2 text-right">{jpy(w.suruga_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.rakuten_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right">{jpy(w.amazon_price_jpy)}</td>
                       <td className="px-3 py-2 text-right font-medium">
                         {jpy(w.best_price_jpy)}
                         {w.best_source && <div className="text-xs text-gray-500">{SOURCE_LABEL[w.best_source]}</div>}
+                        {w.best_title && (
+                          <div className="text-xs text-gray-400 font-normal text-left max-w-[14rem] truncate" title={w.best_title}>
+                            {w.best_title}
+                          </div>
+                        )}
                       </td>
                       <td className={`px-3 py-2 text-right ${
                         w.profit_jpy == null ? '' : w.profit_jpy > 0 ? 'text-gray-600 dark:text-gray-300' : 'text-red-600'
@@ -540,7 +560,14 @@ export default function EbayManager() {
                         {jpy(w.profit_jpy)}
                         {w.margin_pct != null && <div className="text-xs text-gray-400">{w.margin_pct}%</div>}
                       </td>
-                      <td className="px-3 py-2 text-right">{jpy(w.median_price_jpy)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {jpy(w.median_price_jpy)}
+                        {w.median_title && (
+                          <div className="text-xs text-gray-400 font-normal text-left max-w-[14rem] truncate" title={w.median_title}>
+                            {w.median_title}
+                          </div>
+                        )}
+                      </td>
                       <td className={`px-3 py-2 text-right font-medium ${
                         w.profit_median_jpy == null ? '' : w.profit_median_jpy >= 5000 ? 'text-green-600' : w.profit_median_jpy > 0 ? 'text-amber-600' : 'text-red-600'
                       }`}>{jpy(w.profit_median_jpy)}</td>
@@ -555,7 +582,7 @@ export default function EbayManager() {
                     </tr>
                   ))}
                   {!watch.length && (
-                    <tr><td colSpan={15} className="px-3 py-10 text-center text-gray-400">監視候補が登録されていません</td></tr>
+                    <tr><td colSpan={17} className="px-3 py-10 text-center text-gray-400">監視候補が登録されていません</td></tr>
                   )}
                 </tbody>
               </table>
