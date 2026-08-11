@@ -430,7 +430,7 @@ async function scrapeAmazon(keyword, excludeWords, includeWords) {
     const asins = (cat.items || [])
       .map((i) => ({ asin: i.asin, title: i.summaries?.[0]?.itemName || '' }))
       .filter((i) => i.asin && (!i.title || (!isExcluded(i.title) && isIncluded(i.title))))
-      .slice(0, 5);
+      .slice(0, 3);
 
     if (!asins.length) {
       return { source: 'amazon', ok: true, count: 0, min: null, median: null, items: [], url: webUrl };
@@ -455,7 +455,7 @@ async function scrapeAmazon(keyword, excludeWords, includeWords) {
       } catch {
         // 個別ASINの失敗は無視して次へ
       }
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 400));
     }
 
     items.sort((a, b) => a.price - b.price);
@@ -1207,6 +1207,16 @@ router.get('/stats', async (_req, res) => {
 // Cron: 10分ごと
 // ══════════════════════════════════════════════════════
 
+/**
+ * Vercelの関数上限は vercel.json の maxDuration で120秒。
+ * 仕入先を増やすと1件あたりの所要が伸び、件数だけで制御していると
+ * 上限を超えて FUNCTION_INVOCATION_TIMEOUT になり、その回の結果が
+ * まるごと失われる（実際に発生した）。件数ではなく残り時間で打ち切る。
+ *
+ * 未処理分は last_checked_at 昇順で次回の先頭に来るので取りこぼさない。
+ */
+const CRON_BUDGET_MS = 95_000; // 120秒の上限に対し、応答とDB書き込みの余裕を残す
+
 /** 在庫追従。最も長く未チェックの出品から順に巡回する */
 router.get('/cron/stock-check', async (_req, res) => {
   try {
@@ -1221,9 +1231,15 @@ router.get('/cron/stock-check', async (_req, res) => {
       .order('last_checked_at', { ascending: true, nullsFirst: true })
       .limit(settings.max_checks_per_run);
 
-    const summary = { checked: 0, ok: 0, warn: 0, ended: 0, end_recommended: 0, error: 0 };
+    const startedAt = Date.now();
+    const summary = { checked: 0, ok: 0, warn: 0, ended: 0, end_recommended: 0, error: 0, remaining: 0 };
 
     for (const listing of listings || []) {
+      if (Date.now() - startedAt > CRON_BUDGET_MS) {
+        summary.remaining = (listings.length - summary.checked);
+        console.log(`[ebay] stock-check 時間切れ。残り${summary.remaining}件は次回に回す`);
+        break;
+      }
       try {
         const result = await checkListing(listing, settings);
         const action = await applyCheckResult(listing, result, settings);
@@ -1262,9 +1278,16 @@ router.get('/cron/profit-watch', async (_req, res) => {
       .order('last_checked_at', { ascending: true, nullsFirst: true })
       .limit(20);
 
+    const startedAt = Date.now();
     let updated = 0;
+    let remaining = 0;
     const newlyGood = [];
     for (const item of items || []) {
+      if (Date.now() - startedAt > CRON_BUDGET_MS) {
+        remaining = items.length - updated;
+        console.log(`[ebay] profit-watch 時間切れ。残り${remaining}件は次回に回す`);
+        break;
+      }
       try {
         const before = item.verdict;
         const patch = await refreshWatchItem(item, settings);
@@ -1281,7 +1304,7 @@ router.get('/cron/profit-watch', async (_req, res) => {
     if (newlyGood.length) {
       await notify(settings, `:moneybag: 利益条件を満たした商品があります\n${newlyGood.join('\n')}`);
     }
-    res.json({ updated, newlyGood: newlyGood.length });
+    res.json({ updated, remaining, newlyGood: newlyGood.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
