@@ -76,6 +76,7 @@ interface Watch {
   profit_median_jpy: number | null
   margin_median_pct: number | null
   verdict: string | null
+  cost_ratio_pct: number | null
   best_title: string | null
   median_title: string | null
   enabled: boolean
@@ -508,7 +509,7 @@ export default function EbayManager() {
             <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
               国内3サイトの価格を10分ごとに取り直し、eBayのSold相場と突き合わせて利益を再計算します。
               <strong>最安</strong>は「いま出ている1点で受注をさばけるか」、<strong>中央値</strong>は「その型番を継続的に仕入れ続けられるか」。
-              判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。<strong>採用した商品名を必ず確認してください</strong>（あいまい検索でソフトや周辺機器が混ざることがあります）。
+              判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。<strong>仕入比率</strong>（国内仕入値÷eBay相場）が<strong>44%以下</strong>でないと、米国基準・送料無料の価格が相場を超えて売れません。<strong>採用した商品名も必ず確認してください</strong>（あいまい検索でソフトや周辺機器が混ざることがあります）。
               eBay相場が未登録の行は判定を出しません（推測値では埋めません）。
               メルカリはクライアント描画のため、駿河屋はアクセス制限のため、サーバーからは取得できず常に「—」になります。AmazonはSP-APIの中古オファーを見るため AMAZON_SP_REFRESH_TOKEN が必要です。
             </div>
@@ -529,6 +530,7 @@ export default function EbayManager() {
                     <Th right>中央値</Th>
                     <Th right>中央値粗利</Th>
                     <Th right>中央値率</Th>
+                    <Th right>仕入比率</Th>
                     <Th>判定</Th>
                     <Th>更新</Th>
                     <Th />
@@ -572,6 +574,11 @@ export default function EbayManager() {
                         w.profit_median_jpy == null ? '' : w.profit_median_jpy >= 5000 ? 'text-green-600' : w.profit_median_jpy > 0 ? 'text-amber-600' : 'text-red-600'
                       }`}>{jpy(w.profit_median_jpy)}</td>
                       <td className="px-3 py-2 text-right">{w.margin_median_pct == null ? '—' : `${w.margin_median_pct}%`}</td>
+                      <td className={`px-3 py-2 text-right font-medium ${
+                        w.cost_ratio_pct == null ? '' : w.cost_ratio_pct <= 44 ? 'text-green-600' : 'text-red-600'
+                      }`} title="国内仕入値 ÷ eBay相場。米国基準・送料無料で出すなら44%以下が必要">
+                        {w.cost_ratio_pct == null ? '—' : `${w.cost_ratio_pct}%`}
+                      </td>
                       <td className="px-3 py-2 text-center text-lg">{w.verdict || '—'}</td>
                       <td className="px-3 py-2 text-xs text-gray-500">{ago(w.last_checked_at)}</td>
                       <td className="px-3 py-2">
@@ -582,7 +589,7 @@ export default function EbayManager() {
                     </tr>
                   ))}
                   {!watch.length && (
-                    <tr><td colSpan={17} className="px-3 py-10 text-center text-gray-400">監視候補が登録されていません</td></tr>
+                    <tr><td colSpan={18} className="px-3 py-10 text-center text-gray-400">監視候補が登録されていません</td></tr>
                   )}
                 </tbody>
               </table>

@@ -91,6 +91,7 @@ const DEFAULT_SETTINGS = {
   ship_tier4_jpy: 7500,
   notify_slack: true,
   use_amazon: false,
+  max_cost_ratio_pct: 44,
 };
 
 async function getSettings() {
@@ -157,7 +158,9 @@ const INTL_SHIP_INCOME_USD = 24;
  * 実装可能な唯一の形になる。
  */
 const REGIONS = [
-  { code: 'US', name: '米国',            dutyPct: 15, shipMul: 1.0,  freeShip: true  },
+  // 米国の関税率は ebay_settings.duty_us_pct を使う（DDU化するときに0にする）。
+  // ここに定数で持つと設定を変えても価格が変わらない。
+  { code: 'US', name: '米国',            dutyPct: null, shipMul: 1.0,  freeShip: true  },
   { code: 'AS', name: 'アジア',          dutyPct: 0,  shipMul: 0.7,  freeShip: false },
   { code: 'CA', name: 'カナダ',          dutyPct: 0,  shipMul: 1.0,  freeShip: false },
   { code: 'EU', name: '欧州・豪州',      dutyPct: 0,  shipMul: 1.15, freeShip: false },
@@ -203,6 +206,8 @@ function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = '
     return ((fixedCostJpy + shipCostJpy) / rate + fixUsd + P * (dutyPct / 100)) / denom;
   };
 
+  // 米国の関税率は設定から取る。それ以外は0（バイヤー負担）
+  const dutyOf = (r) => (r.dutyPct === null ? Number(s.duty_us_pct) : r.dutyPct);
   const regionShip = (r) => Math.round(baseShip * r.shipMul);
   const withShip = (shipCostJpy) => ({
     ...s, ship_tier1_jpy: shipCostJpy, ship_tier2_jpy: shipCostJpy,
@@ -212,7 +217,7 @@ function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = '
   let priceUsd;
   if (mode === 'us_free') {
     // 米国を送料無料のまま満たす価格（関税15%を価格に織り込む）
-    const denomUs = 1 - targetMargin - fvf - varFee - REGIONS[0].dutyPct / 100;
+    const denomUs = 1 - targetMargin - fvf - varFee - dutyOf(REGIONS[0]) / 100;
     if (denomUs <= 0) return null;
     priceUsd = ((fixedCostJpy + baseShip) / rate + fixUsd) / denomUs;
   } else {
@@ -227,13 +232,13 @@ function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = '
     const shipCostJpy = regionShip(r);
     let charge = 0;
     if (!(mode === 'us_free' && r.freeShip)) {
-      const need = needTotal(shipCostJpy, r.dutyPct, priceUsd);
+      const need = needTotal(shipCostJpy, dutyOf(r), priceUsd);
       charge = Math.max(0, need - priceUsd);
     }
     charge = Math.ceil(charge * 100) / 100;
-    const res = calcProfit(withShip(shipCostJpy), priceUsd, costJpy, category, 0.5, charge, r.dutyPct > 0);
+    const res = calcProfit(withShip(shipCostJpy), priceUsd, costJpy, category, 0.5, charge, r.dutyPct === null);
     return {
-      code: r.code, name: r.name, duty_pct: r.dutyPct,
+      code: r.code, name: r.name, duty_pct: dutyOf(r),
       ship_cost_jpy: shipCostJpy, charge_usd: charge,
       buyer_total_usd: Math.round((priceUsd + charge) * 100) / 100,
       profit_jpy: res.profit_jpy, margin_pct: res.margin_pct,
@@ -255,8 +260,12 @@ function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = '
  * セラーの裁定で価格差が既に潰れている（実測で確認済み）。
  * ただし0件＝海外需要が確認できていないので候補にしない。
  */
-function verdictOf(margin, profit, soldCount) {
+function verdictOf(margin, profit, soldCount, costRatioPct, maxRatioPct) {
   if (soldCount != null && soldCount < 1) return '✕';
+  // 米国基準・全世界送料無料で出す前提だと、価格は米国（関税15%・送料自社負担）で
+  // 決まる。国内仕入値がeBay相場の44%を超えると、その価格が相場を超えて売れなくなる。
+  // 実測では牛刀26%だけが成立し、50%超の9件は全滅した。
+  if (costRatioPct != null && maxRatioPct != null && costRatioPct > maxRatioPct) return '✕';
   if (profit <= 0) return '✕';
   if (margin >= 20 && profit >= 5000) return '◎';   // 両方満たす
   if (margin >= 20 || profit >= 5000) return '○';   // 合格ライン
@@ -1252,9 +1261,12 @@ async function refreshWatchItem(item, settings) {
       patch.median_title = medBest.items?.[Math.min(1, medBest.items.length - 1)]?.title ?? null;
       patch.profit_median_jpy = atMed.profit_jpy;
       patch.margin_median_pct = atMed.margin_pct;
-      patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count);
+      const ratio = (medBest.median / Number(item.ebay_sold_median_jpy)) * 100;
+      const maxRatio = Number(settings.max_cost_ratio_pct);
+      patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count, ratio, maxRatio);
       patch.profit_intl_jpy = atMedIntl.profit_jpy;
       patch.margin_intl_pct = atMedIntl.margin_pct;
+      // 非米国は関税が無いので比率の足切りは掛けない
       patch.verdict_intl = verdictOf(atMedIntl.margin_pct, atMedIntl.profit_jpy, item.ebay_sold_count);
     } else {
       patch.median_price_jpy = null;
