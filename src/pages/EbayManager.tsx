@@ -736,13 +736,22 @@ export default function EbayManager() {
                     {importResult.supplier.image_count > 0 && (
                       <div className="mt-3">
                         <div className="text-xs text-gray-500 mb-1">
-                          仕入先の画像 {importResult.supplier.image_count}枚（確認用リンク。出品には使えません）
+                          仕入先の画像 {importResult.supplier.image_count}枚（状態確認用。出品には使えません）
                         </div>
-                        <div className="flex flex-wrap gap-1">
+                        {/* 仕入先から直接読み込んで並べる。コピーは保存しない。
+                            1枚ずつタブで開かなくても、前玉のカビや外観のスレを一覧で見比べられる */}
+                        <div className="grid grid-cols-4 gap-1">
                           {importResult.supplier.image_urls.map((u, i) => (
                             <a key={i} href={u} target="_blank" rel="noopener noreferrer"
-                               className="px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:underline">
-                              {i + 1}枚目
+                               title={`${i + 1}枚目（クリックで原寸）`}
+                               className="block aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500">
+                              <img
+                                src={u}
+                                alt={`${i + 1}枚目`}
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
                             </a>
                           ))}
                         </div>
@@ -830,7 +839,28 @@ export default function EbayManager() {
                         <td className="px-3 py-2 text-right whitespace-nowrap">{jpy(r.price_jpy)}</td>
                         <td className="px-3 py-2 text-xs whitespace-nowrap">{r.condition_ja || '—'}</td>
                         <td className="px-3 py-2 text-xs text-gray-500 max-w-[14rem] truncate" title={r.genre || ''}>{r.genre || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500">{r.image_urls?.length ?? 0}枚</td>
+                        <td className="px-3 py-2">
+                          {r.image_urls?.length ? (
+                            <div className="flex items-center gap-0.5">
+                              {r.image_urls.slice(0, 3).map((u, i) => (
+                                <a key={i} href={u} target="_blank" rel="noopener noreferrer" title={`${i + 1}枚目`}>
+                                  <img
+                                    src={u}
+                                    alt=""
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
+                                    className="w-9 h-9 rounded object-cover bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500"
+                                  />
+                                </a>
+                              ))}
+                              {r.image_urls.length > 3 && (
+                                <span className="text-[10px] text-gray-400 ml-0.5">+{r.image_urls.length - 3}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1 justify-end">
                             {r.listing_id ? (
