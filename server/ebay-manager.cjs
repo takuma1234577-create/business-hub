@@ -729,6 +729,69 @@ function pickBestItem(candidates, settings = {}, opts = {}) {
   return { picked, reason, rejected, market_jpy: marketJpy, candidates: scored.slice(0, 5) };
 }
 
+// ── eBay相場の入力検証 ──────────────────────────────────
+/**
+ * eBay側の検索語にセット出品の除外が入っているかを検証する。
+ *
+ * 2026-08-12、この検証が無かったために11型番すべての相場を2〜3倍に見誤った。
+ * Terapeakで「Olympus OM Zuiko 50mm f1.8」を測ると、落札8件すべてが
+ * 「OM-1 / OM-2 などのフィルムカメラ本体 + レンズ」のセットで、
+ * レンズ単体の落札は1件も無かった。$189.97 はカメラ本体の値段だった。
+ *
+ * 国内側の仕入先には detectBundle を入れていたのに、判定のもう一方である
+ * eBay側には何も入れていなかった。同じ罠を反対側で踏んでいる。
+ */
+const EBAY_BUNDLE_EXCLUDES = {
+  common: ['body', 'camera', 'SLR', 'set', 'kit'],
+  Canon: ['AE-1', 'A-1', 'F-1', 'T70', 'T50', 'AV-1'],
+  Nikon: ['FM', 'FE', 'F2', 'F3', 'EM', 'Nikkormat'],
+  Pentax: ['MX', 'ME', 'K1000', 'KX', 'LX', 'Spotmatic'],
+  Olympus: ['OM-1', 'OM-2', 'OM-3', 'OM-4', 'OM-10'],
+  Minolta: ['XD', 'X-700', 'SRT', 'XG', 'XE'],
+  Konica: ['Autoreflex', 'FS-1'],
+  Fujifilm: ['ST701', 'ST801', 'AZ-1'],
+};
+
+/** その型番のeBay検索語に足すべき除外語を返す */
+function recommendedEbayExcludes(kataban = '') {
+  const brand = Object.keys(EBAY_BUNDLE_EXCLUDES).find(
+    (b) => b !== 'common' && new RegExp(b, 'i').test(kataban),
+  );
+  return [...EBAY_BUNDLE_EXCLUDES.common, ...(brand ? EBAY_BUNDLE_EXCLUDES[brand] : [])];
+}
+
+/**
+ * eBay検索語を検証する。除外が不足していれば理由付きで返す。
+ * 相場を登録・更新する経路では必ずこれを通す。
+ */
+function validateEbayKeyword(keywordEn, kataban = '') {
+  const kw = String(keywordEn || '');
+  if (!kw.trim()) return { ok: false, reason: 'eBayの検索語が未設定です' };
+
+  const need = recommendedEbayExcludes(kataban);
+  // 「-語」の形で入っているものを拾う
+  const present = (kw.match(/-\S+/g) || []).map((s) => s.slice(1).toLowerCase());
+  const missing = need.filter((w) => !present.includes(w.toLowerCase()));
+
+  if (!present.length) {
+    return {
+      ok: false,
+      reason: 'セット出品の除外が入っていません。ボディ＋レンズのセットが混ざると相場が2〜3倍に膨らみます',
+      suggestion: `${kw} ${need.map((w) => `-${w}`).join(' ')}`,
+      missing,
+    };
+  }
+  if (missing.length > need.length / 2) {
+    return {
+      ok: false,
+      reason: `除外が不足しています（${missing.slice(0, 6).join(' / ')} など）`,
+      suggestion: `${kw} ${missing.map((w) => `-${w}`).join(' ')}`,
+      missing,
+    };
+  }
+  return { ok: true, missing };
+}
+
 async function scrapeSource(source, keyword, excludeWords, includeWords) {
   const fn = SCRAPERS[source];
   if (!fn) return { source, ok: false, count: null, min: null, items: [], error: 'unknown source' };
@@ -1545,10 +1608,32 @@ router.get('/watch', async (_req, res) => {
   }
 });
 
+/**
+ * eBay相場を伴う登録・更新では、検索語にセット出品の除外が入っているかを検証する。
+ * 不足していれば422で止め、修正案を返す。force:true で明示的に上書きできる。
+ *
+ * 相場が2〜3倍に膨らんだまま通ると、赤字の型番に◎が付き、自動取り込みまで走る。
+ * 入口で止めるのが最も安い。
+ */
+function guardEbayKeyword(body) {
+  if (body.ebay_sold_median_jpy == null || body.force) return null;
+  const v = validateEbayKeyword(body.keyword_en, body.kataban || '');
+  if (v.ok) return null;
+  return {
+    error: `eBay相場を登録できません: ${v.reason}`,
+    suggestion: v.suggestion,
+    missing: v.missing,
+    hint: '落札一覧のタイトルを目視し、ボディ＋レンズのセットが混ざっていないか必ず確認してください',
+  };
+}
+
 router.post('/watch', async (req, res) => {
   try {
+    const bad = guardEbayKeyword(req.body);
+    if (bad) return res.status(422).json(bad);
     const sb = getSupabase();
-    const { data, error } = await sb.from('ebay_profit_watch').insert(req.body).select().single();
+    const { force, ...row } = req.body;
+    const { data, error } = await sb.from('ebay_profit_watch').insert(row).select().single();
     if (error) throw error;
     res.json(data);
   } catch (e) {
@@ -1559,7 +1644,12 @@ router.post('/watch', async (req, res) => {
 router.put('/watch/:id', async (req, res) => {
   try {
     const sb = getSupabase();
-    const { data, error } = await sb.from('ebay_profit_watch').update(req.body).eq('id', req.params.id).select().single();
+    // 更新時は既存の型番・検索語も合わせて見る（部分更新でも検証が効くように）
+    const { data: cur } = await sb.from('ebay_profit_watch').select('kataban,keyword_en').eq('id', req.params.id).maybeSingle();
+    const bad = guardEbayKeyword({ ...(cur || {}), ...req.body });
+    if (bad) return res.status(422).json(bad);
+    const { force, ...row } = req.body;
+    const { data, error } = await sb.from('ebay_profit_watch').update(row).eq('id', req.params.id).select().single();
     if (error) throw error;
     res.json(data);
   } catch (e) {
