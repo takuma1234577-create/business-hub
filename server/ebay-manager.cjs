@@ -1081,6 +1081,86 @@ router.post('/imports', async (req, res) => {
   }
 });
 
+/**
+ * 取り込み1件から出品レコードを作る（ワンクリック下書き）。
+ *
+ *   1. ebay_listings に行を作る（売価は米国基準・送料無料で逆算）
+ *   2. 取り込み元の商品URLを仕入先として登録し、10分ごとの在庫追従に載せる
+ *   3. EBAY_OAUTH_TOKEN があれば、続けてeBayの未公開オファー（下書き）も作る
+ *
+ * 3は公開（publishOffer）を絶対に呼ばない。トークンが無い環境では1と2まで進めて、
+ * eBay側は手で作る前提の情報を返す。
+ *
+ * セット出品の疑いがある取り込みは既定で拒否する。レンズ単体として出品して
+ * 「届かない物がある」事故になるため、force:true を明示したときだけ通す。
+ */
+router.post('/imports/:id/listing', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data: imp } = await sb.from('ebay_imports').select('*').eq('id', req.params.id).single();
+    if (!imp) return res.status(404).json({ error: '取り込みが見つかりません' });
+    if (imp.listing_id) return res.status(409).json({ error: 'この取り込みからは既に出品を作成済みです', listing_id: imp.listing_id });
+    if (imp.bundle_suspect && !req.body.force) {
+      return res.status(409).json({ error: 'セット出品の疑いがあります。内容を確認のうえ、意図して作る場合のみ再実行してください', needs_force: true });
+    }
+    if (imp.price_jpy == null) return res.status(400).json({ error: '仕入値を取得できていないため売価を決められません' });
+
+    const settings = await getSettings();
+    const category = req.body.category || 'カメラ';
+    const weightKg = Number(req.body.weight_kg ?? 0.4);
+    const margin = Number(req.body.margin ?? 20) / 100;
+    const pricing = priceForRegions(settings, imp.price_jpy, category, weightKg, margin, 'us_free');
+    if (!pricing) return res.status(400).json({ error: 'その利益率は手数料構成上、達成できません' });
+
+    const sp = imp.specs || {};
+    const sku = req.body.sku || [
+      'LENS',
+      (sp.brand_en || 'NA').slice(0, 3).toUpperCase(),
+      sp.focal_mm ? `${sp.focal_mm}` : 'XX',
+      sp.aperture ? String(sp.aperture).replace('.', '') : 'XX',
+    ].join('-');
+
+    const { data: listing, error: e1 } = await sb.from('ebay_listings').insert({
+      sku,
+      kataban: imp.title_en || imp.title_ja.slice(0, 80),
+      title_en: imp.title_en,
+      category,
+      price_usd: Number(pricing.price_usd.toFixed(2)),
+      weight_kg: weightKg,
+      cost_basis_jpy: imp.price_jpy,
+      status: 'draft',
+    }).select().single();
+    if (e1) throw new Error(e1.message);
+
+    // 取り込み元のその個体を仕入先として登録する。売れたら即座に検知できる
+    const { error: e2 } = await sb.from('ebay_listing_sources').insert({
+      listing_id: listing.id,
+      source: imp.source,
+      search_keyword: imp.title_ja.slice(0, 120),
+      url: imp.source_url,
+      last_url: imp.source_url,
+      last_price_jpy: imp.price_jpy,
+      last_available: imp.available !== false,
+    });
+    if (e2) throw new Error(e2.message);
+
+    await sb.from('ebay_imports').update({ listing_id: listing.id }).eq('id', imp.id);
+
+    // eBay側の下書きはトークンがあるときだけ。無ければここまでで返す
+    let ebay = { created: false, reason: 'EBAY_OAUTH_TOKEN / EBAY_REFRESH_TOKEN が未設定のため、eBay側の下書きは作成していません' };
+    if (process.env.EBAY_OAUTH_TOKEN || process.env.EBAY_REFRESH_TOKEN) {
+      const missing = draftPreflight(listing, settings);
+      ebay = missing.length
+        ? { created: false, reason: `出品に必要な項目が足りません: ${missing.join(' / ')}` }
+        : { created: false, reason: '作成は /listings/:id/draft から実行してください', listing_id: listing.id };
+    }
+
+    res.json({ listing, pricing, ebay, photos_required: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /** 取り込み履歴。後から「どの出品から取ったのか」を確認するための一覧 */
 router.get('/imports', async (req, res) => {
   try {

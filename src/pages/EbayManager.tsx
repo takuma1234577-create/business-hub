@@ -52,6 +52,8 @@ interface ImportRow {
   bundle_suspect: boolean
   warnings: string[] | null
   fetched_at: string | null
+  listing_id: string | null
+  auto: boolean
 }
 
 interface Listing {
@@ -224,6 +226,31 @@ export default function EbayManager() {
       setImportErr(e instanceof Error ? e.message : String(e))
     } finally {
       setImporting(false)
+    }
+  }
+
+  /** 取り込み1件から出品レコードを作り、在庫追従に載せる */
+  const makeListing = async (r: ImportRow, force = false) => {
+    setBusyId(r.id)
+    try {
+      const res = await fetch(`/api/ebay/imports/${r.id}/listing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      })
+      const j = await res.json()
+      if (res.status === 409 && j.needs_force) {
+        // セット出品の疑いは黙って通さない。人が確認してから作る
+        if (confirm(`${j.error}\n\n${r.title_ja}\n\nこのまま作成しますか？`)) return makeListing(r, true)
+        return
+      }
+      if (!res.ok) throw new Error(j.error || '作成に失敗しました')
+      setMsg(`出品を作成しました: ${j.listing.sku} / $${Number(j.listing.price_usd).toFixed(2)}（写真は別途必要です）`)
+      loadImports(); load()
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -710,11 +737,27 @@ export default function EbayManager() {
                         <td className="px-3 py-2 text-xs whitespace-nowrap">{r.condition_ja || '—'}</td>
                         <td className="px-3 py-2 text-xs text-gray-500 max-w-[14rem] truncate" title={r.genre || ''}>{r.genre || '—'}</td>
                         <td className="px-3 py-2 text-xs text-gray-500">{r.image_urls?.length ?? 0}枚</td>
-                        <td className="px-3 py-2 text-right">
-                          <IconBtn title="履歴から削除" danger onClick={async () => {
-                            await fetch(`/api/ebay/imports/${r.id}`, { method: 'DELETE' })
-                            loadImports()
-                          }}><StopCircle size={13} /></IconBtn>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1 justify-end">
+                            {r.listing_id ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 whitespace-nowrap">
+                                出品作成済み
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => makeListing(r)}
+                                disabled={busyId === r.id || r.price_jpy == null}
+                                title={r.price_jpy == null ? '仕入値が取れていないため売価を決められません' : '出品レコードを作り、在庫追従に載せます'}
+                                className="px-2 py-1 rounded text-xs bg-blue-600 text-white disabled:opacity-40 whitespace-nowrap"
+                              >
+                                下書きを作る
+                              </button>
+                            )}
+                            <IconBtn title="履歴から削除" danger onClick={async () => {
+                              await fetch(`/api/ebay/imports/${r.id}`, { method: 'DELETE' })
+                              loadImports()
+                            }}><StopCircle size={13} /></IconBtn>
+                          </div>
                         </td>
                       </tr>
                     ))}
