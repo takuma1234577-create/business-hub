@@ -92,6 +92,8 @@ const DEFAULT_SETTINGS = {
   notify_slack: true,
   use_amazon: false,
   max_cost_ratio_pct: 44,
+  // 利益ウォッチが◎/○になったら、その最安個体のページを自動で取り込む
+  auto_import_on_good: true,
 };
 
 async function getSettings() {
@@ -358,6 +360,11 @@ async function scrapeYahoo(keyword, excludeWords, includeWords) {
 
   const items = [];
   for (const block of blocks) {
+    // タグを落とす前に個別商品のIDを拾う。利益が出た型番を自動で取り込むとき、
+    // 検索URLではなく「最安だったその個体のページ」を指す必要があるため
+    const idM = block.match(/auctions\.yahoo\.co\.jp\/jp\/auction\/([a-zA-Z0-9]+)/);
+    const itemUrl = idM ? `https://page.auctions.yahoo.co.jp/jp/auction/${idM[1]}` : null;
+
     const text = block
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/g, ' ')
@@ -375,7 +382,7 @@ async function scrapeYahoo(keyword, excludeWords, includeWords) {
 
     const price = parseInt(m[1].replace(/,/g, ''), 10);
     if (!price || price < 500) continue;
-    items.push({ price, title: title.slice(0, 120) });
+    items.push({ price, title: title.slice(0, 120), url: itemUrl });
   }
   items.sort((a, b) => a.price - b.price);
   return {
@@ -1453,7 +1460,64 @@ async function refreshWatchItem(item, settings) {
   }
 
   await sb.from('ebay_profit_watch').update(patch).eq('id', item.id);
+
+  // 利益が出る判定になったら、その最安個体のページを自動で取り込んでおく。
+  // 巡回中に落ちても在庫追従を止めないよう、失敗は握りつぶして patch に記録するだけにする。
+  patch.auto_import = await autoImportBest(item, best, patch, settings).catch((e) => ({ error: e.message }));
   return patch;
+}
+
+/**
+ * 利益ウォッチが◎/○になった型番について、いま最安で買える個体の商品ページを
+ * ebay_imports に取り込む。出品名・説明・ジャンル・画像URLが残るので、
+ * あとから「なぜこの型番を仕入れると判断したのか」を個体レベルで辿れる。
+ *
+ * 同じURLは取り込み直さない。10分ごとの巡回で毎回フェッチすると仕入先に無駄な
+ * 負荷をかけるうえ、内容もほとんど変わらないため。最安個体が売れて別の個体が
+ * 最安になれば、そのURLは新規なので自動的に取り込まれる。
+ */
+async function autoImportBest(item, best, patch, settings) {
+  if (!settings.auto_import_on_good) return { skipped: '設定で無効' };
+  if (!['◎', '○'].includes(patch.verdict)) return { skipped: `判定が ${patch.verdict || '—'}` };
+
+  // 個別商品のURLを持っているのは現状ヤフオクのスクレイパーだけ
+  const target = best?.items?.find((i) => i.url);
+  if (!target) return { skipped: '個別商品のURLを取得できていない' };
+
+  const sb = getSupabase();
+  const { data: exists } = await sb
+    .from('ebay_imports').select('id').eq('source_url', target.url).maybeSingle();
+  if (exists) return { skipped: '取り込み済み', import_id: exists.id };
+
+  const { importFromUrl } = require('./ebay-import.cjs');
+  const r = await importFromUrl(target.url);
+
+  const { data, error } = await sb.from('ebay_imports').upsert({
+    watch_id: item.id,
+    auto: true,
+    source: r.supplier.source,
+    source_url: r.supplier.url,
+    source_item_id: r.supplier.item_id,
+    title_ja: r.supplier.title_ja,
+    description_ja: r.supplier.description_ja || null,
+    genre: r.supplier.genre,
+    breadcrumb: r.supplier.breadcrumb,
+    price_jpy: r.supplier.price_jpy,
+    condition_ja: r.supplier.condition_ja,
+    available: r.supplier.available,
+    image_urls: r.supplier.image_urls,
+    title_en: r.listing.title_en,
+    description_html: r.listing.description_html,
+    item_specifics: r.listing.item_specifics,
+    condition_id: r.listing.condition_id,
+    specs: r.specs,
+    bundle_suspect: r.bundle_suspect,
+    warnings: r.warnings,
+    fetched_at: r.supplier.fetched_at,
+  }, { onConflict: 'source_url' }).select('id').single();
+  if (error) throw new Error(error.message);
+
+  return { imported: true, import_id: data.id, url: target.url, bundle_suspect: r.bundle_suspect };
 }
 
 router.post('/watch/:id/refresh', async (req, res) => {
@@ -1843,3 +1907,5 @@ module.exports.INTL_SHIP_INCOME_USD = INTL_SHIP_INCOME_USD;
 module.exports.priceForRegions = priceForRegions;
 module.exports.REGIONS = REGIONS;
 module.exports.scrapeSource = scrapeSource;
+module.exports.refreshWatchItem = refreshWatchItem;
+module.exports.autoImportBest = autoImportBest;

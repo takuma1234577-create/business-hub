@@ -919,6 +919,12 @@ export default function EbayManager() {
               onChange={(v) => setSettings({ ...settings, use_amazon: v })}
             />
             <Toggle
+              label="利益が出た型番を自動で取り込む"
+              hint="利益ウォッチが◎/○になったら、そのとき最安で買える個体の商品ページを自動で取り込みます（商品名・説明・ジャンル・画像URL）。同じ個体は二重に取り込みません。仕入先の画像そのものは保存せず、URLのみ控えます"
+              checked={!!settings.auto_import_on_good}
+              onChange={(v) => setSettings({ ...settings, auto_import_on_good: v })}
+            />
+            <Toggle
               label="Slackに通知する"
               checked={!!settings.notify_slack}
               onChange={(v) => setSettings({ ...settings, notify_slack: v })}
