@@ -675,6 +675,10 @@ const API_KEY_SERVICES = [
   { id: 'ebay_dev_id', label: 'eBay Dev ID（開発者ID）', envVar: 'EBAY_DEV_ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
   { id: 'ebay_refresh_token', label: 'eBay リフレッシュトークン（ユーザートークンではなくこちら）', envVar: 'EBAY_REFRESH_TOKEN', placeholder: 'v^1.1#i^1#...' },
   { id: 'ebay_verification_token', label: 'eBay 検証トークン（アカウント削除通知用・32〜80文字）', envVar: 'EBAY_VERIFICATION_TOKEN', placeholder: '英数字と _ - のみ' },
+  // RuNameはリダイレクトURLそのものではなく、eBayが払い出す識別名。
+  // トークン交換時の redirect_uri にもこの文字列を渡す必要がある
+  { id: 'ebay_runame', label: 'eBay RuName（リダイレクトURL名）', envVar: 'EBAY_RUNAME', placeholder: 'Tatsuma_Ura-TakumaUr-APIdev-xxxxxx' },
+  { id: 'ebay_env', label: 'eBay 環境（sandbox / production）', envVar: 'EBAY_ENV', placeholder: 'production' },
 ];
 
 // APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）

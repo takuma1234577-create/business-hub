@@ -73,6 +73,12 @@ app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
 const ebayNotificationRoutes = require(path.join(__dirname, 'ebay-notifications.cjs'));
 app.use('/api/ebay-notifications', cors(), ebayNotificationRoutes);
 
+// eBay OAuth の戻り先とプライバシーポリシー（認証不要）。
+// eBayがユーザーのブラウザをここへリダイレクトするため、認証必須にすると流れが切れる。
+// 代わりに署名付き state で正当性を検証している。
+const ebayOAuthRoutes = require(path.join(__dirname, 'ebay-oauth.cjs'));
+app.use('/api/ebay-oauth', cors(), ebayOAuthRoutes);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)

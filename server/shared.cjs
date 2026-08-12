@@ -148,6 +148,8 @@ async function loadApiKeysFromDb() {
       ebay_dev_id: 'EBAY_DEV_ID',
       ebay_refresh_token: 'EBAY_REFRESH_TOKEN',
       ebay_verification_token: 'EBAY_VERIFICATION_TOKEN',
+      ebay_runame: 'EBAY_RUNAME',
+      ebay_env: 'EBAY_ENV',
     };
 
     for (const row of keys) {
