@@ -67,6 +67,12 @@ app.use('/api/public/review-submission', cors(), reviewSubmissionModule.publicRo
 const giftingModule = require(path.join(__dirname, 'gifting.cjs'));
 app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
 
+// eBay アカウント削除通知（認証不要）。
+// eBayが直接叩くので認証ミドルウェアより前に置く必要がある。
+// これが応答しないとProductionキーセットが有効にならない。
+const ebayNotificationRoutes = require(path.join(__dirname, 'ebay-notifications.cjs'));
+app.use('/api/ebay-notifications', cors(), ebayNotificationRoutes);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)
