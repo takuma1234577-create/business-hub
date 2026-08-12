@@ -66,6 +66,7 @@ interface Listing {
   price_usd: number
   weight_kg: number
   cost_basis_jpy: number | null
+  ebay_draft_id: string | null   // Seller Hubの下書き（未公開）。公開後は ebay_item_id
   status: 'draft' | 'active' | 'paused' | 'end_recommended' | 'ended'
   last_margin_pct: number | null
   last_min_price_jpy: number | null
@@ -455,6 +456,24 @@ export default function EbayManager() {
                       <td className="px-3 py-2">
                         <div className="font-medium">{l.kataban}</div>
                         <div className="text-xs text-gray-500 truncate max-w-xs">{l.title_en}</div>
+                        {/* eBay側の出品先。未公開なら下書き、公開後はItemIDのページへ飛ぶ */}
+                        {(l.ebay_draft_id || l.ebay_item_id) && (
+                          <a
+                            href={l.ebay_item_id
+                              ? `https://www.ebay.com/itm/${l.ebay_item_id}`
+                              : `https://www.ebay.com/lstng?draftId=${l.ebay_draft_id}&mode=AddItem`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs hover:underline ${
+                              l.ebay_item_id
+                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                            }`}
+                          >
+                            {l.ebay_item_id ? 'eBay 公開中' : 'eBay 下書き'}
+                            <ExternalLink size={9} className="opacity-60" />
+                          </a>
+                        )}
                         {l.alert && <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">{l.alert}</div>}
                       </td>
                       <td className="px-3 py-2"><StatusBadge status={l.status} /></td>
@@ -545,17 +564,29 @@ export default function EbayManager() {
                               <StopCircle size={14} />
                             </IconBtn>
                           )}
-                          {l.ebay_item_id && (
+                          {/* 公開済みならItemID、未公開なら下書きIDで開く。
+                              下書きは出品ボタンを押す手前の状態なので、写真を足してそのまま公開できる */}
+                          {l.ebay_item_id ? (
                             <a
                               href={`https://www.ebay.com/itm/${l.ebay_item_id}`}
                               target="_blank"
                               rel="noreferrer"
                               className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-                              title="eBayで見る"
+                              title="eBayで見る（公開中）"
                             >
                               <ExternalLink size={14} />
                             </a>
-                          )}
+                          ) : l.ebay_draft_id ? (
+                            <a
+                              href={`https://www.ebay.com/lstng?draftId=${l.ebay_draft_id}&mode=AddItem`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                              title="eBayの下書きを開く（未公開）"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
