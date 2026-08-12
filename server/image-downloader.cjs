@@ -214,9 +214,11 @@ async function extractImages(url) {
   } else if (source === 'rakuten') {
     extractByHost(html, raw, 'image\\.rakuten\\.co\\.jp|tshop\\.r10s\\.jp|r\\.r10s\\.jp|shop\\.r10s\\.jp');
   } else if (source === 'yahoo') {
-    extractByHost(html, raw, 'yimg\\.jp');
+    // 出品写真は images.auctions.yahoo.co.jp/image 配下（CDNは (wing-)auctions.c.yimg.jp）。
+    // Yahoo側の広告バナーや装飾は別ホストの yimg.jp なので広く拾わない。
+    extractByHost(html, raw, 'images\\.auctions\\.yahoo\\.co\\.jp\\/image|auctions\\.c\\.yimg\\.jp');
   } else if (source === 'yahoo-shopping') {
-    extractByHost(html, raw, 'yimg\\.jp|shopping\\.c\\.yimg\\.jp');
+    extractByHost(html, raw, 'item-shopping\\.c\\.yimg\\.jp|shopping\\.c\\.yimg\\.jp');
   } else if (source === 'mercari') {
     extractByHost(html, raw, 'mercdn\\.net');
   } else if (source === 'suruga') {
@@ -238,6 +240,8 @@ async function extractImages(url) {
     if (source === 'amazon' && !/\/images\/I\//.test(full)) continue;
     // 楽天共通の販促バナー配信(r.r10s.jp/com/)は商品画像ではない
     if (source === 'rakuten' && /r\.r10s\.jp\/com\//i.test(full)) continue;
+    // ヤフオクは出品写真ホスト以外（og:imageやYahoo広告・装飾）を除外
+    if (source === 'yahoo' && !/auctions\.(?:c\.yimg\.jp|yahoo\.co\.jp)/i.test(full)) continue;
     const key = dedupeKey(source, full);
     if (!seen.has(key)) seen.set(key, full);
   }
