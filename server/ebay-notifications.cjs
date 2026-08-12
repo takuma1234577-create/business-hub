@@ -30,7 +30,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 
-const { getSupabase } = require('./shared.cjs');
+const { getSupabase, awaitApiKeys } = require('./shared.cjs');
 
 /**
  * eBayに登録するエンドポイントURL。ハッシュの材料になるので、
@@ -59,9 +59,12 @@ function challengeResponse(challengeCode) {
 }
 
 // ── 1. 検証チャレンジ ───────────────────────────────────
-router.get('/account-deletion', (req, res) => {
+router.get('/account-deletion', async (req, res) => {
   const code = req.query.challenge_code;
   if (!code) return res.status(400).json({ error: 'challenge_code がありません' });
+  // API設定画面から登録された場合、値はDB経由で process.env に入る。
+  // コールドスタート直後はまだ空なので、読む前にロード完了を待つ
+  await awaitApiKeys();
   if (!verificationToken()) {
     // 設定漏れに気づけるようにする。ここで200を返すと検証が通らない理由が分からなくなる
     return res.status(500).json({ error: 'EBAY_VERIFICATION_TOKEN が未設定です' });
@@ -96,7 +99,8 @@ router.post('/account-deletion', async (req, res) => {
 });
 
 /** 設定が正しいかを自分で確認するための補助。トークン自体は返さない */
-router.get('/account-deletion/selftest', (req, res) => {
+router.get('/account-deletion/selftest', async (req, res) => {
+  await awaitApiKeys();
   const sample = 'test_challenge_code';
   res.json({
     endpoint_url: endpointUrl(),

@@ -143,6 +143,11 @@ async function loadApiKeysFromDb() {
       slack_signing_secret: 'SLACK_SIGNING_SECRET',
       slack_channel_id: 'SLACK_CHANNEL_ID',
       bank_encryption: 'BANK_CREDENTIAL_ENCRYPTION_KEY',
+      ebay_client_id: 'EBAY_CLIENT_ID',
+      ebay_client_secret: 'EBAY_CLIENT_SECRET',
+      ebay_dev_id: 'EBAY_DEV_ID',
+      ebay_refresh_token: 'EBAY_REFRESH_TOKEN',
+      ebay_verification_token: 'EBAY_VERIFICATION_TOKEN',
     };
 
     for (const row of keys) {
@@ -158,7 +163,19 @@ async function loadApiKeysFromDb() {
 }
 
 // 非同期で起動時ロード
-loadApiKeysFromDb().catch(() => {});
+const _apiKeysReady = loadApiKeysFromDb().catch(() => {});
+
+/**
+ * DBからのAPIキー読み込み完了を待つ。
+ *
+ * 起動時ロードは非同期なので、コールドスタート直後のリクエストでは
+ * process.env がまだ空のことがある。eBayのアカウント削除通知のように
+ * 「外部が任意のタイミングで叩いてきて、失敗すると即座に不利益が出る」
+ * 経路では、値を読む前にこれを待つ。
+ */
+async function awaitApiKeys() {
+  await _apiKeysReady;
+}
 
 /**
  * Google OAuth認証済みクライアントを取得（トークン自動リフレッシュ付き）
@@ -203,6 +220,7 @@ async function getGoogleAuthClient(serviceId = 'gmail') {
 
 module.exports = {
   getSupabase,
+  awaitApiKeys,
   getGoogleOAuth2,
   getGoogleAuthClient,
   getChatworkToken,

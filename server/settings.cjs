@@ -667,6 +667,14 @@ const API_KEY_SERVICES = [
   { id: 'elevenlabs_voice_id', label: 'ElevenLabs Voice ID', envVar: 'ELEVENLABS_VOICE_ID', placeholder: '' },
   { id: 'elevenlabs_connection_id', label: 'ElevenLabs Connection ID (JSON2Video)', envVar: 'ELEVENLABS_CONNECTION_ID', placeholder: '' },
   { id: 'pexels', label: 'Pexels API Key（フリー動画検索）', envVar: 'PEXELS_API_KEY', placeholder: '' },
+
+  // eBay Sell API。Developer Portal の Application Keys からコピーする。
+  // ユーザートークンは2時間で切れるので、10分ごとのcronではリフレッシュトークンを使う。
+  { id: 'ebay_client_id', label: 'eBay App ID（クライアントID）', envVar: 'EBAY_CLIENT_ID', placeholder: 'XxxxXxxx-xxxxxxx-PRD-xxxxxxxxx-xxxxxxxx' },
+  { id: 'ebay_client_secret', label: 'eBay Cert ID（クライアントシークレット）', envVar: 'EBAY_CLIENT_SECRET', placeholder: 'PRD-xxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxx' },
+  { id: 'ebay_dev_id', label: 'eBay Dev ID（開発者ID）', envVar: 'EBAY_DEV_ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+  { id: 'ebay_refresh_token', label: 'eBay リフレッシュトークン（ユーザートークンではなくこちら）', envVar: 'EBAY_REFRESH_TOKEN', placeholder: 'v^1.1#i^1#...' },
+  { id: 'ebay_verification_token', label: 'eBay 検証トークン（アカウント削除通知用・32〜80文字）', envVar: 'EBAY_VERIFICATION_TOKEN', placeholder: '英数字と _ - のみ' },
 ];
 
 // APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）
