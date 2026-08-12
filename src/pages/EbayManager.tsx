@@ -173,6 +173,8 @@ export default function EbayManager() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importErr, setImportErr] = useState<string | null>(null)
   const [imports, setImports] = useState<ImportRow[]>([])
+  // 画像ビューア。レンズの状態判断は原寸で見ないと分からないため
+  const [viewer, setViewer] = useState<{ urls: string[]; index: number; title: string } | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -339,6 +341,61 @@ export default function EbayManager() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* 画像ビューア。前玉のカビ・クモリ、鏡胴のスレは原寸で見ないと判断できない。
+          サムネイルは切り抜いて縮小しているので、状態確認には使えない */}
+      {viewer && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col"
+          onClick={() => setViewer(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setViewer(null)
+            if (e.key === 'ArrowRight') setViewer((v) => v && { ...v, index: (v.index + 1) % v.urls.length })
+            if (e.key === 'ArrowLeft') setViewer((v) => v && { ...v, index: (v.index - 1 + v.urls.length) % v.urls.length })
+          }}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <div className="flex items-center justify-between px-4 py-2 text-white text-sm shrink-0">
+            <span className="truncate">{viewer.title}</span>
+            <span className="shrink-0 ml-4 text-gray-300">
+              {viewer.index + 1} / {viewer.urls.length}
+              <span className="ml-3 text-xs text-gray-400">← → で移動 / Esc で閉じる</span>
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 flex items-center justify-center px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setViewer((v) => v && { ...v, index: (v.index - 1 + v.urls.length) % v.urls.length })}
+              className="shrink-0 px-3 py-6 text-white/60 hover:text-white text-2xl"
+              aria-label="前の画像"
+            >‹</button>
+            {/* object-contain。切り抜かずに全体を出す */}
+            <img
+              src={viewer.urls[viewer.index]}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="max-h-full max-w-full object-contain"
+            />
+            <button
+              onClick={() => setViewer((v) => v && { ...v, index: (v.index + 1) % v.urls.length })}
+              className="shrink-0 px-3 py-6 text-white/60 hover:text-white text-2xl"
+              aria-label="次の画像"
+            >›</button>
+          </div>
+          <div className="shrink-0 flex gap-1 overflow-x-auto px-4 pb-3" onClick={(e) => e.stopPropagation()}>
+            {viewer.urls.map((u, i) => (
+              <button key={i} onClick={() => setViewer((v) => v && { ...v, index: i })} className="shrink-0">
+                <img
+                  src={u}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className={`w-14 h-14 object-cover rounded ${i === viewer.index ? 'ring-2 ring-white' : 'opacity-50'}`}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* ヘッダ */}
         <div className="flex items-center gap-3 mb-6">
@@ -742,9 +799,16 @@ export default function EbayManager() {
                             1枚ずつタブで開かなくても、前玉のカビや外観のスレを一覧で見比べられる */}
                         <div className="grid grid-cols-4 gap-1">
                           {importResult.supplier.image_urls.map((u, i) => (
-                            <a key={i} href={u} target="_blank" rel="noopener noreferrer"
-                               title={`${i + 1}枚目（クリックで原寸）`}
-                               className="block aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500">
+                            <button
+                              key={i}
+                              onClick={() => setViewer({
+                                urls: importResult.supplier.image_urls,
+                                index: i,
+                                title: importResult.supplier.title_ja,
+                              })}
+                              title={`${i + 1}枚目（クリックで原寸表示）`}
+                              className="block aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500"
+                            >
                               <img
                                 src={u}
                                 alt={`${i + 1}枚目`}
@@ -752,7 +816,7 @@ export default function EbayManager() {
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"
                               />
-                            </a>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -843,7 +907,11 @@ export default function EbayManager() {
                           {r.image_urls?.length ? (
                             <div className="flex items-center gap-0.5">
                               {r.image_urls.slice(0, 3).map((u, i) => (
-                                <a key={i} href={u} target="_blank" rel="noopener noreferrer" title={`${i + 1}枚目`}>
+                                <button
+                                  key={i}
+                                  onClick={() => setViewer({ urls: r.image_urls!, index: i, title: r.title_ja })}
+                                  title={`${i + 1}枚目（クリックで原寸表示）`}
+                                >
                                   <img
                                     src={u}
                                     alt=""
@@ -851,10 +919,15 @@ export default function EbayManager() {
                                     referrerPolicy="no-referrer"
                                     className="w-9 h-9 rounded object-cover bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500"
                                   />
-                                </a>
+                                </button>
                               ))}
                               {r.image_urls.length > 3 && (
-                                <span className="text-[10px] text-gray-400 ml-0.5">+{r.image_urls.length - 3}</span>
+                                <button
+                                  onClick={() => setViewer({ urls: r.image_urls!, index: 3, title: r.title_ja })}
+                                  className="text-[10px] text-gray-400 ml-0.5 hover:text-gray-600 dark:hover:text-gray-200"
+                                >
+                                  +{r.image_urls.length - 3}
+                                </button>
                               )}
                             </div>
                           ) : (
