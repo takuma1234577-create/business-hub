@@ -514,24 +514,50 @@ export default function EbayManager() {
                           const withItem = (l.sources || []).filter((s) => sourceItemHref(s))
                           if (!withItem.length) return null
                           return (
-                            <div className="mb-1 flex flex-col gap-0.5">
-                              {withItem.map((s) => (
-                                <a
-                                  key={`item-${s.id}`}
-                                  href={sourceItemHref(s)!}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title={s.last_item_reason || '仕入れる個体'}
-                                  className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline max-w-[20rem]"
-                                >
-                                  <span className="px-1 rounded bg-blue-100 dark:bg-blue-950 shrink-0">仕入れる</span>
-                                  <span className="truncate">
-                                    {s.last_item_total_jpy != null ? jpy(s.last_item_total_jpy) : ''}
-                                    {s.last_item_title ? ` ${s.last_item_title}` : ''}
-                                  </span>
-                                  <ExternalLink size={9} className="opacity-60 shrink-0" />
-                                </a>
-                              ))}
+                            <div className="mb-1.5 flex flex-col gap-1">
+                              {withItem.map((s) => {
+                                const url = sourceItemHref(s)!
+                                return (
+                                  <div key={`item-${s.id}`} className="max-w-[22rem]">
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={s.last_item_reason || '仕入れる個体'}
+                                      className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline max-w-full"
+                                    >
+                                      <span className="px-1 rounded bg-blue-100 dark:bg-blue-950 shrink-0">仕入れる</span>
+                                      <span className="truncate">
+                                        {s.last_item_total_jpy != null ? jpy(s.last_item_total_jpy) : ''}
+                                        {s.last_item_title ? ` ${s.last_item_title}` : ''}
+                                      </span>
+                                      <ExternalLink size={9} className="opacity-60 shrink-0" />
+                                    </a>
+                                    {/* URLは目で読めて選択・コピーできる状態で出す。
+                                        仕入れは人が実行するので、リンクだけだと別端末に渡せない */}
+                                    <div className="flex items-center gap-1">
+                                      <code className="text-[10px] text-gray-500 dark:text-gray-400 truncate select-all" title={url}>
+                                        {url}
+                                      </code>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard?.writeText(url)
+                                          setMsg('仕入先URLをコピーしました')
+                                        }}
+                                        title="URLをコピー"
+                                        className="shrink-0 px-1 rounded text-[10px] text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                      >
+                                        コピー
+                                      </button>
+                                    </div>
+                                    {s.last_item_reason && (
+                                      <div className="text-[10px] text-gray-400 truncate" title={s.last_item_reason}>
+                                        {s.last_item_reason}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           )
                         })()}
