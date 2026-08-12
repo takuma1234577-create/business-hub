@@ -227,13 +227,108 @@ function detectBundle(titleJa) {
   return why.join(' / ');
 }
 
+// ── 楽天の商品ページ ────────────────────────────────────
+/**
+ * 楽天は文字コードが EUC-JP のことがある。UTF-8として読むと全部文字化けし、
+ * 型番も状態も一切抽出できない（実測で気づいた）。Content-Type かページ内の
+ * meta から charset を見て復号する。
+ */
+async function fetchDecoded(url, headers = {}) {
+  const res = await fetch(url, { headers: { ...UA, ...headers } });
+  if (!res.ok) throw new Error(`ページを取得できません (HTTP ${res.status})`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const head = buf.toString('latin1', 0, 3000);
+  const cs = (
+    (res.headers.get('content-type') || '').match(/charset=([\w-]+)/i)?.[1] ||
+    head.match(/charset=["']?([\w-]+)/i)?.[1] ||
+    'utf-8'
+  ).toLowerCase();
+  try {
+    return { html: new TextDecoder(cs).decode(buf), charset: cs };
+  } catch {
+    return { html: buf.toString('utf8'), charset: `${cs}(未対応のためutf8で解釈)` };
+  }
+}
+
+async function fetchRakuten(url) {
+  const m = url.match(/item\.rakuten\.co\.jp\/([a-z0-9\-_]+)\/([a-z0-9\-_.]+)/i);
+  if (!m) throw new Error('楽天の商品URLとして解釈できません');
+  const [, shop, itemCode] = m;
+  const canonical = `https://item.rakuten.co.jp/${shop}/${itemCode}/`;
+
+  const { html } = await fetchDecoded(canonical, { Referer: 'https://www.rakuten.co.jp/' });
+  const meta = (p) => html.match(new RegExp(`<meta[^>]+(?:property|name)="${p}"[^>]+content="([^"]*)"`))?.[1] || null;
+
+  // og:title は「【楽天市場】<商品名>：<店舗名>」の形。両端を落とす
+  const rawTitle = meta('og:title') || '';
+  const shopName = rawTitle.includes('：') ? rawTitle.split('：').pop().trim() : null;
+  const title = rawTitle.replace(/^【楽天市場】/, '').replace(/：[^：]*$/, '').trim();
+
+  const price = Number(html.match(/itemprop="price"[^>]*content="(\d+)"/)?.[1]) || null;
+
+  // パンくずはBreadcrumbListから。ジャンル判定に使う
+  let breadcrumb = [];
+  for (const b of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/g)) {
+    try {
+      const o = JSON.parse(b[1]);
+      if (o['@type'] === 'BreadcrumbList') {
+        breadcrumb = (o.itemListElement || []).map((e) => e.item?.name || e.name).filter(Boolean);
+      }
+    } catch { /* 壊れたJSONは無視 */ }
+  }
+
+  // 商品画像。cabinet配下だけを対象にし、同一画像のCDN違い(shop/tshop)は寄せる
+  const imgs = [...new Set(
+    [...html.matchAll(/https?:\/\/[a-z0-9.]*r10s\.jp\/[^\s"'<>()]+\.(?:jpg|jpeg|png)/gi)]
+      .map((x) => x[0].replace(/\?.*$/, ''))
+      .filter((u) => /cabinet/i.test(u))
+      .map((u) => u.replace(/^https?:\/\/shop\.r10s\.jp/, 'https://tshop.r10s.jp')),
+  )];
+
+  // 状態の記述は商品説明の中にある。状態語を含む最長ブロックを本文とみなす
+  const blocks = [...html.matchAll(/<(?:div|td|p)[^>]*>([\s\S]{150,6000}?)<\/(?:div|td|p)>/g)]
+    .map((x) => htmlToText(x[1]))
+    .filter((s) => s.length > 100 && /カビ|クモリ|状態|付属|ランク|動作|キズ/.test(s))
+    .sort((a, b) => b.length - a.length);
+
+  // 在庫は schema.org の availability を使う。
+  // 「売り切れ」の文字列検索や、カート導線の有無では判定できなかった。
+  // 前者はレコメンド枠など別文脈を拾い、後者はサーバー側HTMLに存在しない。
+  // どちらも実測で在庫のある商品を全件「在庫なし」と誤判定した。
+  // 取れなかった場合は false ではなく null（不明）にする。無在庫では
+  // 「在庫なし」の誤判定が出品の誤停止に直結するため。
+  const availRaw = html.match(/itemprop="availability"[^>]*(?:content|href)="([^"]*)"/)?.[1] || null;
+  const available = availRaw ? /InStock|PreOrder|LimitedAvailability/i.test(availRaw) : null;
+
+  return {
+    source: 'rakuten',
+    item_id: `${shop}/${itemCode}`,
+    url: canonical,
+    title_ja: title,
+    price_jpy: price,
+    available,
+    // 楽天にはヤフオクのような定型の状態区分が無い。推測で埋めず null にする
+    condition_ja: null,
+    breadcrumb,
+    // 店舗ごとにHTML構造が違い、ブロック抽出が空振りすることがある（実測）。
+    // その場合は og:description に落とす。短いが型番と状態の一言は入っている
+    description_ja: (blocks[0] || meta('og:description') || '').slice(0, 8000) || null,
+    image_urls: imgs.slice(0, 24),
+    shop_name: shopName,
+  };
+}
+
 async function fetchProduct(url) {
   const source = detectSource(url);
   if (!source) throw new Error('対応していないURLです');
-  if (source !== 'yahoo') {
-    throw new Error(`${source} の商品ページ取り込みは未対応です（現在はヤフオクのみ）`);
+  if (source === 'yahoo') return fetchYahoo(url);
+  if (source === 'rakuten') return fetchRakuten(url);
+  if (source === 'suruga') {
+    // 実測でデータセンターからのアクセスは検索・商品ページとも403。
+    // サーバー側からは取得できないため、手動確認に回すしかない
+    throw new Error('駿河屋はサーバーからのアクセスが遮断されており（403）、取り込みできません。ブラウザで開いて手動で登録してください');
   }
-  return fetchYahoo(url);
+  throw new Error(`${source} の商品ページ取り込みは未対応です`);
 }
 
 // ── 状態の対応表 ────────────────────────────────────────
@@ -422,7 +517,10 @@ async function importFromUrl(url) {
   if (specs.is_zoom) warnings.push('ズームレンズのようです。スペック抽出はズームに未対応なので手で確認してください。');
   if (!p.condition_ja) warnings.push('「商品の状態」欄を取得できませんでした。状態は手で確認してください。');
   if (missing.length) warnings.push(`Item Specifics が埋まりませんでした: ${missing.join(' / ')}`);
-  if (!p.available) warnings.push('この出品は既に終了しています。');
+  // null（判定できなかった）と false（在庫なし）を区別する。
+  // 取れなかっただけのものを「終了」と言うと、正常な仕入先を落としてしまう
+  if (p.available === false) warnings.push('この出品は既に終了しています。');
+  if (p.available == null) warnings.push('在庫の有無を判定できませんでした。仕入先ページで確認してください。');
 
   return {
     supplier: {
@@ -438,6 +536,7 @@ async function importFromUrl(url) {
       description_ja: p.description_ja,
       image_urls: p.image_urls,
       image_count: p.image_urls.length,
+      shop_name: p.shop_name || null,
       fetched_at: new Date().toISOString(),
     },
     bundle_suspect: !!bundle,
