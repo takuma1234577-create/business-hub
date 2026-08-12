@@ -19,8 +19,12 @@ interface Source {
   last_checked_at: string | null
   last_error: string | null
   last_title: string | null
-  url: string | null       // 特定商品への直リンク（人が手で登録した場合）
-  last_url: string | null  // 巡回時にスクレイパーが実際に叩いた検索URL
+  url: string | null            // 特定商品への直リンク（人が手で登録した場合）
+  last_url: string | null       // 巡回時にスクレイパーが実際に叩いた検索URL（相場を見る用）
+  last_item_url: string | null  // 選定した個体のURL（実際に買う用）
+  last_item_title: string | null
+  last_item_total_jpy: number | null
+  last_item_reason: string | null  // なぜその個体を選んだか
   enabled: boolean
 }
 
@@ -139,9 +143,16 @@ const SOURCE_SEARCH_URL: Record<string, (kw: string) => string> = {
   amazon: (kw) => `https://www.amazon.co.jp/s?k=${encodeURIComponent(kw)}`,
 }
 
-/** 仕入先バッジのリンク先。直リンク > 巡回時のURL > 検索語から組み立て の順で採用する */
+/**
+ * 仕入先バッジのリンク先＝検索結果（相場を見る用）。
+ * 巡回は「その型番をまだ採算内で仕入れられるか」を見るものなので、
+ * 特定の1件に固定すると、その出品が終わっただけで在庫なし扱いになってしまう。
+ */
 const sourceHref = (s: Source): string | null =>
-  s.url || s.last_url || SOURCE_SEARCH_URL[s.source]?.(s.search_keyword) || null
+  s.last_url || SOURCE_SEARCH_URL[s.source]?.(s.search_keyword) || null
+
+/** 実際に買う1点へのリンク。手で登録した直リンクがあればそれを最優先する */
+const sourceItemHref = (s: Source): string | null => s.url || s.last_item_url || null
 
 const jpy = (n: number | null | undefined) => (n == null ? '—' : `¥${n.toLocaleString()}`)
 const ago = (iso: string | null) => {
@@ -498,6 +509,32 @@ export default function EbayManager() {
                         {l.last_margin_pct == null ? '—' : `${l.last_margin_pct}%`}
                       </td>
                       <td className="px-3 py-2">
+                        {/* 選定した「実際に買う1点」。最安ではなく信頼性と価格のバランスで選ぶ */}
+                        {(() => {
+                          const withItem = (l.sources || []).filter((s) => sourceItemHref(s))
+                          if (!withItem.length) return null
+                          return (
+                            <div className="mb-1 flex flex-col gap-0.5">
+                              {withItem.map((s) => (
+                                <a
+                                  key={`item-${s.id}`}
+                                  href={sourceItemHref(s)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={s.last_item_reason || '仕入れる個体'}
+                                  className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline max-w-[20rem]"
+                                >
+                                  <span className="px-1 rounded bg-blue-100 dark:bg-blue-950 shrink-0">仕入れる</span>
+                                  <span className="truncate">
+                                    {s.last_item_total_jpy != null ? jpy(s.last_item_total_jpy) : ''}
+                                    {s.last_item_title ? ` ${s.last_item_title}` : ''}
+                                  </span>
+                                  <ExternalLink size={9} className="opacity-60 shrink-0" />
+                                </a>
+                              ))}
+                            </div>
+                          )
+                        })()}
                         <div className="flex flex-wrap gap-1">
                           {(l.sources || []).map((s) => {
                             // 未チェックを「在庫なし」と見せない。緑＝確認済みで在庫あり、だけにする
@@ -520,7 +557,7 @@ export default function EbayManager() {
                             const tip = `${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}`
                               + `${s.last_error ? ` / ${s.last_error}` : ''}`
                               + `${s.last_title ? `\n最安: ${s.last_title}` : ''}`
-                              + `${href ? '\nクリックで仕入先を開く' : ''}`
+                              + `${href ? '\nクリックで検索結果（相場）を開く' : ''}`
                             const body = (
                               <>
                                 {SOURCE_LABEL[s.source] || s.source}

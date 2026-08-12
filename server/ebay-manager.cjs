@@ -92,8 +92,15 @@ const DEFAULT_SETTINGS = {
   notify_slack: true,
   use_amazon: false,
   max_cost_ratio_pct: 44,
-  // 利益ウォッチが◎/○になったら、その最安個体のページを自動で取り込む
+  // 利益ウォッチが◎/○になったら、選定した個体のページを自動で取り込む
   auto_import_on_good: true,
+  // 仕入れる1点の選び方。最安ではなく信頼性と価格のバランスで選ぶ
+  source_min_rating: 95,        // これ未満の評価の出品者からは買わない
+  source_rating_weight: 3.0,    // 評価1%の不足を価格3%相当として扱う
+  source_store_bonus_pct: 5,    // ストア出品は実効5%安として扱う
+  source_min_hours_left: 6,     // 残りがこれ未満は仕入れが間に合わないので除外
+  source_price_band_low_pct: 40,   // 相場中央値のこれ%未満は買わない（別商品・破損の混入）
+  source_price_band_high_pct: 160, // これ%超も買わない
 };
 
 async function getSettings() {
@@ -382,7 +389,28 @@ async function scrapeYahoo(keyword, excludeWords, includeWords) {
 
     const price = parseInt(m[1].replace(/,/g, ''), 10);
     if (!price || price < 500) continue;
-    items.push({ price, title: title.slice(0, 120), url: itemUrl });
+
+    // data-cl-params に出品者の信頼性シグナルが入っている。
+    // grat=良い評価率(%) / seltyp=0:個人 1:ストア / bnpsf=即決時の送料 / end=終了時刻(epoch秒)
+    const clp = (k) => {
+      const mm = block.match(new RegExp('[;"]' + k + ':([^;"]*)'));
+      return mm ? mm[1] : null;
+    };
+    const grat = clp('grat') != null && clp('grat') !== '' ? Number(clp('grat')) : null;
+    const shipJpyItem = Number(clp('bnpsf') || clp('cpsf') || 0) || 0;
+    const endsAt = Number(clp('end') || 0) || null;
+
+    items.push({
+      price,
+      ship_jpy: shipJpyItem,
+      total_jpy: price + shipJpyItem,   // 実際に払う額。送料込みで比べないと選定を誤る
+      seller_rating: grat,              // 良い評価率(%)
+      is_store: clp('seltyp') === '1',
+      ends_at: endsAt,
+      hours_left: endsAt ? Math.round((endsAt * 1000 - Date.now()) / 3600000) : null,
+      title: title.slice(0, 120),
+      url: itemUrl,
+    });
   }
   items.sort((a, b) => a.price - b.price);
   return {
@@ -391,7 +419,9 @@ async function scrapeYahoo(keyword, excludeWords, includeWords) {
     count: items.length,
     min: items[0]?.price ?? null,
     median: items.length ? items[Math.floor(items.length / 2)].price : null,
+    // 表示用は先頭5件のまま。候補選定は全件から行うので別に持たせる
     items: items.slice(0, 5),
+    candidates: items,
     url,
   };
 }
@@ -613,6 +643,92 @@ const SCRAPERS = {
   amazon: scrapeAmazon,
 };
 
+/**
+ * 実際に買う1点を選ぶ。最安ではなく「信頼性と価格のバランス」で選ぶ。
+ *
+ * 最安を機械的に取ると、実測では本体＋レンズのセット出品を個人から買うことになった
+ * （SMC PENTAX-M 50mm F1.7 の最安 ¥1,000 は PENTAX MX ボディ同梱・評価98.1%の個人）。
+ * 無在庫では「買えなかった」「届いた物が違う」が即クレームになるので、
+ * 送料込みの総額に、出品者の評価とストアかどうかを加味した実効コストで比較する。
+ *
+ *   実効コスト = 総額 × (1 + 評価の不足分 × 重み) × (ストアなら割引)
+ *
+ * 評価3%差が価格9%差に相当する重み(既定3.0)。評価99.9%のストアに、
+ * 評価96%の個人が勝つには12%以上安い必要がある、という設計。
+ */
+function pickBestItem(candidates, settings = {}, opts = {}) {
+  const minRating = Number(settings.source_min_rating ?? 95);
+  const weight = Number(settings.source_rating_weight ?? 3.0);
+  const storeBonus = Number(settings.source_store_bonus_pct ?? 5) / 100;
+  const minHours = Number(settings.source_min_hours_left ?? 6);
+
+  const bandLow = Number(settings.source_price_band_low_pct ?? 40) / 100;
+  const bandHigh = Number(settings.source_price_band_high_pct ?? 160) / 100;
+
+  const list = (candidates || []).filter((i) => i.url && i.total_jpy);
+  if (!list.length) return null;
+
+  // 相場の基準は候補の中央値。平均だと極端な1点に引っ張られる。
+  // 安すぎる側のほうが危険で、実測では別商品・破損品・本体セットが混ざっていた。
+  const totals = list.map((i) => i.total_jpy).sort((a, b) => a - b);
+  const marketJpy = totals[Math.floor(totals.length / 2)];
+  const floorJpy = Math.round(marketJpy * bandLow);
+  const ceilJpy = Math.round(marketJpy * bandHigh);
+
+  const { detectBundle } = require('./ebay-import.cjs');
+  const rejected = [];
+  const ok = list.filter((i) => {
+    // 相場から大きく外れる出品は、安い側も高い側も買わない
+    if (list.length >= 4 && (i.total_jpy < floorJpy || i.total_jpy > ceilJpy)) {
+      rejected.push({
+        url: i.url,
+        why: `相場¥${marketJpy.toLocaleString()}から乖離（許容 ¥${floorJpy.toLocaleString()}〜¥${ceilJpy.toLocaleString()}、この出品 ¥${i.total_jpy.toLocaleString()}）`,
+      });
+      return false;
+    }
+    // セット出品は買ってはいけない。取り込み側と同じ判定器を使う
+    const bundle = detectBundle(i.title || '');
+    if (bundle) { rejected.push({ url: i.url, why: `セット疑い(${bundle})` }); return false; }
+    if (i.seller_rating != null && i.seller_rating < minRating) {
+      rejected.push({ url: i.url, why: `評価${i.seller_rating}% < ${minRating}%` }); return false;
+    }
+    // 終了間際は仕入れが間に合わないので候補から外す
+    if (i.hours_left != null && i.hours_left < minHours) {
+      rejected.push({ url: i.url, why: `残り${i.hours_left}h < ${minHours}h` }); return false;
+    }
+    if (opts.maxTotalJpy && i.total_jpy > opts.maxTotalJpy) {
+      rejected.push({ url: i.url, why: `総額¥${i.total_jpy} が上限超過` }); return false;
+    }
+    return true;
+  });
+  if (!ok.length) return { picked: null, rejected, reason: '条件を満たす出品がありません' };
+
+  const scored = ok.map((i) => {
+    // 評価が取れない出品は「最低ラインぎりぎり」とみなす。楽観的に扱わない
+    const rating = i.seller_rating ?? minRating;
+    const penalty = 1 + (weight * (100 - rating)) / 100;
+    const discount = i.is_store ? 1 - storeBonus : 1;
+    return { ...i, effective_jpy: Math.round(i.total_jpy * penalty * discount) };
+  }).sort((a, b) => a.effective_jpy - b.effective_jpy);
+
+  const picked = scored[0];
+  const cheapest = ok.reduce((a, b) => (a.total_jpy <= b.total_jpy ? a : b));
+  const reason = [
+    `総額¥${picked.total_jpy.toLocaleString()}(本体¥${picked.price.toLocaleString()}+送料¥${picked.ship_jpy.toLocaleString()})`,
+    picked.seller_rating != null ? `評価${picked.seller_rating}%` : '評価不明',
+    picked.is_store ? 'ストア' : '個人',
+    picked.hours_left != null ? `残り${picked.hours_left}h` : '',
+    `相場¥${marketJpy.toLocaleString()}`,
+    // 「最安」は除外後の候補内での話。除外前の全体最安とは別物なので混同しないよう明記する
+    picked.url !== cheapest.url
+      ? `候補内の最安(¥${cheapest.total_jpy.toLocaleString()})より信頼性を優先`
+      : '候補内で最安',
+    rejected.length ? `${rejected.length}件を除外` : '',
+  ].filter(Boolean).join(' / ');
+
+  return { picked, reason, rejected, market_jpy: marketJpy, candidates: scored.slice(0, 5) };
+}
+
 async function scrapeSource(source, keyword, excludeWords, includeWords) {
   const fn = SCRAPERS[source];
   if (!fn) return { source, ok: false, count: null, min: null, items: [], error: 'unknown source' };
@@ -764,6 +880,14 @@ async function checkListing(listing, settings) {
         patch.last_available = r.min != null;
         // 採用した最安値がどの商品だったかを残す。別商品の混入は画面で気づくしかない
         patch.last_title = r.items?.[0]?.title || null;
+
+        // 売れたときに実際に買う個体。最安ではなく信頼性と価格のバランスで選ぶ。
+        // 検索結果(last_url)とは用途が違うので別の列に持つ
+        const best = pickBestItem(r.candidates, settings);
+        patch.last_item_url = best?.picked?.url ?? null;
+        patch.last_item_title = best?.picked?.title ?? null;
+        patch.last_item_total_jpy = best?.picked?.total_jpy ?? null;
+        patch.last_item_reason = best?.reason ?? null;
       }
       await sb.from('ebay_listing_sources').update(patch).eq('id', src.id);
       return { ...r, src };
@@ -1987,5 +2111,7 @@ module.exports.INTL_SHIP_INCOME_USD = INTL_SHIP_INCOME_USD;
 module.exports.priceForRegions = priceForRegions;
 module.exports.REGIONS = REGIONS;
 module.exports.scrapeSource = scrapeSource;
+module.exports.pickBestItem = pickBestItem;
+module.exports.checkListing = checkListing;
 module.exports.refreshWatchItem = refreshWatchItem;
 module.exports.autoImportBest = autoImportBest;

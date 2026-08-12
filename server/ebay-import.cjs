@@ -330,4 +330,5 @@ async function importFromUrl(url) {
 module.exports = {
   SUPPORTED, detectSource, fetchProduct, extractSpecs,
   buildTitle, buildDescription, importFromUrl, CONDITION_MAP,
+  detectBundle,
 };
