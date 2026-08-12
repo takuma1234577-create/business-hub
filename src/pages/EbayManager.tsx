@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, RefreshCw, AlertTriangle, Package, ShoppingCart,
   TrendingUp, Settings as SettingsIcon, Save, Play, StopCircle,
-  RotateCcw, ExternalLink, Clock,
+  RotateCcw, ExternalLink, Clock, Download,
 } from 'lucide-react'
 
 // ── 型 ──────────────────────────────────────────────────
@@ -22,6 +22,36 @@ interface Source {
   url: string | null       // 特定商品への直リンク（人が手で登録した場合）
   last_url: string | null  // 巡回時にスクレイパーが実際に叩いた検索URL
   enabled: boolean
+}
+
+// 仕入先URLからの取り込み結果
+interface ImportResult {
+  import_id: string
+  supplier: {
+    source: string; url: string; item_id: string
+    title_ja: string; price_jpy: number | null; condition_ja: string | null
+    available: boolean; genre: string | null; description_ja: string
+    image_urls: string[]; image_count: number; fetched_at: string
+  }
+  listing: {
+    title_en: string; description_html: string
+    condition_id: number; condition_en: string
+    item_specifics: Record<string, string>
+  }
+  pricing: { price_usd: number; regions?: { name: string; profit_jpy: number; margin_pct: number }[] } | null
+  bundle_suspect: boolean
+  warnings: string[]
+}
+
+interface ImportRow {
+  id: string
+  source: string; source_url: string
+  title_ja: string; title_en: string | null
+  price_jpy: number | null; condition_ja: string | null; genre: string | null
+  image_urls: string[] | null
+  bundle_suspect: boolean
+  warnings: string[] | null
+  fetched_at: string | null
 }
 
 interface Listing {
@@ -123,7 +153,12 @@ const ago = (iso: string | null) => {
 
 export default function EbayManager() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'stock' | 'orders' | 'watch' | 'settings'>('stock')
+  const [tab, setTab] = useState<'stock' | 'import' | 'orders' | 'watch' | 'settings'>('stock')
+  const [importUrl, setImportUrl] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [importErr, setImportErr] = useState<string | null>(null)
+  const [imports, setImports] = useState<ImportRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -161,6 +196,36 @@ export default function EbayManager() {
     const t = setInterval(load, 120000)
     return () => clearInterval(t)
   }, [load])
+
+  const loadImports = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ebay/imports').then((x) => x.json())
+      setImports(Array.isArray(r) ? r : [])
+    } catch { /* 一覧が取れなくても取り込み自体は使えるので握りつぶす */ }
+  }, [])
+
+  useEffect(() => { if (tab === 'import') loadImports() }, [tab, loadImports])
+
+  const runImport = async () => {
+    const url = importUrl.trim()
+    if (!url) return
+    setImporting(true); setImportErr(null); setImportResult(null)
+    try {
+      const r = await fetch('/api/ebay/imports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || '取り込みに失敗しました')
+      setImportResult(j)
+      loadImports()
+    } catch (e) {
+      setImportErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const checkOne = async (id: string) => {
     setBusyId(id)
@@ -320,6 +385,7 @@ export default function EbayManager() {
         <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-800">
           {([
             ['stock', '在庫追従', <Package key="a" size={15} />],
+            ['import', 'URL取り込み', <Download key="e" size={15} />],
             ['orders', '売れた商品', <ShoppingCart key="b" size={15} />],
             ['watch', '利益ウォッチ', <TrendingUp key="c" size={15} />],
             ['settings', '設定', <SettingsIcon key="d" size={15} />],
@@ -472,6 +538,189 @@ export default function EbayManager() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── URL取り込み ── */}
+        {tab === 'import' && (
+          <div className="space-y-4">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+              <div className="flex gap-2">
+                <input
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runImport() }}
+                  placeholder="https://page.auctions.yahoo.co.jp/jp/auction/..."
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent"
+                />
+                <button
+                  onClick={runImport}
+                  disabled={importing || !importUrl.trim()}
+                  className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white disabled:opacity-40 flex items-center gap-2"
+                >
+                  {importing ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                  取り込む
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                現在ヤフオクの商品ページに対応。商品名・価格・状態区分・ジャンル・説明・画像URLを保存し、英語の出品案を生成します。
+                画像そのものは取り込みません（転載になるため）。出品用の写真は別途用意してください。
+              </p>
+              {importErr && (
+                <div className="mt-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">{importErr}</div>
+              )}
+            </div>
+
+            {importResult && (
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-4">
+                {importResult.warnings.length > 0 && (
+                  <div className={`rounded-lg px-3 py-2 text-sm ${
+                    importResult.bundle_suspect
+                      ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                      : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  }`}>
+                    <div className="flex items-center gap-1.5 font-medium mb-1"><AlertTriangle size={14} />確認してください</div>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      {importResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">仕入先から取り込んだ情報</div>
+                    <dl className="text-sm space-y-1">
+                      <Row k="商品名">{importResult.supplier.title_ja}</Row>
+                      <Row k="価格">{jpy(importResult.supplier.price_jpy)}</Row>
+                      <Row k="状態">
+                        {importResult.supplier.condition_ja || '—'}
+                        <span className="text-gray-400"> → {importResult.listing.condition_en}</span>
+                      </Row>
+                      <Row k="ジャンル"><span className="text-xs">{importResult.supplier.genre || '—'}</span></Row>
+                      <Row k="在庫">{importResult.supplier.available ? 'あり' : '終了'}</Row>
+                      <Row k="仕入先">
+                        <a href={importResult.supplier.url} target="_blank" rel="noopener noreferrer"
+                           className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                          ページを開く <ExternalLink size={11} />
+                        </a>
+                      </Row>
+                    </dl>
+                    {importResult.supplier.description_ja && (
+                      <details className="mt-2 text-xs">
+                        <summary className="cursor-pointer text-gray-500">出品者の説明（原文・参照用）</summary>
+                        <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-400">{importResult.supplier.description_ja}</p>
+                      </details>
+                    )}
+                    {importResult.supplier.image_count > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs text-gray-500 mb-1">
+                          仕入先の画像 {importResult.supplier.image_count}枚（確認用リンク。出品には使えません）
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {importResult.supplier.image_urls.map((u, i) => (
+                            <a key={i} href={u} target="_blank" rel="noopener noreferrer"
+                               className="px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:underline">
+                              {i + 1}枚目
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">生成した出品案</div>
+                    <dl className="text-sm space-y-1">
+                      <Row k="英語タイトル">
+                        {importResult.listing.title_en}
+                        <span className="text-xs text-gray-400"> ({importResult.listing.title_en.length}/80)</span>
+                      </Row>
+                      {importResult.pricing && (
+                        <Row k="推奨売価">
+                          <span className="font-medium">${importResult.pricing.price_usd.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400"> 米国基準・送料無料・利益率20%</span>
+                        </Row>
+                      )}
+                    </dl>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {Object.entries(importResult.listing.item_specifics).map(([k, v]) => (
+                        <span key={k} className="px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800">
+                          <span className="text-gray-500">{k}:</span> {v}
+                        </span>
+                      ))}
+                    </div>
+                    {importResult.pricing?.regions && (
+                      <table className="mt-3 w-full text-xs">
+                        <tbody>
+                          {importResult.pricing.regions.map((g) => (
+                            <tr key={g.name} className="border-t border-gray-100 dark:border-gray-800">
+                              <td className="py-1 text-gray-500">{g.name}</td>
+                              <td className="py-1 text-right">{jpy(g.profit_jpy)}</td>
+                              <td className="py-1 text-right text-gray-400 w-14">{g.margin_pct}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    <details className="mt-3 text-xs">
+                      <summary className="cursor-pointer text-gray-500">英語の説明文</summary>
+                      <textarea
+                        readOnly
+                        value={importResult.listing.description_html}
+                        className="mt-1 w-full h-40 text-xs font-mono p-2 rounded border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950"
+                      />
+                    </details>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <div className="px-4 py-2 text-xs font-medium text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                取り込み履歴（{imports.length}件）
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-950 text-xs text-gray-500">
+                    <tr>
+                      <Th>取り込み</Th><Th>商品名（原文）</Th><Th>英語タイトル</Th>
+                      <Th right>仕入値</Th><Th>状態</Th><Th>ジャンル</Th><Th>画像</Th><Th> </Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {imports.length === 0 && (
+                      <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">まだ取り込みがありません</td></tr>
+                    )}
+                    {imports.map((r) => (
+                      <tr key={r.id} className="border-t border-gray-100 dark:border-gray-800 align-top">
+                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{ago(r.fetched_at)}</td>
+                        <td className="px-3 py-2 max-w-[20rem]">
+                          <a href={r.source_url} target="_blank" rel="noopener noreferrer"
+                             className="hover:underline inline-flex items-start gap-1">
+                            <span className="line-clamp-2">{r.title_ja}</span>
+                            <ExternalLink size={10} className="mt-1 shrink-0 opacity-50" />
+                          </a>
+                          {r.bundle_suspect && (
+                            <span className="ml-1 px-1 rounded text-xs bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">セット疑い</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs max-w-[18rem]">{r.title_en || '—'}</td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">{jpy(r.price_jpy)}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{r.condition_ja || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500 max-w-[14rem] truncate" title={r.genre || ''}>{r.genre || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{r.image_urls?.length ?? 0}枚</td>
+                        <td className="px-3 py-2 text-right">
+                          <IconBtn title="履歴から削除" danger onClick={async () => {
+                            await fetch(`/api/ebay/imports/${r.id}`, { method: 'DELETE' })
+                            loadImports()
+                          }}><StopCircle size={13} /></IconBtn>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -687,6 +936,16 @@ export default function EbayManager() {
 }
 
 // ── 小物 ────────────────────────────────────────────────
+/** 取り込み結果の「項目名: 値」1行 */
+function Row({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="w-24 shrink-0 text-gray-500">{k}</dt>
+      <dd className="flex-1 min-w-0 break-words">{children}</dd>
+    </div>
+  )
+}
+
 function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
   return <th className={`px-3 py-2 font-medium ${right ? 'text-right' : 'text-left'}`}>{children}</th>
 }

@@ -1009,6 +1009,98 @@ router.delete('/listings/:id', async (req, res) => {
  * リサーチCSV（~/ebay/drafts/YYYY-MM-DD_sources.csv）の行を貼り付けて一括登録する。
  * body: { rows: [{ sku, kataban, category, price_usd, weight_kg, cost_basis_jpy, keyword_ja, sources:['yahoo','mercari'] }] }
  */
+// ── 仕入先URLからの取り込み ─────────────────────────────
+const { importFromUrl } = require('./ebay-import.cjs');
+
+/**
+ * 仕入先の商品ページURLを渡すと、英語タイトル・説明文・Item Specifics と
+ * 推奨売価・利益を組み立てて返す。取り込んだ内容は ebay_imports に残す。
+ *
+ * 画像は仕入先から持ってこない。URLだけを控えて後から人が見に行けるようにする。
+ */
+router.post('/imports', async (req, res) => {
+  try {
+    const url = String(req.body.url || '').trim();
+    if (!url) return res.status(400).json({ error: 'URLを入力してください' });
+
+    const r = await importFromUrl(url);
+
+    // 仕入値が取れていれば、利益が出る売価を逆算して添える
+    const sb = getSupabase();
+    const { data: st } = await sb.from('ebay_settings').select('*').eq('id', 'default').maybeSingle();
+    const s = { ...DEFAULT_SETTINGS, ...(st || {}) };
+    const targetMargin = Number(req.body.margin ?? 20);
+    const weightKg = Number(req.body.weight_kg ?? 0.4);
+    const category = req.body.category || 'カメラ';
+
+    let pricing = null;
+    if (r.supplier.price_jpy != null) {
+      // targetMargin は小数で渡す（0.20 = 20%）。価格は米国基準・全世界送料無料で決める
+      pricing = priceForRegions(s, r.supplier.price_jpy, category, weightKg, targetMargin / 100, 'us_free');
+    }
+
+    const row = {
+      source: r.supplier.source,
+      source_url: r.supplier.url,
+      source_item_id: r.supplier.item_id,
+      title_ja: r.supplier.title_ja,
+      description_ja: r.supplier.description_ja || null,
+      genre: r.supplier.genre,
+      breadcrumb: r.supplier.breadcrumb,
+      price_jpy: r.supplier.price_jpy,
+      condition_ja: r.supplier.condition_ja,
+      available: r.supplier.available,
+      image_urls: r.supplier.image_urls,
+      title_en: r.listing.title_en,
+      description_html: r.listing.description_html,
+      item_specifics: r.listing.item_specifics,
+      condition_id: r.listing.condition_id,
+      specs: r.specs,
+      bundle_suspect: r.bundle_suspect,
+      warnings: r.warnings,
+      fetched_at: r.supplier.fetched_at,
+    };
+    // 同じURLを2回取り込んだら上書きする（価格や状態は動くので最新に保つ）
+    const { data, error } = await sb
+      .from('ebay_imports')
+      .upsert(row, { onConflict: 'source_url' })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    res.json({ ...r, pricing, import_id: data.id });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/** 取り込み履歴。後から「どの出品から取ったのか」を確認するための一覧 */
+router.get('/imports', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from('ebay_imports')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(Number(req.query.limit) || 100);
+    if (error) throw new Error(error.message);
+    res.json(data || []);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/imports/:id', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb.from('ebay_imports').delete().eq('id', req.params.id);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/listings/import', async (req, res) => {
   try {
     const sb = getSupabase();
