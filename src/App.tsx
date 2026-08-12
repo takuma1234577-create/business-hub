@@ -15,6 +15,7 @@ import Gifting from './pages/Gifting'
 import EbayManager from './pages/EbayManager'
 import ReviewForm from './pages/ReviewForm'
 import GiftAddressForm from './pages/GiftAddressForm'
+import ImageDownloader from './pages/ImageDownloader'
 import Login from './pages/Login'
 
 // 全fetchリクエストに認証トークンを自動付与
@@ -88,6 +89,7 @@ function App() {
       <Route path="/shopify-reviews" element={<ShopifyReviews />} />
       <Route path="/gifting" element={<Gifting />} />
       <Route path="/ebay" element={<EbayManager />} />
+      <Route path="/image-downloader" element={<ImageDownloader />} />
     </Routes>
   )
 }

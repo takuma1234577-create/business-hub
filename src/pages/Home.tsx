@@ -10,6 +10,7 @@ import {
   Gift,
   ShieldCheck,
   Globe,
+  Images,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -93,6 +94,16 @@ const tools: Tool[] = [
     path: '/ebay',
     color: 'text-cyan-600 dark:text-cyan-400',
     bgColor: 'bg-cyan-50 dark:bg-cyan-950/50',
+    status: 'active',
+  },
+  {
+    id: 'image-downloader',
+    name: '商品画像 一括DL',
+    description: 'ヤフオク・Amazon・楽天などの商品ページURLを入れるだけで、掲載画像を検出。選んでZIPで一括ダウンロード。仕入れ・出品作業の素材集めに。',
+    icon: <Images size={28} />,
+    path: '/image-downloader',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-50 dark:bg-indigo-950/50',
     status: 'active',
   },
   {

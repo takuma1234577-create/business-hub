@@ -109,6 +109,7 @@ const salesAgentRoutes = require(path.join(__dirname, 'sales-agent.cjs'));
 const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verify.cjs'));
 const giftingRoutes = require(path.join(__dirname, 'gifting.cjs'));
 const ebayManagerRoutes = require(path.join(__dirname, 'ebay-manager.cjs'));
+const imageDownloaderRoutes = require(path.join(__dirname, 'image-downloader.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -138,6 +139,7 @@ app.use('/api/sales-agent', salesAgentRoutes);
 app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 app.use('/api/ebay', ebayManagerRoutes);
+app.use('/api/image-downloader', imageDownloaderRoutes);
 app.use('/api/review-submission', reviewSubmissionModule);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
