@@ -80,11 +80,126 @@ async function fetchYahoo(url) {
     available: product.offers?.availability !== 'https://schema.org/OutOfStock',
     condition_ja: conditionJa,
     breadcrumb,
-    description_ja: (product.description || '').trim(),
+    description_ja: extractDescription(html) || (product.description || '').trim(),
     // 画像はURLだけを控える。ダウンロードして持つことはしない。
     // 参照用途にはリンクで十分で、出品が終われば消えるので在庫の状態も分かる
     image_urls: (product.image || []).slice(0, 24),
   };
+}
+
+// ── 説明文の全文抽出 ────────────────────────────────────
+/**
+ * ld+json の description は149文字程度で切れているため、本文から取り直す。
+ * 説明は id="description" の直下にインラインで入っている。
+ * クラス名はビルドごとにハッシュが変わるので、id を起点にする。
+ *
+ * ここで取るのは後述の事実抽出の材料。出品文にそのまま載せることはしない。
+ */
+function extractDescription(html) {
+  // 本文は __NEXT_DATA__ の descriptionHtml に入っている。
+  // ページ側のHTMLには冒頭だけを描画して末尾を「...」で切っているため、
+  // id="description" から読むと100〜250字程度しか取れない（実測）。
+  const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (nd) {
+    try {
+      const j = JSON.parse(nd[1]);
+      const raw = j?.props?.pageProps?.initialState?.item?.detail?.item?.descriptionHtml
+        || j?.props?.initialState?.item?.detail?.item?.descriptionHtml;
+      if (raw) return htmlToText(raw).slice(0, 8000) || null;
+    } catch { /* 構造が変わったら下のフォールバックに落ちる */ }
+  }
+
+  const i = html.indexOf('id="description"');
+  if (i === -1) return null;
+  const seg = html.slice(i, i + 60000);
+  const end = seg.indexOf('</section>');
+  const body = end > 0 ? seg.slice(0, end) : seg;
+  return htmlToText(body).replace(/^商品説明\s*/, '').slice(0, 8000) || null;
+}
+
+function htmlToText(body) {
+  return body
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s*商品説明\s*/, '')
+    .trim();
+}
+
+// ── 説明文からの事実抽出 ────────────────────────────────
+/**
+ * 出品者の文章をそのまま訳すのではなく、買い手が判断に使う事実だけを取り出す。
+ *
+ * レンズで実際に問い合わせが来るのは「光学系にカビ・クモリがあるか」
+ * 「絞りとヘリコイドが動くか」「何が付属するか」の3点。
+ * 状態区分（目立った傷や汚れなし 等）だけでは、この3点が分からない。
+ *
+ * 否定形を先に見る。「カビあり」と「カビなし」を取り違えると
+ * Not as described に直結するため、曖昧なら何も言わない方針にしてある。
+ */
+const NEG = '(?:は)?(?:あり|有り|見られ|見受け|confirmed)?\\s*(?:ませ|ま?せ)?ん|なし|無し|ありません|見当たりません|見られません|確認できません';
+
+function scan(text, subject, patterns) {
+  for (const [re, en] of patterns) if (re.test(text)) return en;
+  return null;
+}
+
+function extractConditionFacts(descJa) {
+  if (!descJa) return null;
+  const t = descJa.replace(/\s+/g, ' ');
+  const optics = [];
+
+  // 光学系。否定表現を先に評価する
+  const fungus = scan(t, 'カビ', [
+    [/カビ(?:は)?(?:なし|無し|ありません|見当たりません|見られません|確認できません|ございません)/, 'no fungus'],
+    [/(?:カビ|かび)(?:が|も)?(?:あり|有り|発生|見られ|散見|うっすら)/, 'fungus present'],
+  ]);
+  const haze = scan(t, 'クモリ', [
+    [/(?:クモリ|曇り|くもり)(?:は)?(?:なし|無し|ありません|見当たりません|見られません|ございません)/, 'no haze'],
+    [/(?:クモリ|曇り|くもり)(?:が|も)?(?:あり|有り|見られ|散見|うっすら)/, 'haze present'],
+  ]);
+  const scratch = scan(t, 'キズ', [
+    [/(?:傷|キズ|きず)(?:は)?(?:なし|無し|ありません|見当たりません|見られません)/, 'no scratches on the glass'],
+    [/(?:拭き傷|拭きキズ|擦り傷)/, 'cleaning marks present'],
+  ]);
+  const balsam = /バルサム(?:切れ|ぎれ)/.test(t) ? 'balsam separation present' : null;
+  const dust = /(?:チリ|ちり|ホコリ|ほこり|埃)/.test(t)
+    ? (/(?:チリ|ホコリ|埃)(?:は)?(?:なし|無し|ありません|見当たりません)/.test(t) ? 'no dust' : 'some dust present')
+    : null;
+  [fungus, haze, scratch, balsam, dust].forEach((x) => x && optics.push(x));
+
+  // 動作
+  const operation = [];
+  if (/(?:動作|作動)(?:確認|チェック)?(?:済|済み|OK|良好|問題(?:あり)?ません)/.test(t)) operation.push('Operation confirmed');
+  if (/絞り(?:羽根)?(?:は)?(?:スムーズ|快調|正常|問題(?:あり)?ません|動作)/.test(t)) operation.push('aperture blades operate smoothly');
+  if (/絞り羽根(?:に)?(?:油|オイル)/.test(t)) operation.push('oil on the aperture blades');
+  if (/(?:ヘリコイド|ピントリング|フォーカスリング)(?:は)?(?:スムーズ|軽い|快調|正常)/.test(t)) operation.push('focus ring turns smoothly');
+  if (/(?:ヘリコイド|ピントリング|フォーカスリング)(?:は)?(?:重い|固い|硬い|ゴリ)/.test(t)) operation.push('focus ring feels stiff');
+
+  // 付属品
+  const acc = [];
+  const has = (re) => re.test(t) && !/(?:付属しません|ありません|なし|無し|付属品はありません)/.test(
+    t.slice(Math.max(0, t.search(re) - 12), t.search(re) + 24));
+  if (has(/(?:前後)?キャップ/)) acc.push('caps');
+  if (has(/フード/)) acc.push('lens hood');
+  if (has(/(?:フィルター|フィルタ)/)) acc.push('filter');
+  if (has(/(?:元箱|化粧箱|純正箱)/)) acc.push('original box');
+  if (has(/(?:ケース|revolver|ソフトケース)/)) acc.push('case');
+
+  // 外観
+  const cosmetic = [];
+  if (/(?:スレ|擦れ|小スレ)/.test(t)) cosmetic.push('light scuffs on the barrel');
+  if (/(?:打痕|凹み|へこみ)/.test(t)) cosmetic.push('a dent');
+  if (/(?:塗装(?:の)?(?:剥が|はが|剥げ))/.test(t)) cosmetic.push('paint loss');
+
+  const any = optics.length || operation.length || acc.length || cosmetic.length;
+  return any ? { optics, operation, accessories: acc, cosmetic } : null;
 }
 
 // ── セット出品の検出 ────────────────────────────────────
@@ -248,14 +363,25 @@ function buildDescription(s, cond, extra = {}) {
     ? `${cond.en}. ${cond.note}`
     : 'Used. Please refer to the photos for the exact condition of this item.';
 
+  // 出品者の説明から拾えた事実を足す。買い手が実際に気にするのは
+  // 光学系・動作・付属品の3点で、状態区分だけでは伝わらない
+  const f = extra.facts;
+  const cap = (a) => a[0].toUpperCase() + a.slice(1);
+  const opticsLine = f?.optics?.length ? `<br>Optics: ${cap(f.optics.join(', '))}.` : '';
+  const cosmeticLine = f?.cosmetic?.length ? `<br>Barrel: ${cap(f.cosmetic.join(', '))}.` : '';
+  const operationLine = f?.operation?.length ? `<br>Operation: ${cap(f.operation.join(', '))}.` : '';
+  const included = f?.accessories?.length
+    ? `Lens with ${f.accessories.join(', ')}. Please refer to the photos for what is included.`
+    : 'Lens only, unless additional items are visible in the photos.';
+
   return `<p>${buildTitle(s).replace(' from Japan', '')}.</p>
 <p><b>Specifications</b><br>
 ${spec}</p>
 <p><b>Condition</b><br>
-${condLine}<br>
+${condLine}${opticsLine}${cosmeticLine}${operationLine}<br>
 Please refer to the photos for the exact item. Any notable points are described in the condition note above.</p>
 <p><b>Included</b><br>
-Lens only, unless additional items are visible in the photos.</p>
+${included}</p>
 <p><b>Shipping</b><br>
 Ships from Japan with tracking. Carefully packed with cushioning material and double-boxed.<br>
 Handling time: ${extra.dispatchDays || 5} business days.</p>
@@ -272,6 +398,8 @@ async function importFromUrl(url) {
   const p = await fetchProduct(url);
   const specs = extractSpecs(p.title_ja, p.breadcrumb);
   const cond = p.condition_ja ? CONDITION_MAP[p.condition_ja] || null : null;
+  // 出品者の文章そのものは使わず、そこから読み取れる事実だけを取り出す
+  const facts = extractConditionFacts(p.description_ja);
 
   // Item Specifics は取れた値だけを入れる。埋まらなかったものは呼び出し側で人が補う
   const itemSpecifics = {};
@@ -314,9 +442,10 @@ async function importFromUrl(url) {
     },
     bundle_suspect: !!bundle,
     specs,
+    condition_facts: facts,
     listing: {
       title_en: buildTitle(specs),
-      description_html: buildDescription(specs, cond),
+      description_html: buildDescription(specs, cond, { facts }),
       condition_id: cond?.id ?? 3000,
       condition_en: cond?.en ?? 'Used',
       item_specifics: itemSpecifics,
@@ -330,5 +459,5 @@ async function importFromUrl(url) {
 module.exports = {
   SUPPORTED, detectSource, fetchProduct, extractSpecs,
   buildTitle, buildDescription, importFromUrl, CONDITION_MAP,
-  detectBundle,
+  detectBundle, extractConditionFacts, extractDescription,
 };
