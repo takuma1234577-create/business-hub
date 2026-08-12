@@ -19,6 +19,8 @@ interface Source {
   last_checked_at: string | null
   last_error: string | null
   last_title: string | null
+  url: string | null       // 特定商品への直リンク（人が手で登録した場合）
+  last_url: string | null  // 巡回時にスクレイパーが実際に叩いた検索URL
   enabled: boolean
 }
 
@@ -92,6 +94,21 @@ interface Stats {
 }
 
 const SOURCE_LABEL: Record<string, string> = { yahoo: 'ヤフオク', mercari: 'メルカリ', suruga: '駿河屋', rakuten: '楽天', amazon: 'Amazon', kitamura: 'キタムラ' }
+
+// server/ebay-manager.cjs のスクレイパーと同じ検索URLを組み立てる。
+// last_url が無い（まだ一度も巡回していない）仕入先でもクリックできるようにするため。
+// キタムラはスクレイパーが無くURL形式も未確認なので、あえてリンクにしない。
+const SOURCE_SEARCH_URL: Record<string, (kw: string) => string> = {
+  yahoo: (kw) => `https://auctions.yahoo.co.jp/search/search?p=${encodeURIComponent(kw)}&n=50`,
+  mercari: (kw) => `https://jp.mercari.com/search?keyword=${encodeURIComponent(kw)}&status=on_sale`,
+  suruga: (kw) => `https://www.suruga-ya.jp/search?search_word=${encodeURIComponent(kw)}`,
+  rakuten: (kw) => `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(kw)}/`,
+  amazon: (kw) => `https://www.amazon.co.jp/s?k=${encodeURIComponent(kw)}`,
+}
+
+/** 仕入先バッジのリンク先。直リンク > 巡回時のURL > 検索語から組み立て の順で採用する */
+const sourceHref = (s: Source): string | null =>
+  s.url || s.last_url || SOURCE_SEARCH_URL[s.source]?.(s.search_keyword) || null
 
 const jpy = (n: number | null | undefined) => (n == null ? '—' : `¥${n.toLocaleString()}`)
 const ago = (iso: string | null) => {
@@ -387,14 +404,34 @@ export default function EbayManager() {
                                 : s.last_price_jpy
                                   ? ` ${jpy(s.last_price_jpy)}`
                                   : ' 在庫なし'
-                            return (
-                              <span
-                                key={s.id}
-                                className={`px-1.5 py-0.5 rounded text-xs ${cls}`}
-                                title={`${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}${s.last_error ? ` / ${s.last_error}` : ''}${s.last_title ? `\n最安: ${s.last_title}` : ''}`}
-                              >
+                            const href = sourceHref(s)
+                            const tip = `${s.search_keyword} / ${s.last_count ?? '—'}件 / ${ago(s.last_checked_at)}`
+                              + `${s.last_error ? ` / ${s.last_error}` : ''}`
+                              + `${s.last_title ? `\n最安: ${s.last_title}` : ''}`
+                              + `${href ? '\nクリックで仕入先を開く' : ''}`
+                            const body = (
+                              <>
                                 {SOURCE_LABEL[s.source] || s.source}
                                 {label}
+                              </>
+                            )
+                            // 巡回で読めなかった仕入先（メルカリ・駿河屋）ほど人が手で見に行く必要がある。
+                            // バッジ自体をリンクにして、価格の根拠になった検索結果へ直接飛べるようにする
+                            return href ? (
+                              <a
+                                key={s.id}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`px-1.5 py-0.5 rounded text-xs inline-flex items-center gap-0.5 hover:underline hover:brightness-95 ${cls}`}
+                                title={tip}
+                              >
+                                {body}
+                                <ExternalLink size={9} className="opacity-50" />
+                              </a>
+                            ) : (
+                              <span key={s.id} className={`px-1.5 py-0.5 rounded text-xs ${cls}`} title={tip}>
+                                {body}
                               </span>
                             )
                           })}

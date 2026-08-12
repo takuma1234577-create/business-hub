@@ -748,6 +748,9 @@ async function checkListing(listing, settings) {
       const r = await scrapeSource(src.source, src.search_keyword, src.exclude_words, src.include_words);
       // 読めなかった仕入先は last_available を書き換えない（前回値を保持する）
       const patch = { last_checked_at: new Date().toISOString(), last_error: r.ok ? null : r.error || '取得不可' };
+      // 実際に叩いたURLは ok/ng を問わず残す。取得できなかった仕入先ほど
+      // 管理画面から人が手で開いて確認する必要があるため
+      if (r.url) patch.last_url = r.url;
       if (r.ok) {
         patch.last_price_jpy = r.min;
         patch.last_count = r.count;
