@@ -2170,6 +2170,10 @@ router.get('/cron/stock-check', async (_req, res) => {
       .from('ebay_listings')
       .select('*')
       .in('status', ['active', 'end_recommended'])
+      // 一点ものを先頭に回す。仕入先が消えた瞬間に代替が無いため、
+      // 検知が1周遅れるとそのままキャンセル＝取引不成立率の悪化に直結する。
+      // 型番ものは代替を買えるので、1周遅れても事故にならない。
+      .order('is_one_off', { ascending: false })
       .order('last_checked_at', { ascending: true, nullsFirst: true })
       .limit(settings.max_checks_per_run);
 
