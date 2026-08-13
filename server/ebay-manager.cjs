@@ -269,15 +269,20 @@ function priceForRegions(s, costJpy, category, kg, targetMargin = 0.20, mode = '
  * セラーの裁定で価格差が既に潰れている（実測で確認済み）。
  * ただし0件＝海外需要が確認できていないので候補にしない。
  */
-function verdictOf(margin, profit, soldCount, costRatioPct, maxRatioPct) {
+/**
+ * 判定のしきい値は設定から読む。
+ * 基準を変えるたびにコードを触るのは事故のもとで、実際に20%→15%への
+ * 変更が発生した。marginTarget / profitFloor を渡せるようにしてある。
+ */
+function verdictOf(margin, profit, soldCount, costRatioPct, maxRatioPct, marginTarget = 20, profitFloor = 5000) {
   if (soldCount != null && soldCount < 1) return '✕';
   // 米国基準・全世界送料無料で出す前提だと、価格は米国（関税15%・送料自社負担）で
   // 決まる。国内仕入値がeBay相場の44%を超えると、その価格が相場を超えて売れなくなる。
   // 実測では牛刀26%だけが成立し、50%超の9件は全滅した。
   if (costRatioPct != null && maxRatioPct != null && costRatioPct > maxRatioPct) return '✕';
   if (profit <= 0) return '✕';
-  if (margin >= 20 && profit >= 5000) return '◎';   // 両方満たす
-  if (margin >= 20 || profit >= 5000) return '○';   // 合格ライン
+  if (margin >= marginTarget && profit >= profitFloor) return '◎';   // 両方満たす
+  if (margin >= marginTarget || profit >= profitFloor) return '○';   // 合格ライン
   return '△';
 }
 
@@ -1700,6 +1705,10 @@ async function refreshWatchItem(item, settings) {
     last_checked_at: new Date().toISOString(),
   };
 
+  // 判定基準は設定から。既定は20%/5000円だが、運用で15%へ下げた
+  const mTarget = Number(settings.margin_target_pct ?? 20);
+  const pFloor = Number(settings.profit_floor_jpy ?? 5000);
+
   if (best && item.ebay_sold_median_jpy) {
     const priceUsd = Number(item.ebay_sold_median_jpy) / Number(settings.usd_jpy);
 
@@ -1726,11 +1735,11 @@ async function refreshWatchItem(item, settings) {
       patch.margin_median_pct = atMed.margin_pct;
       const ratio = (medBest.median / Number(item.ebay_sold_median_jpy)) * 100;
       const maxRatio = Number(settings.max_cost_ratio_pct);
-      patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count, ratio, maxRatio);
+      patch.verdict = verdictOf(atMed.margin_pct, atMed.profit_jpy, item.ebay_sold_count, ratio, maxRatio, mTarget, pFloor);
       patch.profit_intl_jpy = atMedIntl.profit_jpy;
       patch.margin_intl_pct = atMedIntl.margin_pct;
       // 非米国は関税が無いので比率の足切りは掛けない
-      patch.verdict_intl = verdictOf(atMedIntl.margin_pct, atMedIntl.profit_jpy, item.ebay_sold_count);
+      patch.verdict_intl = verdictOf(atMedIntl.margin_pct, atMedIntl.profit_jpy, item.ebay_sold_count, null, null, mTarget, pFloor);
     } else {
       patch.median_price_jpy = null;
       patch.profit_median_jpy = null;
@@ -1738,7 +1747,7 @@ async function refreshWatchItem(item, settings) {
       patch.profit_intl_jpy = null;
       patch.margin_intl_pct = null;
       patch.verdict_intl = null;
-      patch.verdict = verdictOf(atMin.margin_pct, atMin.profit_jpy, item.ebay_sold_count);
+      patch.verdict = verdictOf(atMin.margin_pct, atMin.profit_jpy, item.ebay_sold_count, null, null, mTarget, pFloor);
     }
   } else {
     // eBay相場が未取得なら判定を作らない（推測値で埋めない）
@@ -1751,6 +1760,40 @@ async function refreshWatchItem(item, settings) {
     patch.margin_intl_pct = null;
     patch.verdict_intl = null;
     patch.verdict = '未取得';
+  }
+
+  // ── 機会検知 ──────────────────────────────────────────
+  // verdict は中央値で判定する（＝継続的に仕入れ続けられるか＝無在庫の条件）。
+  // それとは別に「いま買える最良の1点」が基準を満たすかを見る。
+  // 中央値では✕でも、たまたま安い個体が出れば買う価値がある。
+  // 実測でも Canon FD 35mm F2 は中央値¥29,400で✕だが、¥17,800の個体は成立していた。
+  const opp = pickBestItem(best?.candidates, settings);
+  const oppItem = opp?.picked;
+  if (oppItem && item.ebay_sold_median_jpy) {
+    const priceUsd = Number(item.ebay_sold_median_jpy) / Number(settings.usd_jpy);
+    // 送料込みの総額で見る。本体価格だけで判断すると送料の高い出品に引っかかる
+    const op = calcProfit(settings, priceUsd, oppItem.total_jpy, item.category, item.weight_kg);
+    const hit = op.profit_jpy > 0 && (op.margin_pct >= mTarget || op.profit_jpy >= pFloor);
+    patch.opportunity = hit;
+    patch.opp_price_jpy = oppItem.total_jpy;
+    patch.opp_profit_jpy = op.profit_jpy;
+    patch.opp_margin_pct = op.margin_pct;
+    patch.opp_url = oppItem.url;
+    patch.opp_title = oppItem.title;
+    patch.opp_reason = opp.reason;
+    if (hit) patch.opp_found_at = new Date().toISOString();
+
+    // 同じ個体で二重に通知しない。売れて次の個体に変われば改めて通知する
+    if (hit && settings.notify_slack && item.opp_notified_url !== oppItem.url) {
+      patch.opp_notified_url = oppItem.url;
+      sendSlackAlert(
+        `*仕入れ機会* ${item.kataban}\n`
+        + `総額 ¥${oppItem.total_jpy.toLocaleString()} → 想定粗利 ¥${op.profit_jpy.toLocaleString()}（${op.margin_pct}%）\n`
+        + `${opp.reason}\n${oppItem.url}`,
+      ).catch(() => {});
+    }
+  } else {
+    patch.opportunity = false;
   }
 
   await sb.from('ebay_profit_watch').update(patch).eq('id', item.id);

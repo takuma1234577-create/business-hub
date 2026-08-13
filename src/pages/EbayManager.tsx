@@ -93,6 +93,15 @@ interface Order {
 }
 
 interface Watch {
+  // 「安い1点が出たら買う」運用のための検知結果。
+  // verdict は中央値ベース（無在庫で継続仕入れできるか）で、こちらとは用途が違う
+  opportunity?: boolean
+  opp_price_jpy?: number | null
+  opp_profit_jpy?: number | null
+  opp_margin_pct?: number | null
+  opp_url?: string | null
+  opp_title?: string | null
+  opp_reason?: string | null
   id: string
   kataban: string
   keyword_ja: string
@@ -1076,6 +1085,16 @@ export default function EbayManager() {
                       <td className="px-3 py-2 text-right font-medium">
                         {jpy(w.best_price_jpy)}
                         {w.best_source && <div className="text-xs text-gray-500">{SOURCE_LABEL[w.best_source]}</div>}
+                        {/* 中央値では✕でも、いま買える1点が基準を満たすことがある。
+                            ニッチ高単価では出品が薄いので、この機会検知が主戦力になる */}
+                        {w.opportunity && w.opp_url && (
+                          <a href={w.opp_url} target="_blank" rel="noopener noreferrer"
+                             title={w.opp_reason || ''}
+                             className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 hover:underline">
+                            買い時 {jpy(w.opp_price_jpy)} → 粗利{jpy(w.opp_profit_jpy)}
+                            <ExternalLink size={9} className="opacity-60" />
+                          </a>
+                        )}
                         {w.best_title && (
                           <div className="text-xs text-gray-400 font-normal text-left max-w-[14rem] truncate" title={w.best_title}>
                             {w.best_title}
