@@ -5,6 +5,7 @@ import {
   FileText, Plus, Pencil, Trash2, X, ArrowUp, ArrowDown,
   Type, Image as ImageIcon, Video, Music, LayoutGrid, Upload, Eye, FolderInput,
   GalleryHorizontal, ChevronLeft, ChevronRight, Copy, Send, Link as LinkIcon,
+  HelpCircle,
 } from 'lucide-react'
 import FolderTabs, { filterByFolder, computeFolderCounts } from './FolderTabs'
 import { getChannelId } from './lineAccount'
@@ -84,12 +85,16 @@ api.interceptors.request.use((config) => {
   config.params = { ...config.params, channel_id: getChannelId() }
   return config
 })
-// UI上のブロック種別（LINEの `template` を panel / carousel に細分化）
-type UIBlockKind = 'text' | 'image' | 'video' | 'audio' | 'panel' | 'carousel'
+// UI上のブロック種別（LINEの `template` を panel / carousel / question に細分化）
+type UIBlockKind = 'text' | 'image' | 'video' | 'audio' | 'panel' | 'carousel' | 'question'
 
 const getBlockKind = (b: MessageBlock): UIBlockKind => {
   if (b.type !== 'template') return b.type
-  return b.template.type === 'carousel' ? 'carousel' : 'panel'
+  if (b.template.type === 'carousel') return 'carousel'
+  // buttonsテンプレのボタンが全て「回答(タグ)」なら質問カードとして扱う
+  const acts = b.template.actions
+  if (acts.length > 0 && acts.every(isAnswerAction)) return 'question'
+  return 'panel'
 }
 
 const createBlock = (kind: UIBlockKind): MessageBlock => {
@@ -116,6 +121,19 @@ const createBlock = (kind: UIBlockKind): MessageBlock => {
         ],
       },
     }
+    case 'question': return {
+      type: 'template',
+      altText: '質問',
+      template: {
+        type: 'buttons',
+        text: '',
+        // ボタン=「回答(タグ)」。タップで指定タグ付与＋任意で自動返信。
+        actions: [
+          buildAnswerAction('選択肢1', '', ''),
+          buildAnswerAction('選択肢2', '', ''),
+        ],
+      },
+    }
   }
 }
 
@@ -127,6 +145,7 @@ const blockLabel = (k: UIBlockKind) => {
     case 'audio': return '音声'
     case 'panel': return 'パネル'
     case 'carousel': return 'カルーセル'
+    case 'question': return '質問'
   }
 }
 
@@ -138,6 +157,7 @@ const blockIcon = (k: UIBlockKind, size = 16) => {
     case 'audio': return <Music size={size} />
     case 'panel': return <LayoutGrid size={size} />
     case 'carousel': return <GalleryHorizontal size={size} />
+    case 'question': return <HelpCircle size={size} />
   }
 }
 
@@ -565,7 +585,7 @@ export default function MessageTemplates() {
 
                 {blocks.length < 5 && (
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {(['text', 'image', 'video', 'audio', 'panel', 'carousel'] as const).map(t => (
+                    {(['text', 'image', 'video', 'audio', 'question', 'panel', 'carousel'] as const).map(t => (
                       <button
                         key={t}
                         onClick={() => addBlock(t)}
@@ -1179,7 +1199,9 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
       )}
 
       {block.type === 'template' && block.template.type === 'buttons' && (
-        <PanelEditor block={block as PanelBlock} onChange={onChange} templates={templates} tags={tags} />
+        getBlockKind(block) === 'question'
+          ? <QuestionEditor block={block as PanelBlock} onChange={onChange} tags={tags} />
+          : <PanelEditor block={block as PanelBlock} onChange={onChange} templates={templates} tags={tags} />
       )}
       {block.type === 'template' && block.template.type === 'carousel' && (
         <CarouselEditor block={block as CarouselBlock} onChange={onChange} templates={templates} tags={tags} />
@@ -1539,6 +1561,105 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
         {tmpl.actions.length < 4 && (
           <button onClick={addAction} className="flex items-center gap-1 text-xs text-[#06C755] hover:underline cursor-pointer">
             <Plus size={12} /> ボタン追加
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────── Question Editor ───────────────
+// 「質問カード」= buttonsテンプレを質問用に単純化したエディタ。
+// 質問文＋選択肢（各選択肢はタップで指定タグ付与＋任意で自動返信）。
+function QuestionEditor({ block, onChange, tags }: { block: PanelBlock; onChange: (b: MessageBlock) => void; tags: TagOption[] }) {
+  const tmpl = block.template
+  const options = tmpl.actions
+  const updateTmpl = (patch: Partial<PanelBlock['template']>) =>
+    onChange({ ...block, template: { ...tmpl, ...patch } })
+  const answerOf = (a: ButtonAction) =>
+    a.type === 'postback' ? parseAnswer(a.data) : { tag: '', reply: '' }
+  const setOption = (i: number, label: string, tag: string, reply: string) => {
+    updateTmpl({ actions: options.map((a, idx) => (idx === i ? buildAnswerAction(label, tag, reply) : a)) })
+  }
+  const addOption = () => {
+    if (options.length >= 4) { alert('選択肢は最大4つまでです（LINE仕様）'); return }
+    updateTmpl({ actions: [...options, buildAnswerAction(`選択肢${options.length + 1}`, '', '')] })
+  }
+  const removeOption = (i: number) => {
+    if (options.length <= 1) return
+    updateTmpl({ actions: options.filter((_, idx) => idx !== i) })
+  }
+  const moveOption = (i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= options.length) return
+    const next = [...options]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    updateTmpl({ actions: next })
+  }
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-slate-500 mb-1">質問文</label>
+        <textarea
+          value={tmpl.text}
+          onChange={e => updateTmpl({ text: e.target.value })}
+          placeholder="例: ちなみに、購入いただいた商品はなんですか？"
+          rows={2}
+          maxLength={160}
+          className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] resize-none"
+        />
+      </div>
+      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+        <p className="text-xs font-medium text-slate-500">選択肢（最大4つ・タップでタグ付与＆自動返信）</p>
+        {options.map((a, i) => {
+          const ans = answerOf(a)
+          return (
+            <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 flex-shrink-0 rounded-full bg-[#06C755]/10 text-[#06C755] text-xs font-semibold flex items-center justify-center">{i + 1}</span>
+                <input
+                  type="text"
+                  value={a.label}
+                  onChange={e => setOption(i, e.target.value, ans.tag, ans.reply)}
+                  placeholder="選択肢のテキスト（例: リストラップ）"
+                  maxLength={20}
+                  className="flex-1 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                />
+                <button onClick={() => moveOption(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                  <ArrowUp size={13} />
+                </button>
+                <button onClick={() => moveOption(i, 1)} disabled={i === options.length - 1} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                  <ArrowDown size={13} />
+                </button>
+                <button onClick={() => removeOption(i)} disabled={options.length <= 1} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 pl-8">
+                <select
+                  value={ans.tag}
+                  onChange={e => setOption(i, a.label, e.target.value, ans.reply)}
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                >
+                  <option value="">付与するタグ...</option>
+                  {tags.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={ans.reply}
+                  onChange={e => setOption(i, a.label, ans.tag, e.target.value)}
+                  placeholder="回答後の自動返信（任意）"
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                />
+              </div>
+            </div>
+          )
+        })}
+        {options.length < 4 && (
+          <button onClick={addOption} className="flex items-center gap-1 text-xs text-[#06C755] hover:underline cursor-pointer">
+            <Plus size={12} /> 選択肢を追加
           </button>
         )}
       </div>
