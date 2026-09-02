@@ -70,14 +70,42 @@ function sanitizeTemplateMessage(m) {
     const rawText = (typeof tmpl.text === 'string' && tmpl.text.trim()) ? tmpl.text : (tmpl.title || ' ');
     tmpl.text = rawText.slice(0, hasHeader ? 60 : 160);
   } else if (tmpl.type === 'carousel') {
-    const columns = Array.isArray(tmpl.columns) ? tmpl.columns : [];
+    let columns = Array.isArray(tmpl.columns) ? tmpl.columns : [];
+    // 1) 実質未入力のカラムを除去（初期状態の空カラムがLINEの一貫性チェックを壊すため）
+    const columnHasContent = (c) => {
+      const hasText = typeof c.text === 'string' && c.text.trim();
+      const hasTitle = typeof c.title === 'string' && c.title.trim();
+      const hasThumb = typeof c.thumbnailImageUrl === 'string' && c.thumbnailImageUrl.trim();
+      const hasAction = Array.isArray(c.actions) && c.actions.some((a) => {
+        if (!a) return false;
+        if (a.type === 'uri') return String(a.uri || '').trim();
+        if (a.type === 'postback') return String(a.data || '').trim() && String(a.data).trim() !== 'action=noop';
+        if (a.type === 'message') return String(a.text || '').trim();
+        return false;
+      });
+      return hasText || hasTitle || hasThumb || hasAction;
+    };
+    const filled = columns.filter(columnHasContent);
+    columns = filled.length > 0 ? filled : columns.slice(0, 1);
+    if (columns.length === 0) columns = [{ text: ' ', actions: [] }];
+
+    // 2) 画像・タイトルの有無、ボタン数を全カラムで統一（LINE仕様）
+    const allHaveThumb = columns.every((c) => typeof c.thumbnailImageUrl === 'string' && c.thumbnailImageUrl.trim());
+    const allHaveTitle = columns.every((c) => typeof c.title === 'string' && c.title.trim());
+    const maxActions = Math.min(3, Math.max(1, ...columns.map((c) => (Array.isArray(c.actions) ? c.actions.length : 0))));
+
     tmpl.columns = columns.map((c) => {
       const col = { ...c };
-      if (typeof col.title === 'string' && col.title.trim() === '') delete col.title;
-      if (typeof col.thumbnailImageUrl === 'string' && col.thumbnailImageUrl.trim() === '') delete col.thumbnailImageUrl;
+      // タイトル: 全カラムが持っていなければ全カラムから削除
+      if (!allHaveTitle) delete col.title;
+      // サムネイル: 全カラムが持っていなければ全カラムから削除
+      if (!allHaveThumb) delete col.thumbnailImageUrl;
+      else if (typeof col.thumbnailImageUrl === 'string' && col.thumbnailImageUrl.trim() === '') delete col.thumbnailImageUrl;
+      // ボタン: 整形 + 最大数に合わせてパディング（カラム間で数を揃える）
       let acts = Array.isArray(col.actions) ? col.actions.map(sanitizeButtonAction) : [];
-      if (acts.length === 0) acts = [{ type: 'postback', label: '　', data: 'action=noop' }];
-      col.actions = acts.slice(0, 3);
+      while (acts.length < maxActions) acts.push({ type: 'postback', label: '　', data: 'action=noop' });
+      col.actions = acts.slice(0, maxActions);
+      // 本文は必須
       const rawText = (typeof col.text === 'string' && col.text.trim()) ? col.text : (col.title || ' ');
       col.text = rawText.slice(0, 120);
       return col;
