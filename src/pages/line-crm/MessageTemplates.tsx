@@ -1200,7 +1200,7 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
 
       {block.type === 'template' && block.template.type === 'buttons' && (
         getBlockKind(block) === 'question'
-          ? <QuestionEditor block={block as PanelBlock} onChange={onChange} tags={tags} />
+          ? <QuestionEditor block={block as PanelBlock} onChange={onChange} templates={templates} tags={tags} />
           : <PanelEditor block={block as PanelBlock} onChange={onChange} templates={templates} tags={tags} />
       )}
       {block.type === 'template' && block.template.type === 'carousel' && (
@@ -1399,20 +1399,21 @@ function ThumbDropUpload({ value, onChange, aspect = 'rectangle' }: { value: str
   )
 }
 
-// ── 「回答(タグ)」ボタン: タップで指定タグを付与する postback ──
-// data = action=ans&t=<tagId>&r=<任意の返信文>
+// ── 「回答(タグ)」ボタン: タップで指定タグ付与＋任意でテンプレ送信する postback ──
+// data = action=ans&t=<tagId>&r=<任意の返信文>&tpl=<任意のテンプレID>
 function isAnswerAction(a: ButtonAction): boolean {
   return a.type === 'postback' && typeof a.data === 'string' && a.data.startsWith('action=ans')
 }
-function parseAnswer(data: string): { tag: string; reply: string } {
+function parseAnswer(data: string): { tag: string; reply: string; tpl: string } {
   const p = new URLSearchParams(data)
-  return { tag: p.get('t') || '', reply: p.get('r') || '' }
+  return { tag: p.get('t') || '', reply: p.get('r') || '', tpl: p.get('tpl') || '' }
 }
-function buildAnswerAction(label: string, tag: string, reply: string): ButtonAction {
+function buildAnswerAction(label: string, tag: string, reply: string, tpl = ''): ButtonAction {
   const params = new URLSearchParams()
   params.set('action', 'ans')
   if (tag) params.set('t', tag)
   if (reply) params.set('r', reply)
+  if (tpl) params.set('tpl', tpl)
   return { type: 'postback', label, data: params.toString(), displayText: label }
 }
 type UIActionType = 'message' | 'uri' | 'postback' | 'answer'
@@ -1571,19 +1572,19 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
 // ─────────────── Question Editor ───────────────
 // 「質問カード」= buttonsテンプレを質問用に単純化したエディタ。
 // 質問文＋選択肢（各選択肢はタップで指定タグ付与＋任意で自動返信）。
-function QuestionEditor({ block, onChange, tags }: { block: PanelBlock; onChange: (b: MessageBlock) => void; tags: TagOption[] }) {
+function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBlock; onChange: (b: MessageBlock) => void; templates: Template[]; tags: TagOption[] }) {
   const tmpl = block.template
   const options = tmpl.actions
   const updateTmpl = (patch: Partial<PanelBlock['template']>) =>
     onChange({ ...block, template: { ...tmpl, ...patch } })
   const answerOf = (a: ButtonAction) =>
-    a.type === 'postback' ? parseAnswer(a.data) : { tag: '', reply: '' }
-  const setOption = (i: number, label: string, tag: string, reply: string) => {
-    updateTmpl({ actions: options.map((a, idx) => (idx === i ? buildAnswerAction(label, tag, reply) : a)) })
+    a.type === 'postback' ? parseAnswer(a.data) : { tag: '', reply: '', tpl: '' }
+  const setOption = (i: number, label: string, tag: string, reply: string, tpl: string) => {
+    updateTmpl({ actions: options.map((a, idx) => (idx === i ? buildAnswerAction(label, tag, reply, tpl) : a)) })
   }
   const addOption = () => {
     if (options.length >= 4) { alert('選択肢は最大4つまでです（LINE仕様）'); return }
-    updateTmpl({ actions: [...options, buildAnswerAction(`選択肢${options.length + 1}`, '', '')] })
+    updateTmpl({ actions: [...options, buildAnswerAction(`選択肢${options.length + 1}`, '', '', '')] })
   }
   const removeOption = (i: number) => {
     if (options.length <= 1) return
@@ -1620,7 +1621,7 @@ function QuestionEditor({ block, onChange, tags }: { block: PanelBlock; onChange
                 <input
                   type="text"
                   value={a.label}
-                  onChange={e => setOption(i, e.target.value, ans.tag, ans.reply)}
+                  onChange={e => setOption(i, e.target.value, ans.tag, ans.reply, ans.tpl)}
                   placeholder="選択肢のテキスト（例: リストラップ）"
                   maxLength={20}
                   className="flex-1 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
@@ -1635,23 +1636,39 @@ function QuestionEditor({ block, onChange, tags }: { block: PanelBlock; onChange
                   <Trash2 size={13} />
                 </button>
               </div>
-              <div className="flex items-center gap-2 pl-8">
-                <select
-                  value={ans.tag}
-                  onChange={e => setOption(i, a.label, e.target.value, ans.reply)}
-                  className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
-                >
-                  <option value="">付与するタグ...</option>
-                  {tags.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-2 pl-8">
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">付与するタグ</label>
+                  <select
+                    value={ans.tag}
+                    onChange={e => setOption(i, a.label, e.target.value, ans.reply, ans.tpl)}
+                    className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                  >
+                    <option value="">なし</option>
+                    {tags.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-0.5">送信テンプレート</label>
+                  <select
+                    value={ans.tpl}
+                    onChange={e => setOption(i, a.label, ans.tag, ans.reply, e.target.value)}
+                    className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                  >
+                    <option value="">なし</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <input
                   type="text"
                   value={ans.reply}
-                  onChange={e => setOption(i, a.label, ans.tag, e.target.value)}
+                  onChange={e => setOption(i, a.label, ans.tag, e.target.value, ans.tpl)}
                   placeholder="回答後の自動返信（任意）"
-                  className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
+                  className="col-span-2 min-w-0 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#06C755]/40"
                 />
               </div>
             </div>

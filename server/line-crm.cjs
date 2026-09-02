@@ -3194,6 +3194,57 @@ async function replyOrPush(channelId, replyToken, lineUserId, text) {
   });
 }
 
+// テンプレートIDからメッセージをPush送信し、チャットログにも記録する。
+// send_template / 質問カードの回答(ans) の両方から呼ばれる。
+async function sendTemplateById(channelId, lineUserId, templateId, { displayText, postbackData } = {}) {
+  if (!templateId || !lineUserId) return;
+  const { data: tmpl } = await supabase
+    .from('message_templates')
+    .select('id, name, content')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (!tmpl || !tmpl.content || !tmpl.content.messages) return;
+
+  const { accessToken: token } = await getLineCredentials(channelId);
+  if (token) {
+    await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ to: lineUserId, messages: normalizeLineMessages(tmpl.content.messages) }),
+    });
+  }
+
+  const { data: friend } = await supabase
+    .from('friends')
+    .select('id, channel_id')
+    .eq('line_user_id', lineUserId)
+    .eq('channel_id', channelId)
+    .maybeSingle();
+  if (friend) {
+    const now = new Date().toISOString();
+    await supabase.from('chat_messages').insert([
+      {
+        channel_id: friend.channel_id,
+        friend_id: friend.id,
+        direction: 'incoming',
+        message_type: 'postback',
+        content: { data: postbackData || '', displayText: displayText || `テンプレート「${tmpl.name}」を送信` },
+        created_at: now,
+      },
+      {
+        channel_id: friend.channel_id,
+        friend_id: friend.id,
+        direction: 'outgoing',
+        message_type: 'text',
+        content: { messages: tmpl.content.messages, source: 'template_postback', template_id: templateId },
+        created_at: now,
+      },
+    ]);
+    updateFriendChatSummary(friend.id, friend.channel_id).catch(err =>
+      console.error('[template] summary update error:', err.message));
+  }
+}
+
 // 注文確認: スクショを解析・照合し、結果に応じてタグ付与＋自動返信を行う
 async function runReviewOrderVerification({ channelId, friendId, lineUserId, imageUrl, replyToken, messageId }) {
   const { verifyReviewOrderFromImage } = require('./review-order-verify.cjs');
@@ -3528,62 +3579,13 @@ async function processWebhookEvents(channelId, events) {
 
       if (action === 'send_template') {
         const templateId = params.get('template_id');
-        if (templateId && lineUserId) {
-          try {
-            const { data: tmpl } = await supabase
-              .from('message_templates')
-              .select('id, name, content')
-              .eq('id', templateId)
-              .maybeSingle();
-
-            if (tmpl && tmpl.content && tmpl.content.messages) {
-              // テンプレートをLINEに送信
-              // LINE Push APIでテンプレートを送信
-              const { accessToken: token } = await getLineCredentials(channelId);
-              if (token) {
-                await fetch('https://api.line.me/v2/bot/message/push', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ to: lineUserId, messages: normalizeLineMessages(tmpl.content.messages) }),
-                });
-              }
-
-              // チャットログに記録
-              const { data: friend } = await supabase
-                .from('friends')
-                .select('id, channel_id')
-                .eq('line_user_id', lineUserId)
-                .eq('channel_id', channelId)
-                .maybeSingle();
-
-              if (friend) {
-                const now = new Date().toISOString();
-                await supabase.from('chat_messages').insert([
-                  {
-                    channel_id: friend.channel_id,
-                    friend_id: friend.id,
-                    direction: 'incoming',
-                    message_type: 'postback',
-                    content: { data: postbackData, displayText: event.postback?.params?.displayText || `テンプレート「${tmpl.name}」を選択` },
-                    created_at: now,
-                  },
-                  {
-                    channel_id: friend.channel_id,
-                    friend_id: friend.id,
-                    direction: 'outgoing',
-                    message_type: 'text',
-                    content: { messages: tmpl.content.messages, source: 'template_postback', template_id: templateId },
-                    created_at: now,
-                  },
-                ]);
-                // チャットナレッジを非同期更新
-                updateFriendChatSummary(friend.id, friend.channel_id).catch(err =>
-                  console.error('[template] summary update error:', err.message));
-              }
-            }
-          } catch (err) {
-            console.error('[line-webhook] send_template error:', err.message);
-          }
+        try {
+          await sendTemplateById(channelId, lineUserId, templateId, {
+            displayText: event.postback?.params?.displayText,
+            postbackData,
+          });
+        } catch (err) {
+          console.error('[line-webhook] send_template error:', err.message);
         }
         continue;
       }
@@ -3612,9 +3614,10 @@ async function processWebhookEvents(channelId, events) {
       }
 
       if (action === 'ans') {
-        // 質問（選択式）の回答: 選択肢に紐づくタグを付与（＋任意で返信）
+        // 質問（選択式）の回答: 選択肢に紐づくタグを付与（＋任意で返信・テンプレート送信）
         const tagIds = (params.get('t') || '').split(',').map(s => s.trim()).filter(Boolean);
         const replyText = params.get('r') || '';
+        const answerTemplateId = params.get('tpl') || '';
         try {
           const { data: friend } = await supabase
             .from('friends')
@@ -3641,6 +3644,13 @@ async function processWebhookEvents(channelId, events) {
             }
           }
           if (replyText && event.replyToken) await replyToLine(channelId, event.replyToken, replyText);
+          // 選択肢にテンプレートが紐づいていればPush送信（返信トークンはreplyTextで使うためpush固定）
+          if (answerTemplateId) {
+            await sendTemplateById(channelId, lineUserId, answerTemplateId, {
+              displayText: event.postback?.params?.displayText,
+              postbackData,
+            });
+          }
         } catch (err) {
           console.error('[line-webhook] ans error:', err.message);
         }
