@@ -37,7 +37,57 @@ function imageBlockToFlex(m) {
   };
 }
 
-// 送信直前の正規化: リンク付き画像はFlex化、通常画像はLINE非対応の独自フィールドを除去。
+// buttons/carousel のボタンを整形。LINEは label/data/uri 空を拒否するため補完する。
+// カラム毎のアクション数を保つため、不完全なアクションも除外せずフォールバックする。
+function sanitizeButtonAction(a) {
+  const label = (a && typeof a.label === 'string' && a.label.trim()) ? a.label.slice(0, 20) : 'ボタン';
+  if (a && a.type === 'uri') {
+    const uri = String(a.uri || '').trim();
+    if (uri) return { type: 'uri', label, uri };
+    return { type: 'postback', label, data: 'action=noop', displayText: label };
+  }
+  if (a && a.type === 'postback') {
+    const data = String(a.data || '').trim() || 'action=noop';
+    const out = { type: 'postback', label, data };
+    if (a.displayText) out.displayText = String(a.displayText).slice(0, 300);
+    return out;
+  }
+  const text = String((a && a.text) || label).trim() || label;
+  return { type: 'message', label, text: text.slice(0, 300) };
+}
+
+// buttons/carousel テンプレートの必須項目を補完（text必須・空title/thumbnailは除去）。
+function sanitizeTemplateMessage(m) {
+  const tmpl = { ...m.template };
+  const altText = (typeof m.altText === 'string' && m.altText.trim()) ? m.altText.slice(0, 400) : 'メッセージ';
+  if (tmpl.type === 'buttons') {
+    if (typeof tmpl.title === 'string' && tmpl.title.trim() === '') delete tmpl.title;
+    if (typeof tmpl.thumbnailImageUrl === 'string' && tmpl.thumbnailImageUrl.trim() === '') delete tmpl.thumbnailImageUrl;
+    let actions = Array.isArray(tmpl.actions) ? tmpl.actions.map(sanitizeButtonAction) : [];
+    if (actions.length === 0) actions = [{ type: 'postback', label: '　', data: 'action=noop' }];
+    tmpl.actions = actions.slice(0, 4);
+    const hasHeader = !!(tmpl.thumbnailImageUrl || tmpl.title);
+    const rawText = (typeof tmpl.text === 'string' && tmpl.text.trim()) ? tmpl.text : (tmpl.title || ' ');
+    tmpl.text = rawText.slice(0, hasHeader ? 60 : 160);
+  } else if (tmpl.type === 'carousel') {
+    const columns = Array.isArray(tmpl.columns) ? tmpl.columns : [];
+    tmpl.columns = columns.map((c) => {
+      const col = { ...c };
+      if (typeof col.title === 'string' && col.title.trim() === '') delete col.title;
+      if (typeof col.thumbnailImageUrl === 'string' && col.thumbnailImageUrl.trim() === '') delete col.thumbnailImageUrl;
+      let acts = Array.isArray(col.actions) ? col.actions.map(sanitizeButtonAction) : [];
+      if (acts.length === 0) acts = [{ type: 'postback', label: '　', data: 'action=noop' }];
+      col.actions = acts.slice(0, 3);
+      const rawText = (typeof col.text === 'string' && col.text.trim()) ? col.text : (col.title || ' ');
+      col.text = rawText.slice(0, 120);
+      return col;
+    });
+  }
+  return { ...m, altText, template: tmpl };
+}
+
+// 送信直前の正規化: リンク付き画像はFlex化、通常画像はLINE非対応の独自フィールドを除去、
+// テンプレート(buttons/carousel)は必須項目を補完してLINEの400を防ぐ。
 function normalizeLineMessages(messages) {
   if (!Array.isArray(messages)) return messages;
   return messages.map((m) => {
@@ -48,6 +98,9 @@ function normalizeLineMessages(messages) {
       delete clean.linkUrl;
       delete clean.aspectRatio;
       return clean;
+    }
+    if (m && m.type === 'template' && m.template && typeof m.template === 'object') {
+      return sanitizeTemplateMessage(m);
     }
     return m;
   });
