@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil, Target } from 'lucide-react'
 import { getChannelId } from './lineAccount'
 
 interface TrafficSource {
@@ -173,85 +173,95 @@ export default function TrafficSources() {
 
       {/* Stats */}
       {sources.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-            <p className="text-xs text-slate-500 mb-1">経路数</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{sources.length}</p>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <TrendingUp size={13} className="text-slate-400" /> 経路数
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{sources.length}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-              <MousePointerClick size={12} /> 総クリック数
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <MousePointerClick size={13} className="text-sky-500" /> 総クリック数
             </div>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{totalClicks.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{totalClicks.toLocaleString()}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-              <Users size={12} /> 経路経由の友だち
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <Users size={13} className="text-[#06C755]" /> 経路経由の友だち
             </div>
-            <p className="text-2xl font-bold text-[#06C755]">{totalFriends.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-[#06C755] tabular-nums">{totalFriends.toLocaleString()}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <Target size={13} className="text-slate-400" /> 平均CVR
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+              {totalClicks > 0 ? ((totalFriends / totalClicks) * 100).toFixed(1) + '%' : '-'}
+            </p>
           </div>
         </div>
       )}
 
-      {/* 日別の友だち登録（経路経由） */}
+      {/* 日別の推移（クリック / 友だち登録） */}
       {sources.length > 0 && analytics && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
-              <Users size={14} /> 日別の友だち登録（経路経由）
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-6">
+          <div className="flex items-start justify-between mb-4 gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">日別の推移</h3>
+              <p className="text-xs text-slate-500 mt-0.5">経路経由のクリックと友だち登録</p>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg p-0.5">
               {[7, 14, 30, 90].map(d => (
                 <button
                   key={d}
                   onClick={() => setDays(d)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-lg cursor-pointer transition-colors ${days === d ? 'bg-[#06C755] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}
+                  className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer transition-colors ${days === d ? 'bg-white dark:bg-slate-800 text-[#06C755] shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 >
                   {d}日
                 </button>
               ))}
             </div>
           </div>
-          {(() => {
-            const maxV = Math.max(...analytics.daily.map(x => Math.max(x.friends, x.clicks)), 1)
-            return (
-              <>
-                <div className="flex items-end gap-0.5 h-40">
-                  {analytics.daily.map((d, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 flex items-end justify-center gap-px h-full"
-                      title={`${d.date}　登録 ${d.friends} / クリック ${d.clicks}`}
-                    >
-                      <div className="w-1/2 bg-[#06C755] rounded-t" style={{ height: `${(d.friends / maxV) * 100}%` }} />
-                      <div className="w-1/2 bg-sky-300 rounded-t" style={{ height: `${(d.clicks / maxV) * 100}%` }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
-                  <span>{analytics.daily[0]?.date.slice(5)}</span>
-                  <span>{analytics.daily[analytics.daily.length - 1]?.date.slice(5)}</span>
-                </div>
-              </>
-            )
-          })()}
-          <div className="flex items-center gap-4 mt-3 text-xs text-slate-600 dark:text-slate-300">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#06C755] inline-block" /> 友だち登録 <b className="text-[#06C755]">{analytics.summary.friends.toLocaleString()}</b></span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-sky-300 inline-block" /> クリック <b>{analytics.summary.clicks.toLocaleString()}</b></span>
+
+          {/* 期間サマリー */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-sm bg-[#06C755] inline-block" />
+              <span className="text-xs text-slate-500">友だち登録</span>
+              <span className="text-lg font-bold text-[#06C755] tabular-nums leading-none">{analytics.summary.friends.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-sm bg-sky-200 dark:bg-sky-500/40 inline-block" />
+              <span className="text-xs text-slate-500">クリック</span>
+              <span className="text-lg font-bold text-slate-700 dark:text-slate-200 tabular-nums leading-none">{analytics.summary.clicks.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">期間CVR</span>
+              <span className="text-lg font-bold text-slate-700 dark:text-slate-200 tabular-nums leading-none">
+                {analytics.summary.clicks > 0 ? ((analytics.summary.friends / analytics.summary.clicks) * 100).toFixed(1) + '%' : '-'}
+              </span>
+            </div>
           </div>
+
+          <DailyBarChart data={analytics.daily} />
+
           {analytics.bySource.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
-              <p className="text-xs text-slate-500 mb-2">経路別の友だち登録（期間内）</p>
-              <div className="space-y-1.5">
-                {analytics.bySource.map(s => (
-                  <div key={s.name} className="flex items-center gap-2 text-xs">
-                    <span className="w-28 truncate text-slate-700 dark:text-slate-300">{s.name}</span>
-                    <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded overflow-hidden">
-                      <div className="h-full bg-[#06C755]" style={{ width: `${(s.friends / Math.max(...analytics.bySource.map(x => x.friends), 1)) * 100}%` }} />
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <p className="text-xs font-medium text-slate-500 mb-3">経路別の友だち登録（期間内）</p>
+              <div className="space-y-2.5">
+                {[...analytics.bySource].sort((a, b) => b.friends - a.friends).map(s => {
+                  const maxF = Math.max(...analytics.bySource.map(x => x.friends), 1)
+                  return (
+                    <div key={s.name} className="flex items-center gap-3 text-xs">
+                      <span className="w-32 truncate text-slate-700 dark:text-slate-300" title={s.name}>{s.name}</span>
+                      <div className="flex-1 h-5 bg-slate-100 dark:bg-slate-700/50 rounded-md overflow-hidden">
+                        <div className="h-full bg-[#06C755] rounded-md transition-all" style={{ width: `${(s.friends / maxF) * 100}%` }} />
+                      </div>
+                      <span className="w-8 text-right font-semibold text-slate-900 dark:text-white tabular-nums">{s.friends}</span>
                     </div>
-                    <span className="w-8 text-right font-medium text-slate-900 dark:text-white">{s.friends}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -487,6 +497,115 @@ export default function TrafficSources() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────── 日別バーチャート ───────────────
+// クリック(薄いトラック)の上に友だち登録(緑)を重ねて、同一軸でCVRを直感的に見せる。
+function niceNum(x: number): number {
+  if (x <= 0) return 1
+  const pow = Math.pow(10, Math.floor(Math.log10(x)))
+  const f = x / pow
+  const nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10
+  return nf * pow
+}
+
+function DailyBarChart({ data }: { data: { date: string; clicks: number; friends: number }[] }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  const [hover, setHover] = useState<number | null>(null)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) setWidth(e.contentRect.width)
+    })
+    ro.observe(el)
+    setWidth(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
+  const H = 200
+  const padL = 30, padR = 8, padT = 10, padB = 22
+  const plotH = H - padT - padB
+  const n = data.length
+
+  const rawMax = Math.max(1, ...data.map(d => Math.max(d.clicks, d.friends)))
+  const tick = Math.max(1, Math.round(niceNum(rawMax / 4)))
+  const niceMax = Math.max(tick, Math.ceil(rawMax / tick) * tick)
+  const ticks: number[] = []
+  for (let v = 0; v <= niceMax + 1e-9; v += tick) ticks.push(v)
+
+  const plotW = Math.max(0, width - padL - padR)
+  const bandW = n > 0 ? plotW / n : 0
+  const barW = Math.min(26, Math.max(3, bandW * 0.6))
+  const bx = (i: number) => padL + bandW * i + (bandW - barW) / 2
+  const by = (v: number) => padT + plotH - (v / niceMax) * plotH
+  const bh = (v: number) => (v / niceMax) * plotH
+  const rx = Math.min(3, barW / 2)
+
+  const labelStep = Math.max(1, Math.ceil(n / 6))
+  const md = (d: string) => d.slice(5).replace('-', '/')
+
+  const hd = hover != null ? data[hover] : null
+  const hoverCvr = hd ? (hd.clicks > 0 ? ((hd.friends / hd.clicks) * 100).toFixed(1) + '%' : '-') : ''
+  const tipX = hover != null ? bx(hover) + barW / 2 : 0
+
+  return (
+    <div ref={wrapRef} className="relative w-full" style={{ height: H }}>
+      {width > 0 && (
+        <svg width={width} height={H} className="block overflow-visible">
+          {/* グリッド線 + Y軸ラベル */}
+          {ticks.map((t, i) => (
+            <g key={`g${i}`}>
+              <line
+                x1={padL} y1={by(t)} x2={width - padR} y2={by(t)}
+                className={t === 0 ? 'stroke-slate-200 dark:stroke-slate-600' : 'stroke-slate-100 dark:stroke-slate-700/60'}
+                strokeWidth={1}
+              />
+              <text x={padL - 6} y={by(t)} textAnchor="end" dominantBaseline="middle" className="fill-slate-400 dark:fill-slate-500" fontSize={10}>{t}</text>
+            </g>
+          ))}
+          {/* バー */}
+          {data.map((d, i) => {
+            const active = hover === i
+            return (
+              <g key={`b${i}`}>
+                {d.clicks > 0 && (
+                  <rect x={bx(i)} y={by(d.clicks)} width={barW} height={bh(d.clicks)} rx={rx} className="fill-sky-200 dark:fill-sky-500/30" />
+                )}
+                {d.friends > 0 && (
+                  <rect x={bx(i)} y={by(d.friends)} width={barW} height={bh(d.friends)} rx={rx} className="fill-[#06C755]" />
+                )}
+                {active && <rect x={padL + bandW * i} y={padT} width={bandW} height={plotH} className="fill-slate-400/10" pointerEvents="none" />}
+                <rect
+                  x={padL + bandW * i} y={padT} width={bandW} height={plotH} fill="transparent"
+                  onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(h => (h === i ? null : h))}
+                />
+              </g>
+            )
+          })}
+          {/* X軸ラベル（日付） */}
+          {data.map((d, i) => (
+            (i % labelStep === 0 || i === n - 1) ? (
+              <text key={`x${i}`} x={bx(i) + barW / 2} y={H - 6} textAnchor="middle" className="fill-slate-400 dark:fill-slate-500" fontSize={10}>{md(d.date)}</text>
+            ) : null
+          ))}
+        </svg>
+      )}
+      {hd && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg bg-slate-900 text-white text-xs px-2.5 py-1.5 shadow-lg whitespace-nowrap"
+          style={{ left: Math.min(Math.max(tipX, 64), Math.max(64, width - 64)), top: 0 }}
+        >
+          <div className="font-medium mb-1">{md(hd.date)}</div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#06C755]" />友だち {hd.friends}</div>
+          <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm bg-sky-300" />クリック {hd.clicks}</div>
+          <div className="text-slate-300 mt-1 pt-1 border-t border-white/15">CVR {hoverCvr}</div>
         </div>
       )}
     </div>
