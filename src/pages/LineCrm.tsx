@@ -36,19 +36,33 @@ interface MainTabDef {
   icon: React.ReactNode
 }
 
+// タブ選択をlocalStorageに保存し、リロード後も同じ画面に留まる
+const TAB_STORE = 'linecrm_tabs'
+function readTabs(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(TAB_STORE) || '{}') } catch { return {} }
+}
+
 export default function LineCrm() {
   const navigate = useNavigate()
-  const [mainTab, setMainTab] = useState<MainTabId>('chat')
+  const savedTabs = readTabs()
+  const [mainTab, setMainTab] = useState<MainTabId>((savedTabs.mainTab as MainTabId) || 'chat')
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null)
 
   // チャットタブ内のビュー
   const [chatView, setChatView] = useState<'threads' | 'friend-detail' | 'detail'>('threads')
 
   // 各グループ内のサブタブ
-  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify' | 'review-submission'>('templates')
-  const [deliverySub, setDeliverySub] = useState<'auto-responses' | 'tag-scheduled' | 'broadcasts'>('auto-responses')
-  const [aiSub, setAiSub] = useState<'ai-settings' | 'knowledge' | 'email-auto-reply'>('ai-settings')
-  const [analyticsSub, setAnalyticsSub] = useState<'friends' | 'traffic' | 'fitpeak'>('friends')
+  const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify' | 'review-submission'>((savedTabs.contentSub as 'templates') || 'templates')
+  const [deliverySub, setDeliverySub] = useState<'auto-responses' | 'tag-scheduled' | 'broadcasts'>((savedTabs.deliverySub as 'auto-responses') || 'auto-responses')
+  const [aiSub, setAiSub] = useState<'ai-settings' | 'knowledge' | 'email-auto-reply'>((savedTabs.aiSub as 'ai-settings') || 'ai-settings')
+  const [analyticsSub, setAnalyticsSub] = useState<'friends' | 'traffic' | 'fitpeak'>((savedTabs.analyticsSub as 'friends') || 'friends')
+
+  // タブが変わるたびに保存
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAB_STORE, JSON.stringify({ mainTab, contentSub, deliverySub, aiSub, analyticsSub }))
+    } catch { /* noop */ }
+  }, [mainTab, contentSub, deliverySub, aiSub, analyticsSub])
 
   const mainTabs: MainTabDef[] = [
     { id: 'chat', label: 'チャット', icon: <MessageCircle size={18} /> },

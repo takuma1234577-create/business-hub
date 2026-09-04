@@ -1385,7 +1385,7 @@ router.get('/friends-analytics', async (req, res) => {
     const { days = '30' } = req.query;
     const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const numDays = Math.min(Math.max(parseInt(days, 10) || 30, 7), 365);
-    const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
+    const since = new Date(Date.now() - (numDays + 1) * 24 * 60 * 60 * 1000).toISOString();
 
     // 日別の新規フォロー数
     const { data: follows } = await supabase
@@ -1419,20 +1419,19 @@ router.get('/friends-analytics', async (req, res) => {
       .eq('channel_id', channelId)
       .eq('status', 'unfollowed');
 
-    // 日別に集計
+    // 日別に集計（JST基準）
     const dailyMap = {};
     for (let i = 0; i < numDays; i++) {
-      const d = new Date(Date.now() - (numDays - 1 - i) * 24 * 60 * 60 * 1000);
-      const key = d.toISOString().slice(0, 10);
+      const key = jstDateKey(Date.now() - (numDays - 1 - i) * 24 * 60 * 60 * 1000);
       dailyMap[key] = { date: key, added: 0, removed: 0 };
     }
 
     for (const f of (follows || [])) {
-      const key = new Date(f.followed_at).toISOString().slice(0, 10);
+      const key = jstDateKey(f.followed_at);
       if (dailyMap[key]) dailyMap[key].added++;
     }
     for (const u of (unfollows || [])) {
-      const key = new Date(u.unfollowed_at).toISOString().slice(0, 10);
+      const key = jstDateKey(u.unfollowed_at);
       if (dailyMap[key]) dailyMap[key].removed++;
     }
 
@@ -4450,12 +4449,18 @@ router.get('/traffic-sources', async (req, res) => {
   }
 });
 
+// Asia/Tokyo(UTC+9)基準の YYYY-MM-DD を返す（日別集計のタイムゾーンずれ防止）
+function jstDateKey(d) {
+  return new Date(new Date(d).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 // GET /traffic-sources/analytics?days=N - 日別のクリック数・友だち登録数（経路経由）
 router.get('/traffic-sources/analytics', async (req, res) => {
   try {
     const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
     const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 7), 365);
-    const since = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000).toISOString();
+    // JST集計の境界(最大9h)を取りこぼさないよう1日多めに取得
+    const since = new Date(Date.now() - (numDays + 1) * 24 * 60 * 60 * 1000).toISOString();
 
     // このアカウントの経路IDに限定
     const { data: sources } = await supabase.from('traffic_sources').select('id, name').eq('channel_id', channelId);
@@ -4486,19 +4491,18 @@ router.get('/traffic-sources/analytics', async (req, res) => {
       .map(([name, friends]) => ({ name, friends }))
       .sort((a, b) => b.friends - a.friends);
 
-    // 日別マップ
+    // 日別マップ（JST基準）
     const dailyMap = {};
     for (let i = 0; i < numDays; i++) {
-      const d = new Date(Date.now() - (numDays - 1 - i) * 24 * 60 * 60 * 1000);
-      const key = d.toISOString().slice(0, 10);
+      const key = jstDateKey(Date.now() - (numDays - 1 - i) * 24 * 60 * 60 * 1000);
       dailyMap[key] = { date: key, clicks: 0, friends: 0 };
     }
     for (const c of (clicks || [])) {
-      const key = new Date(c.created_at).toISOString().slice(0, 10);
+      const key = jstDateKey(c.created_at);
       if (dailyMap[key]) dailyMap[key].clicks++;
     }
     for (const f of (friends || [])) {
-      const key = new Date(f.followed_at).toISOString().slice(0, 10);
+      const key = jstDateKey(f.followed_at);
       if (dailyMap[key]) dailyMap[key].friends++;
     }
     const daily = Object.values(dailyMap);
