@@ -4602,6 +4602,32 @@ router.get('/traffic-sources/:id/friends', async (req, res) => {
   }
 });
 
+// GET /public/friend-count - LP等から使う公開エンドポイント（認証なし）
+// DBで追跡している友だち数 + 導入前から居た既存友だち数(offset) を返す。
+// LINEには「現在のフォロワー総数」を即時に返すAPIが無いため、この方式で総数を出す。
+// offset は環境変数 LINE_FRIEND_COUNT_OFFSET で調整（未設定時は 3170）。
+router.get('/public/friend-count', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Cache-Control', 'public, max-age=60');
+  try {
+    const supabase = getSupabase();
+    const channelId = req.query.channel_id || DEFAULT_CHANNEL_ID;
+    const offset = parseInt(process.env.LINE_FRIEND_COUNT_OFFSET || '3170', 10) || 0;
+
+    const { count, error } = await supabase
+      .from('friends')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel_id', channelId)
+      .eq('status', 'active');
+    if (error) throw error;
+
+    const tracked = count || 0;
+    res.json({ count: tracked, offset, total: tracked + offset });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /track/:code - クリック追跡 → LINE友だち追加URLにリダイレクト
 router.get('/track/:code', async (req, res) => {
   try {
