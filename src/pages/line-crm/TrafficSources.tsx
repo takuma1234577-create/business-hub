@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil, Target } from 'lucide-react'
+import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil, Target, Flame } from 'lucide-react'
 import { getChannelId } from './lineAccount'
+import HeatmapAnalysis from './HeatmapAnalysis'
 
 interface TrafficSource {
   id: string
@@ -12,6 +13,7 @@ interface TrafficSource {
   created_at: string
   tag_ids?: string[]
   greeting_template_id?: string | null
+  lp_url?: string | null
 }
 
 interface TagItem { id: string; name: string; color?: string | null }
@@ -36,6 +38,8 @@ export default function TrafficSources() {
   const [templates, setTemplates] = useState<TemplateItem[]>([])
   const [formTagIds, setFormTagIds] = useState<string[]>([])
   const [formGreetingTemplateId, setFormGreetingTemplateId] = useState<string>('')
+  const [formLpUrl, setFormLpUrl] = useState<string>('')
+  const [heatmapSource, setHeatmapSource] = useState<TrafficSource | null>(null)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -74,7 +78,7 @@ export default function TrafficSources() {
       const res = await fetch('/api/line-crm/traffic-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null, channel_id: getChannelId() }),
+        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null, lp_url: formLpUrl.trim() || null, channel_id: getChannelId() }),
       })
       if (res.ok) {
         setShowForm(false)
@@ -82,6 +86,7 @@ export default function TrafficSources() {
         setFormDesc('')
         setFormTagIds([])
         setFormGreetingTemplateId('')
+        setFormLpUrl('')
         fetchSources()
       }
     } catch (err) {
@@ -95,13 +100,14 @@ export default function TrafficSources() {
       await fetch(`/api/line-crm/traffic-sources/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null }),
+        body: JSON.stringify({ name: formName.trim(), description: formDesc.trim() || null, tag_ids: formTagIds, greeting_template_id: formGreetingTemplateId || null, lp_url: formLpUrl.trim() || null }),
       })
       setEditId(null)
       setFormName('')
       setFormDesc('')
       setFormTagIds([])
       setFormGreetingTemplateId('')
+      setFormLpUrl('')
       setShowForm(false)
       fetchSources()
     } catch (err) {
@@ -133,6 +139,7 @@ export default function TrafficSources() {
     setFormDesc(source.description || '')
     setFormTagIds(source.tag_ids || [])
     setFormGreetingTemplateId(source.greeting_template_id || '')
+    setFormLpUrl(source.lp_url || '')
     setShowForm(true)
   }
 
@@ -163,7 +170,7 @@ export default function TrafficSources() {
           </div>
         </div>
         <button
-          onClick={() => { setShowForm(true); setEditId(null); setFormName(''); setFormDesc(''); setFormTagIds([]); setFormGreetingTemplateId('') }}
+          onClick={() => { setShowForm(true); setEditId(null); setFormName(''); setFormDesc(''); setFormTagIds([]); setFormGreetingTemplateId(''); setFormLpUrl('') }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <Plus size={16} />
@@ -336,6 +343,15 @@ export default function TrafficSources() {
                 </div>
 
                 <div className="flex items-center gap-1">
+                  {source.lp_url && (
+                    <button
+                      onClick={() => setHeatmapSource(source)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#06C755]/10 hover:bg-[#06C755]/20 text-[#06C755] text-xs font-medium transition-colors cursor-pointer mr-1"
+                      title="LPのヒートマップをAI分析"
+                    >
+                      <Flame size={13} /> ヒートマップ分析
+                    </button>
+                  )}
                   <button
                     onClick={() => startEdit(source)}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors cursor-pointer"
@@ -430,6 +446,21 @@ export default function TrafficSources() {
                 <p className="mt-1 text-xs text-slate-400">設定すると、この経路の友だちには全体の挨拶の代わりにこのテンプレを送ります。</p>
               </div>
 
+              {/* LP URL（ヒートマップ分析対象） */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  LP URL <span className="text-xs text-slate-400 font-normal">（ヒートマップ分析の対象ページ・任意）</span>
+                </label>
+                <input
+                  type="url"
+                  value={formLpUrl}
+                  onChange={e => setFormLpUrl(e.target.value)}
+                  placeholder="例: https://fitpeak.co/products/クレアチン-公式line"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755] text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-400">設定すると、この経路のカードから「ヒートマップ分析」が使えます（要: LPに計測タグ設置）。</p>
+              </div>
+
               {!editId && (
                 <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
                   <p className="text-xs text-slate-500 leading-relaxed">
@@ -498,6 +529,16 @@ export default function TrafficSources() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ヒートマップ分析モーダル */}
+      {heatmapSource && (
+        <HeatmapAnalysis
+          sourceCode={heatmapSource.code}
+          sourceName={heatmapSource.name}
+          lpUrl={heatmapSource.lp_url || null}
+          onClose={() => setHeatmapSource(null)}
+        />
       )}
     </div>
   )

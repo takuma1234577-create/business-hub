@@ -94,6 +94,7 @@ const invoiceRoutes = require(path.join(__dirname, 'invoice.cjs'));
 const tasksRoutes = require(path.join(__dirname, 'tasks.cjs'));
 const amazonRoutes = require(path.join(__dirname, 'amazon.cjs'));
 const lineCrmRoutes = require(path.join(__dirname, 'line-crm.cjs'));
+const heatmapRoutes = require(path.join(__dirname, 'heatmap.cjs'));
 const accountingRoutes = require(path.join(__dirname, 'accounting.cjs'));
 const accountingCoreRoutes = require(path.join(__dirname, 'accounting-core.cjs'));
 const fiscalAnalysisRoutes = require(path.join(__dirname, 'fiscal-analysis.cjs'));
@@ -123,6 +124,7 @@ const imageDownloaderRoutes = require(path.join(__dirname, 'image-downloader.cjs
 app.use('/api/invoice', invoiceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/amazon', amazonRoutes);
+app.use('/api/line-crm/heatmap', heatmapRoutes);
 app.use('/api/line-crm', lineCrmRoutes);
 app.use('/api/my-fitpeak', myFitpeakRoutes);
 app.use('/api/consulting', amazonConsultingRoutes);

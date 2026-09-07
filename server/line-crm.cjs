@@ -4621,7 +4621,7 @@ router.get('/traffic-sources/analytics', async (req, res) => {
 // POST /traffic-sources
 router.post('/traffic-sources', async (req, res) => {
   try {
-    const { name, description, tag_ids, greeting_template_id, channel_id: channelId } = req.body;
+    const { name, description, tag_ids, greeting_template_id, lp_url, channel_id: channelId } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
     const code = Math.random().toString(36).substring(2, 10);
     const supabase = getSupabase();
@@ -4634,6 +4634,7 @@ router.post('/traffic-sources', async (req, res) => {
         channel_id: channelId || req.query.channel_id || DEFAULT_CHANNEL_ID,
         tag_ids: Array.isArray(tag_ids) ? tag_ids : [],
         greeting_template_id: greeting_template_id || null,
+        lp_url: lp_url || null,
       })
       .select()
       .single();
@@ -4648,11 +4649,12 @@ router.post('/traffic-sources', async (req, res) => {
 // PUT /traffic-sources/:id
 router.put('/traffic-sources/:id', async (req, res) => {
   try {
-    const { name, description, tag_ids, greeting_template_id } = req.body;
+    const { name, description, tag_ids, greeting_template_id, lp_url } = req.body;
     const supabase = getSupabase();
     const updates = { name, description, updated_at: new Date().toISOString() };
     if (tag_ids !== undefined) updates.tag_ids = Array.isArray(tag_ids) ? tag_ids : [];
     if (greeting_template_id !== undefined) updates.greeting_template_id = greeting_template_id || null;
+    if (lp_url !== undefined) updates.lp_url = lp_url || null;
     const { data, error } = await supabase
       .from('traffic_sources')
       .update(updates)
