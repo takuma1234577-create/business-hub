@@ -117,6 +117,49 @@ function sanitizeTemplateMessage(m) {
 
 // 送信直前の正規化: リンク付き画像はFlex化、通常画像はLINE非対応の独自フィールドを除去、
 // テンプレート(buttons/carousel)は必須項目を補完してLINEの400を防ぐ。
+// LINEのエラーレスポンスを、画面に出して原因が分かる日本語にする。
+// LINEは details[].property で「何番目のメッセージのどの項目が悪いか」まで返してくるのに、
+// ステータスコードだけ返していると原因が特定できないため、必ず中身まで見せる。
+const LINE_FIELD_LABEL = {
+  previewImageUrl: 'サムネイル画像URL',
+  originalContentUrl: 'コンテンツURL',
+  text: 'テキスト',
+  duration: '音声の長さ',
+  altText: '代替テキスト',
+  contents: 'Flexメッセージの中身',
+  to: '送信先',
+};
+
+function describeLineError(status, rawBody) {
+  const base = `LINE送信に失敗しました (${status})`;
+  let parsed = null;
+  try { parsed = JSON.parse(rawBody); } catch (_) { /* JSONでなければそのまま */ }
+  if (!parsed) return rawBody ? `${base}: ${String(rawBody).slice(0, 300)}` : base;
+
+  const details = Array.isArray(parsed.details) ? parsed.details : [];
+  if (details.length === 0) {
+    return parsed.message ? `${base}: ${parsed.message}` : base;
+  }
+
+  let needsThumbHint = false;
+  const lines = details.map((d) => {
+    const prop = String(d.property || '');
+    const m = prop.match(/^messages\[(\d+)\]\.(.+)$/);
+    const field = m ? m[2] : prop;
+    const label = LINE_FIELD_LABEL[field] || field || '不明な項目';
+    const where = m ? `${Number(m[1]) + 1}番目のメッセージの` : '';
+    if (field === 'previewImageUrl') needsThumbHint = true;
+    if (d.message === 'May not be empty') return `${where}${label}が未設定です`;
+    return `${where}${label}: ${d.message || '不正な値です'}`;
+  });
+
+  let out = `${base}: ${lines.join(' / ')}`;
+  if (needsThumbHint) {
+    out += '（動画メッセージにはサムネイル画像の指定が必須です。動画ブロックの「サムネイル画像URL」に画像を設定してください）';
+  }
+  return out;
+}
+
 function normalizeLineMessages(messages) {
   if (!Array.isArray(messages)) return messages;
   return messages.map((m) => {
@@ -915,7 +958,7 @@ router.post('/chat/:friendId/send', async (req, res) => {
         if (!pushRes.ok) {
           const body = await pushRes.text().catch(() => '');
           console.error('[chat/send] LINE push failed:', pushRes.status, body);
-          return res.status(502).json({ error: `LINE送信に失敗しました (${pushRes.status})` });
+          return res.status(502).json({ error: describeLineError(pushRes.status, body) });
         }
       } else {
         console.warn('[chat/send] LINE_CHANNEL_ACCESS_TOKEN が未設定のため LINE に送信できません');
@@ -1004,7 +1047,7 @@ router.post('/chat/:friendId/send-media', async (req, res) => {
         if (!pushRes.ok) {
           const body = await pushRes.text().catch(() => '');
           console.error('[chat/send-media] LINE push failed:', pushRes.status, body);
-          return res.status(502).json({ error: `LINE送信に失敗しました (${pushRes.status})` });
+          return res.status(502).json({ error: describeLineError(pushRes.status, body) });
         }
       } else {
         console.warn('[chat/send-media] LINE_CHANNEL_ACCESS_TOKEN が未設定');
@@ -2691,7 +2734,7 @@ router.post('/message-templates/test-send', async (req, res) => {
     if (!pushRes.ok) {
       const body = await pushRes.text().catch(() => '');
       console.error('[test-send] LINE push failed:', pushRes.status, body);
-      return res.status(502).json({ error: `LINE送信に失敗しました (${pushRes.status})` });
+      return res.status(502).json({ error: describeLineError(pushRes.status, body) });
     }
 
     return res.json({ ok: true, sent_to: friend.display_name });

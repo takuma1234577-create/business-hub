@@ -39,6 +39,78 @@ async function uploadToStorage(file: File): Promise<string> {
   return data.publicUrl
 }
 
+// 動画から静止画を1枚切り出す。
+// LINEの動画メッセージは previewImageUrl が必須で、未設定だと送信時に400になるため、
+// 動画をアップロードした時点でサムネイルを自動で用意しておく。
+// LINEに送る前に、送信すると400になる欠落を先に潰す。
+// サーバー経由で400を食らってから直すより、この場で何番目のどれが足りないかを出したほうが早い。
+function findBlockProblems(blocks: MessageBlock[]): string[] {
+  const problems: string[] = []
+  blocks.forEach((b, i) => {
+    const at = `${i + 1}番目のメッセージ`
+    if (b.type === 'text' && !b.text.trim()) problems.push(`${at}（テキスト）が空です`)
+    if (b.type === 'image') {
+      if (!b.originalContentUrl.trim()) problems.push(`${at}（画像）の画像URLが未設定です`)
+      if (!b.previewImageUrl.trim()) problems.push(`${at}（画像）のプレビュー画像URLが未設定です`)
+    }
+    if (b.type === 'video') {
+      if (!b.originalContentUrl.trim()) problems.push(`${at}（動画）の動画URLが未設定です`)
+      if (!b.previewImageUrl.trim()) problems.push(`${at}（動画）のサムネイル画像URLが未設定です`)
+    }
+    if (b.type === 'audio' && !b.originalContentUrl.trim()) {
+      problems.push(`${at}（音声）の音声URLが未設定です`)
+    }
+  })
+  return problems
+}
+
+async function captureVideoThumbnail(file: File): Promise<File | null> {
+  return new Promise(resolve => {
+    const video = document.createElement('video')
+    const url = URL.createObjectURL(file)
+    let settled = false
+    const done = (f: File | null) => {
+      if (settled) return
+      settled = true
+      URL.revokeObjectURL(url)
+      resolve(f)
+    }
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    video.src = url
+    video.onerror = () => done(null)
+    video.onloadeddata = () => {
+      // 冒頭は真っ暗なことが多いので少し進めた位置から取る
+      video.currentTime = Math.min(0.5, (video.duration || 1) / 2)
+    }
+    video.onseeked = () => {
+      try {
+        const w = video.videoWidth
+        const h = video.videoHeight
+        if (!w || !h) return done(null)
+        // LINEのサムネイルは1MBまで。長辺1280pxに収めておけば十分収まる
+        const scale = Math.min(1, 1280 / Math.max(w, h))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return done(null)
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(
+          b => done(b ? new File([b], 'thumbnail.jpg', { type: 'image/jpeg' }) : null),
+          'image/jpeg',
+          0.85,
+        )
+      } catch {
+        done(null)
+      }
+    }
+    // 壊れた動画などで固まったままにならないように
+    setTimeout(() => done(null), 15000)
+  })
+}
+
 // ── Message block types ──
 type TextBlock = { type: 'text'; text: string }
 type ImageBlock = { type: 'image'; originalContentUrl: string; previewImageUrl: string; linkUrl?: string; aspectRatio?: string }
@@ -229,6 +301,11 @@ export default function MessageTemplates() {
 
   const handleTestSend = async () => {
     if (!testFriendId || blocks.length === 0) return
+    const problems = findBlockProblems(blocks)
+    if (problems.length > 0) {
+      alert('この内容ではLINEに送信できません。\n\n' + problems.join('\n'))
+      return
+    }
     setTestSending(true)
     try {
       const res = await api.post('/message-templates/test-send', {
@@ -1184,12 +1261,13 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
         <MediaPair
           accept="video/mp4"
           urlLabel="動画URL (mp4)"
-          previewLabel="サムネイル画像URL"
+          previewLabel="サムネイル画像URL（動画アップロード時に自動生成）"
           previewAccept="image/*"
           url={block.originalContentUrl}
           previewUrl={block.previewImageUrl}
           onUrlChange={v => onChange({ ...block, originalContentUrl: v })}
           onPreviewChange={v => onChange({ ...block, previewImageUrl: v })}
+          autoThumbnail
         />
       )}
 
@@ -1225,14 +1303,33 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
 
 function MediaPair({
   accept, urlLabel, previewLabel, previewAccept, url, previewUrl, onUrlChange, onPreviewChange,
+  autoThumbnail = false,
 }: {
   accept: string; urlLabel: string; previewLabel: string; previewAccept?: string
   url: string; previewUrl: string
   onUrlChange: (v: string) => void; onPreviewChange: (v: string) => void
+  autoThumbnail?: boolean
 }) {
+  const handleUploaded = async (_url: string, file: File) => {
+    if (!autoThumbnail || previewUrl) return
+    const thumb = await captureVideoThumbnail(file)
+    if (!thumb) return
+    try {
+      onPreviewChange(await uploadToStorage(thumb))
+    } catch {
+      // サムネイル生成は補助機能。失敗しても動画本体のアップロードは成立させる
+    }
+  }
+
   return (
     <div className="space-y-2">
-      <DropUpload accept={accept} value={url} onChange={onUrlChange} placeholder={urlLabel} />
+      <DropUpload
+        accept={accept}
+        value={url}
+        onChange={onUrlChange}
+        placeholder={urlLabel}
+        onUploaded={autoThumbnail ? handleUploaded : undefined}
+      />
       <DropUpload accept={previewAccept || accept} value={previewUrl} onChange={onPreviewChange} placeholder={previewLabel} compact />
       {url && /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url) && (
         <img src={url} alt="" className="max-h-32 rounded border border-slate-200 dark:border-slate-700" onError={e => (e.currentTarget.style.display = 'none')} />
@@ -1242,9 +1339,10 @@ function MediaPair({
 }
 
 function DropUpload({
-  accept, value, onChange, placeholder, compact = false,
+  accept, value, onChange, placeholder, compact = false, onUploaded,
 }: {
   accept: string; value: string; onChange: (v: string) => void; placeholder: string; compact?: boolean
+  onUploaded?: (url: string, file: File) => void | Promise<void>
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -1259,6 +1357,7 @@ function DropUpload({
       const url = await uploadToStorage(file)
       setProgress(100)
       onChange(url)
+      if (onUploaded) await onUploaded(url, file)
     } catch (err) {
       alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
     } finally {
