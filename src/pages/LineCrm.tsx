@@ -8,6 +8,7 @@ import ChatView from './line-crm/ChatView'
 import AutoResponses from './line-crm/AutoResponses'
 import Broadcasts from './line-crm/Broadcasts'
 import AiSettings from './line-crm/AiSettings'
+import CreashotBot from './line-crm/CreashotBot'
 import KnowledgeChunks from './line-crm/KnowledgeChunks'
 import MessageTemplates from './line-crm/MessageTemplates'
 import RichMenus from './line-crm/RichMenus'
@@ -54,7 +55,7 @@ export default function LineCrm() {
   // 各グループ内のサブタブ
   const [contentSub, setContentSub] = useState<'templates' | 'rich-menus' | 'greeting' | 'tags' | 'order-verify' | 'review-submission'>((savedTabs.contentSub as 'templates') || 'templates')
   const [deliverySub, setDeliverySub] = useState<'auto-responses' | 'tag-scheduled' | 'broadcasts'>((savedTabs.deliverySub as 'auto-responses') || 'auto-responses')
-  const [aiSub, setAiSub] = useState<'ai-settings' | 'knowledge' | 'email-auto-reply'>((savedTabs.aiSub as 'ai-settings') || 'ai-settings')
+  const [aiSub, setAiSub] = useState<'ai-settings' | 'creashot' | 'knowledge' | 'email-auto-reply'>((savedTabs.aiSub as 'ai-settings') || 'ai-settings')
   const [analyticsSub, setAnalyticsSub] = useState<'friends' | 'traffic' | 'fitpeak'>((savedTabs.analyticsSub as 'friends') || 'friends')
 
   // タブが変わるたびに保存
@@ -419,6 +420,9 @@ export default function LineCrm() {
                 <button onClick={() => setAiSub('ai-settings')} className={subTabCls(aiSub === 'ai-settings')}>
                   AI設定
                 </button>
+                <button onClick={() => setAiSub('creashot')} className={subTabCls(aiSub === 'creashot')}>
+                  クレアショット専用AI
+                </button>
                 <button onClick={() => setAiSub('knowledge')} className={subTabCls(aiSub === 'knowledge')}>
                   RAGナレッジ
                 </button>
@@ -427,6 +431,7 @@ export default function LineCrm() {
                 </button>
               </div>
               {aiSub === 'ai-settings' && <AiSettings />}
+              {aiSub === 'creashot' && <CreashotBot />}
               {aiSub === 'knowledge' && <KnowledgeChunks />}
               {aiSub === 'email-auto-reply' && <EmailAutoReply />}
             </>

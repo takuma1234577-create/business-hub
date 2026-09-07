@@ -6,6 +6,7 @@ const { notifyEmailAboutLine } = require('./cross-channel-notify.cjs');
 const { registerUserByEmail, getLinkedOrders, generateAutoLoginUrl } = require('./shopify-line.cjs');
 const { updateFriendChatSummary } = require('./fitpeak-rag.cjs');
 const { generateTagReplyAI } = require('./tag-reply-ai.cjs');
+const { generateCreashotReply, getCreashotSettings, isCreashotFriend, invalidateCreashotSettingsCache, PROFILE_FIELDS } = require('./creashot-bot.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const router = express.Router();
 
@@ -4034,6 +4035,103 @@ async function processWebhookEvents(channelId, events) {
       if (matched) continue;
     }
 
+    // ── クレアショット専用AIチャットボット ──
+    // 「クレアショット」タグが付いた友だちは、このボットが専任で対応する。
+    // 通常のAIチャット(FITPEAK AI)・タグ遅延配信の返信モードには一切流さない。
+    try {
+      const creashotSettings = await getCreashotSettings();
+      if (creashotSettings?.tag_id) {
+        const { data: cFriend } = await supabase
+          .from('friends')
+          .select('id, display_name, channel_id')
+          .eq('line_user_id', lineUserId)
+          .eq('channel_id', channelId)
+          .maybeSingle();
+
+        if (cFriend && await isCreashotFriend(cFriend.id, creashotSettings)) {
+          // ボットが無効でも、通常AIに流さず担当者の手動対応に任せる
+          if (!creashotSettings.enabled) {
+            logWebhookMessage(channelId, event, userMessage, null);
+            continue;
+          }
+
+          // 会話履歴（直近20件）
+          let cHistory = [];
+          let cLastOutgoing = '';
+          try {
+            const { data: history } = await supabase
+              .from('chat_messages')
+              .select('direction, content, created_at')
+              .eq('friend_id', cFriend.id)
+              .order('created_at', { ascending: false })
+              .limit(20);
+            if (history && history.length > 0) {
+              cHistory = history.slice().reverse().map(m => {
+                const role = m.direction === 'inbound' || m.direction === 'incoming' ? 'user' : 'assistant';
+                if (m.content?.text) return { role, content: m.content.text };
+                if (Array.isArray(m.content?.messages)) {
+                  const texts = m.content.messages.filter(x => x.type === 'text' && x.text).map(x => x.text);
+                  if (texts.length > 0) return { role, content: texts.join('\n') };
+                }
+                return null;
+              }).filter(Boolean);
+              const lastOut = history.find(m => m.direction === 'outgoing' || m.direction === 'outbound');
+              if (lastOut) {
+                if (lastOut.content?.text) cLastOutgoing = lastOut.content.text;
+                else if (Array.isArray(lastOut.content?.messages)) {
+                  cLastOutgoing = lastOut.content.messages
+                    .filter(x => x.type === 'text' && x.text).map(x => x.text).join('\n');
+                }
+              }
+            }
+          } catch {}
+
+          const { reply: cReply, appliedTags } = await generateCreashotReply(userMessage, {
+            friendId: cFriend.id,
+            customerName: cFriend.display_name || '',
+            lineUserId,
+            chatHistory: cHistory,
+            lastOutgoing: cLastOutgoing,
+            settings: creashotSettings,
+          });
+
+          if (cReply) {
+            try {
+              await replyToLine(channelId, event.replyToken, cReply);
+            } catch (replyErr) {
+              console.error('[creashot-bot] replyToLine failed:', replyErr.message);
+            }
+            const incomingAt = new Date();
+            await supabase.from('chat_messages').insert([
+              {
+                channel_id: cFriend.channel_id,
+                friend_id: cFriend.id,
+                direction: 'incoming',
+                message_type: 'text',
+                content: { text: userMessage, source: 'line_webhook' },
+                line_message_id: event?.message?.id ?? null,
+                created_at: incomingAt.toISOString(),
+              },
+              {
+                channel_id: cFriend.channel_id,
+                friend_id: cFriend.id,
+                direction: 'outgoing',
+                message_type: 'text',
+                content: { text: cReply, source: 'creashot_bot' },
+                created_at: new Date(incomingAt.getTime() + 1).toISOString(),
+              },
+            ]);
+            console.log(`[creashot-bot] replied to ${cFriend.display_name}${appliedTags.length ? ` / tags: ${appliedTags.join(',')}` : ''}`);
+          } else {
+            logWebhookMessage(channelId, event, userMessage, null);
+          }
+          continue;
+        }
+      }
+    } catch (err) {
+      console.error('[creashot-bot] webhook handling error:', err.message);
+    }
+
     // タグ遅延配信への返信チェック: 直前の送信がタグ遅延配信メッセージの場合、
     // そのルールの reply_mode に従う（ai: ルール専用ナレッジのみで返信 / manual: 自動返信せず担当者対応に任せる）。
     // どちらの場合も、ここでcontinueして下の一般的なAI即時返信（FITPEAK AI等）には流さない。
@@ -4330,6 +4428,14 @@ router.get('/delayed-ai-reply', async (req, res) => {
         .maybeSingle();
 
       if (!friend || !friend.line_user_id) continue;
+
+      // クレアショットタグの友だちは専用ボットの担当。通常のFITPEAK AIは絶対に走らせない。
+      try {
+        const creashotSettings = await getCreashotSettings();
+        if (creashotSettings?.tag_id && await isCreashotFriend(friend.id, creashotSettings)) continue;
+      } catch (err) {
+        console.error('[delayed-ai] creashot check error:', err.message);
+      }
 
       // 会話履歴を取得
       let chatHistory = [];
@@ -5673,6 +5779,118 @@ router.get('/survey-followups/:id/recipients', async (req, res) => {
     return res.json({ pending: pendingFriends, sent: sentFriends });
   } catch (err) {
     console.error('GET /survey-followups/:id/recipients error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ===========================================================================
+// クレアショット専用AIチャットボット 設定・収集プロフィール
+// ===========================================================================
+
+// GET /creashot-bot/settings
+router.get('/creashot-bot/settings', async (req, res) => {
+  try {
+    const settings = await getCreashotSettings({ force: true });
+    return res.json(settings || null);
+  } catch (err) {
+    console.error('GET /creashot-bot/settings error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /creashot-bot/settings
+router.put('/creashot-bot/settings', async (req, res) => {
+  try {
+    const allowed = ['enabled', 'tag_id', 'high_intent_tag_id', 'knowledge', 'extra_instructions', 'cta_url', 'model', 'auto_tagging'];
+    const payload = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) payload[k] = req.body[k];
+    }
+    payload.updated_at = new Date().toISOString();
+
+    const { data: existing } = await supabase
+      .from('creashot_bot_settings')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    let row;
+    if (existing) {
+      const { data, error } = await supabase
+        .from('creashot_bot_settings')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) throw error;
+      row = data;
+    } else {
+      const { data, error } = await supabase
+        .from('creashot_bot_settings')
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      row = data;
+    }
+    invalidateCreashotSettingsCache();
+    return res.json(row);
+  } catch (err) {
+    console.error('PUT /creashot-bot/settings error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /creashot-bot/profiles - ヒアリングで溜まった顧客情報の一覧
+router.get('/creashot-bot/profiles', async (req, res) => {
+  try {
+    const { intent, limit } = req.query;
+    let query = supabase
+      .from('creashot_profiles')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(Math.min(Number(limit) || 200, 500));
+    if (intent) query = query.eq('purchase_intent', intent);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const rows = data || [];
+    const friendIds = [...new Set(rows.map(r => r.friend_id))];
+    let friendMap = {};
+    if (friendIds.length > 0) {
+      const { data: friends } = await supabase
+        .from('friends')
+        .select('id, display_name, picture_url, line_user_id')
+        .in('id', friendIds);
+      for (const f of friends || []) friendMap[f.id] = f;
+    }
+
+    return res.json(rows.map(r => ({ ...r, friend: friendMap[r.friend_id] || null })));
+  } catch (err) {
+    console.error('GET /creashot-bot/profiles error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /creashot-bot/stats - ヒアリング項目ごとの取得率と購入意向の内訳
+router.get('/creashot-bot/stats', async (req, res) => {
+  try {
+    const { data } = await supabase.from('creashot_profiles').select('*');
+    const rows = data || [];
+    const fields = {};
+    for (const [key, label] of PROFILE_FIELDS) {
+      fields[key] = { label, filled: rows.filter(r => r[key]).length };
+    }
+    const intent = {};
+    for (const r of rows) {
+      const k = r.purchase_intent || 'unknown';
+      intent[k] = (intent[k] || 0) + 1;
+    }
+    return res.json({ total: rows.length, fields, intent });
+  } catch (err) {
+    console.error('GET /creashot-bot/stats error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 });

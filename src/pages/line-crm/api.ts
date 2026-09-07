@@ -159,3 +159,59 @@ export const knowledgeBaseApi = {
   delete: (id: string) =>
     api.delete(`/knowledge-base/${id}`).then(r => r.data),
 }
+
+// クレアショット専用AIチャットボット API
+export interface CreashotBotSettings {
+  id: string
+  enabled: boolean
+  tag_id: string | null
+  high_intent_tag_id: string | null
+  knowledge: string
+  extra_instructions: string
+  cta_url: string
+  model: string
+  auto_tagging: boolean
+  updated_at?: string
+}
+
+export interface CreashotProfile {
+  id: string
+  friend_id: string
+  training_frequency: string | null
+  training_years: string | null
+  training_place: string | null
+  goal: string | null
+  creatine_status: string | null
+  creatine_pain: string | null
+  outing_frequency: string | null
+  supplements: string | null
+  age_range: string | null
+  gender: string | null
+  concerns: string[] | null
+  interest_level: string | null
+  purchase_intent: string | null
+  notes: string | null
+  turn_count: number
+  updated_at: string
+  friend: { id: string; display_name: string; picture_url: string | null } | null
+}
+
+export interface CreashotStats {
+  total: number
+  fields: Record<string, { label: string; filled: number }>
+  intent: Record<string, number>
+}
+
+export const creashotBotApi = {
+  getSettings: () =>
+    api.get<CreashotBotSettings | null>('/creashot-bot/settings').then(r => r.data),
+
+  updateSettings: (data: Partial<CreashotBotSettings>) =>
+    api.put<CreashotBotSettings>('/creashot-bot/settings', data).then(r => r.data),
+
+  listProfiles: (params?: { intent?: string; limit?: number }) =>
+    api.get<CreashotProfile[]>('/creashot-bot/profiles', { params }).then(r => r.data),
+
+  stats: () =>
+    api.get<CreashotStats>('/creashot-bot/stats').then(r => r.data),
+}
