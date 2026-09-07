@@ -29,29 +29,47 @@ const TRACKER_JS = `(function(){
   var API=(s&&s.src?s.src.replace(/hm\\.js.*$/,'collect'):'/api/line-crm/heatmap/collect');
   var sid;try{sid=sessionStorage.getItem('_hm_sid');if(!sid){sid=Date.now().toString(36)+Math.random().toString(36).slice(2,8);sessionStorage.setItem('_hm_sid',sid);}}catch(e){sid=Math.random().toString(36).slice(2);}
   var device=(window.matchMedia&&window.matchMedia('(max-width:767px)').matches)?'mobile':'desktop';
+  var t0=Date.now();
   var buf=[];
   function docH(){return Math.max(document.body?document.body.scrollHeight:0,document.documentElement.scrollHeight,document.body?document.body.offsetHeight:0)||1;}
   function docW(){return Math.max(document.body?document.body.scrollWidth:0,document.documentElement.scrollWidth)||1;}
+  function scrollPct(){return Math.min(1,(scrollY+innerHeight)/docH());}
   function base(){return{src:SRC,sid:sid,url:location.href,device:device,vw:innerWidth,vh:innerHeight,dw:docW(),dh:docH()};}
   function push(e){buf.push(e);if(buf.length>=20)flush(false);}
   push(Object.assign(base(),{t:'pageview'}));
   var recent=[];
   document.addEventListener('click',function(ev){
-    var dw=docW(),dh=docH();
-    var x=(ev.pageX||0)/dw,y=(ev.pageY||0)/dh;
     var el=ev.target||{};
+    var x=(ev.pageX||0)/docW(),y=(ev.pageY||0)/docH();
     var txt=((el.innerText||el.textContent||'')+'').replace(/\\s+/g,' ').trim().slice(0,80);
+    var a=(el.closest?el.closest('a,button'):null);var href='';try{href=(a&&a.href)?a.href:(el.href||'');}catch(e){}
     var now=Date.now();recent.push({x:ev.clientX,y:ev.clientY,t:now});recent=recent.filter(function(c){return now-c.t<1000;});
     var rage=recent.filter(function(c){return Math.abs(c.x-ev.clientX)<30&&Math.abs(c.y-ev.clientY)<30;}).length>=3;
-    push(Object.assign(base(),{t:rage?'rageclick':'click',x:x,y:y,txt:txt,sel:cssPath(el)}));
+    push(Object.assign(base(),{t:rage?'rageclick':'click',x:x,y:y,txt:txt,sel:cssPath(el),href:(href+'').slice(0,300),sp:scrollPct(),dt:now-t0}));
   },true);
   var maxPct=0,lastSent=0;
-  function onScroll(){var p=Math.min(1,(scrollY+innerHeight)/docH());if(p>maxPct)maxPct=p;}
+  function onScroll(){var p=scrollPct();if(p>maxPct)maxPct=p;}
   addEventListener('scroll',throttle(onScroll,400),{passive:true});
   function recordScroll(){if(maxPct>lastSent){lastSent=maxPct;push(Object.assign(base(),{t:'scroll',pct:maxPct}));}}
   setInterval(function(){recordScroll();flush(false);},10000);
   addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'){recordScroll();flush(true);}});
   addEventListener('pagehide',function(){recordScroll();flush(true);});
+  function ve(a,extra){var m={a:a};if(extra)for(var k in extra)m[k]=extra[k];push(Object.assign(base(),{t:'video',meta:m}));}
+  function trackVideo(v){
+    if(!v||v.__hm)return;v.__hm=1;
+    var ms={25:0,50:0,75:0,95:0};var wasMuted=(v.muted||v.volume===0);
+    v.addEventListener('play',function(){ve('play');});
+    v.addEventListener('pause',function(){if(!v.ended)ve('pause',{pct:v.duration?Math.round(v.currentTime/v.duration*100):0});});
+    v.addEventListener('ended',function(){ve('ended');});
+    v.addEventListener('volumechange',function(){var m=(v.muted||v.volume===0);if(wasMuted&&!m)ve('unmute');wasMuted=m;});
+    v.addEventListener('webkitbeginfullscreen',function(){ve('fullscreen');});
+    v.addEventListener('timeupdate',function(){if(!v.duration)return;var p=v.currentTime/v.duration*100;for(var k in ms){if(!ms[k]&&p>=+k){ms[k]=1;ve('progress',{pct:+k});}}});
+  }
+  function scanVideos(){try{var vs=document.querySelectorAll('video');for(var i=0;i<vs.length;i++)trackVideo(vs[i]);}catch(e){}}
+  scanVideos();
+  try{var mo=new MutationObserver(scanVideos);mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+  function fsH(){var fe=document.fullscreenElement||document.webkitFullscreenElement;if(fe&&(fe.tagName==='VIDEO'||(fe.querySelector&&fe.querySelector('video'))))ve('fullscreen');}
+  document.addEventListener('fullscreenchange',fsH);document.addEventListener('webkitfullscreenchange',fsH);
   function flush(beacon){if(!buf.length)return;var body=JSON.stringify({events:buf});buf=[];try{if(beacon&&navigator.sendBeacon){navigator.sendBeacon(API,new Blob([body],{type:'text/plain'}));}else{fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:body,keepalive:true}).catch(function(){});}}catch(e){}}
   function throttle(fn,ms){var last=0,t;return function(){var n=Date.now();if(n-last>=ms){last=n;fn();}else{clearTimeout(t);t=setTimeout(function(){last=Date.now();fn();},ms-(n-last));}};}
   function cssPath(el){if(!el||!el.tagName)return '';var p=[],n=el,d=0;while(n&&n.tagName&&d<4){var t=n.tagName.toLowerCase();if(n.id){p.unshift(t+'#'+n.id);break;}if(n.className&&typeof n.className==='string'){var c=n.className.trim().split(/\\s+/).slice(0,2).join('.');if(c)t+='.'+c;}p.unshift(t);n=n.parentElement;d++;}return p.join('>').slice(0,120);}
@@ -83,12 +101,15 @@ router.post('/collect', express.text({ type: '*/*', limit: '1mb' }), async (req,
       page_url: str(e.url, 500),
       session_id: str(e.sid, 80),
       device: e.device === 'mobile' ? 'mobile' : 'desktop',
-      event_type: ['pageview', 'click', 'rageclick', 'deadclick', 'scroll'].includes(e.t) ? e.t : 'other',
+      event_type: ['pageview', 'click', 'rageclick', 'deadclick', 'scroll', 'video'].includes(e.t) ? e.t : 'other',
       x_ratio: clamp01(e.x),
       y_ratio: clamp01(e.y),
-      scroll_pct: clamp01(e.pct),
+      // click/rageclick は「クリック時点のスクロール深度(sp)」、scroll は最大到達(pct) を入れる
+      scroll_pct: clamp01(e.pct != null ? e.pct : e.sp),
       doc_w: num(e.dw), doc_h: num(e.dh), vw: num(e.vw), vh: num(e.vh),
       el_text: str(e.txt, 120), el_selector: str(e.sel, 160),
+      href: str(e.href, 300),
+      meta: (e.meta && typeof e.meta === 'object') ? e.meta : (e.dt != null ? { dt: num(e.dt) } : null),
     }));
     await supabase.from('heatmap_events').insert(rows);
     return res.status(204).end();
@@ -107,10 +128,18 @@ function screenshotUrl(sourceCode, device) {
   return `${base}/storage/v1/object/public/${SCREENSHOT_BUCKET}/heatmaps/${encodeURIComponent(sourceCode)}_${device}.jpg`;
 }
 
+// 追跡型(LINE CTA)ボタンの判定: リンク先がLINE / 追跡URL、またはラベルにCTA語を含む
+function isCtaClick(e) {
+  const href = (e.href || '').toLowerCase();
+  if (/line\.me|lin\.ee|liff\.line|\/api\/line-crm\/track\//.test(href)) return true;
+  const txt = (e.el_text || '');
+  return /LINE|ライン|登録|予約|受け取|クーポン|友だち|友達|40%|申し込|エントリー/.test(txt);
+}
+
 async function aggregate(sourceCode, device, days) {
   const since = new Date(Date.now() - days * 86400000).toISOString();
   let q = supabase.from('heatmap_events')
-    .select('session_id, event_type, device, scroll_pct, x_ratio, y_ratio, el_text, el_selector')
+    .select('session_id, event_type, device, scroll_pct, x_ratio, y_ratio, el_text, el_selector, href, meta')
     .eq('source_code', sourceCode)
     .gte('created_at', since)
     .limit(40000);
@@ -124,6 +153,13 @@ async function aggregate(sourceCode, device, days) {
   const clicks = [];
   const elCount = {};
   let rageClicks = 0;
+
+  // CTA(追跡型ボタン)
+  const ctaDepths = [];
+  let ctaClicks = 0;
+  const ctaByLabel = {};
+  // 動画エンゲージメント
+  const video = { plays: new Set(), unmutes: new Set(), fullscreens: new Set(), ended: new Set(), reach: { 25: new Set(), 50: new Set(), 75: new Set(), 95: new Set() } };
 
   for (const e of ev) {
     if (e.session_id) {
@@ -139,6 +175,19 @@ async function aggregate(sourceCode, device, days) {
       if (e.event_type === 'rageclick') rageClicks++;
       const key = (e.el_text && e.el_text.trim()) || e.el_selector || '(不明)';
       elCount[key] = (elCount[key] || 0) + 1;
+      if (isCtaClick(e)) {
+        ctaClicks++;
+        if (e.scroll_pct != null) ctaDepths.push(e.scroll_pct);
+        ctaByLabel[key] = (ctaByLabel[key] || 0) + 1;
+      }
+    }
+    if (e.event_type === 'video' && e.meta && e.session_id) {
+      const a = e.meta.a;
+      if (a === 'play') video.plays.add(e.session_id);
+      else if (a === 'unmute') video.unmutes.add(e.session_id);
+      else if (a === 'fullscreen') video.fullscreens.add(e.session_id);
+      else if (a === 'ended') { video.ended.add(e.session_id); video.reach[95].add(e.session_id); }
+      else if (a === 'progress' && video.reach[e.meta.pct]) video.reach[e.meta.pct].add(e.session_id);
     }
   }
 
@@ -161,6 +210,9 @@ async function aggregate(sourceCode, device, days) {
   let desktopS = 0, mobileS = 0;
   for (const s of sessionIds) { (deviceBySession[s] === 'mobile' ? mobileS++ : desktopS++); }
 
+  const avgCtaDepth = ctaDepths.length ? ctaDepths.reduce((a, b) => a + b, 0) / ctaDepths.length : null;
+  const ctaTopLabels = Object.entries(ctaByLabel).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+
   return {
     sessions: totalSessions,
     avg_scroll_pct: avgScroll,
@@ -170,6 +222,19 @@ async function aggregate(sourceCode, device, days) {
     top_elements: topElements,
     rage_clicks: rageClicks,
     device_split: { desktop: desktopS, mobile: mobileS },
+    cta: {
+      clicks: ctaClicks,
+      avg_scroll_at_click: avgCtaDepth,
+      depths: ctaDepths.slice(0, 500),
+      top_labels: ctaTopLabels,
+    },
+    video: {
+      plays: video.plays.size,
+      unmutes: video.unmutes.size,
+      fullscreens: video.fullscreens.size,
+      completed: video.ended.size,
+      reach: { 25: video.reach[25].size, 50: video.reach[50].size, 75: video.reach[75].size, 95: video.reach[95].size },
+    },
   };
 }
 
@@ -311,6 +376,8 @@ function buildAnalysisPrompt(name, lp, agg) {
     funnelLines,
     '- よくクリックされている要素:',
     topClicks || '  （データなし）',
+    `- 追跡型CTAボタン（LINE登録ボタン等）: ${agg.cta.clicks}クリック` + (agg.cta.avg_scroll_at_click != null ? ` / 平均してスクロール${pct(agg.cta.avg_scroll_at_click)}地点で押されている` : '') + (agg.cta.clicks > 0 ? '（＝ユーザーがLPのどの深さでCTAを押しているか。浅い位置なら上部CTAが効いている／深い位置でしか押されないなら上部の訴求が弱い可能性）' : ''),
+    `- 動画エンゲージメント: 再生${agg.video.plays}／音量ON(ミュート解除)${agg.video.unmutes}／全画面${agg.video.fullscreens}／最後まで視聴${agg.video.completed}。視聴到達 25%:${agg.video.reach[25]} 50%:${agg.video.reach[50]} 75%:${agg.video.reach[75]} 95%:${agg.video.reach[95]}（再生に対して途中で離脱する割合＝動画の中だるみ/長さの問題を示す）`,
     '',
     '## LPの中身',
     lpInfo,
@@ -319,7 +386,7 @@ function buildAnalysisPrompt(name, lp, agg) {
     '### 1. ネックポイント（離脱が起きている箇所と推定原因）',
     'スクロール到達率が急落する位置を特定し、その直前にある見出し/セクションの内容と結びつけて、なぜ離脱するのかを推定する。',
     '### 2. 訴求ポイントのズレ',
-    'よくクリックされている要素と、本来押させたいCTAのズレ、読まれずに離脱されている訴求、レイジクリックが示す使いにくさなどを指摘する。',
+    'よくクリックされている要素と、本来押させたいCTAのズレ、CTAが押されるスクロール深度（上部CTAが効いているか）、動画の再生率・音量ON率・視聴到達率（動画が訴求として機能しているか／途中離脱していないか）、読まれずに離脱されている訴求、レイジクリックが示す使いにくさなどを指摘する。',
     '### 3. 改善提案（優先順位つき・3〜6個）',
     '各提案は「何を・どう変えるか」を具体的に。番号付きで、効果が大きい順に。',
     '',

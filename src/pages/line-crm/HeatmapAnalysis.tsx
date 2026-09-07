@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Monitor, Smartphone, Sparkles, MousePointerClick, Flame, ExternalLink, Camera, Users, ArrowDown,
+  PlayCircle, Volume2, Maximize, MousePointer2,
 } from 'lucide-react'
 
 interface Props {
@@ -23,6 +24,8 @@ interface Summary {
   top_elements: { label: string; count: number }[]
   rage_clicks: number
   device_split: { desktop: number; mobile: number }
+  cta: { clicks: number; avg_scroll_at_click: number | null; depths: number[]; top_labels: { label: string; count: number }[] }
+  video: { plays: number; unmutes: number; fullscreens: number; completed: number; reach: Record<string, number> }
 }
 
 // 簡易Markdownレンダラー（見出し###・番号付き/箇条書き・**太字**のみ）
@@ -280,6 +283,63 @@ export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose
             </div>
           </div>
 
+          {/* 追跡型CTA + 動画エンゲージメント */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+              <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1.5"><MousePointer2 size={13} className="text-[#06C755]" /> 追跡型CTAボタン（LINE登録）</p>
+              <div className="flex items-baseline gap-5">
+                <div>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{summary ? summary.cta.clicks : '—'}</span>
+                  <span className="text-xs text-slate-500 ml-1">クリック</span>
+                </div>
+                <div className="text-xs text-slate-500">
+                  平均 <b className="text-slate-800 dark:text-white">{summary && summary.cta.avg_scroll_at_click != null ? pct(summary.cta.avg_scroll_at_click) : '—'}</b> の深さで押下
+                </div>
+              </div>
+              {summary && summary.cta.top_labels.length > 0 && (
+                <div className="mt-2.5 space-y-1">
+                  {summary.cta.top_labels.map((e, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="flex-1 truncate text-slate-600 dark:text-slate-400" title={e.label}>{e.label}</span>
+                      <span className="font-medium text-slate-900 dark:text-white tabular-nums">{e.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-400 mt-2">「どのくらいスクロールした時点でCTAを押したか」の平均。浅い＝上部CTAが効いている。</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+              <p className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1.5"><PlayCircle size={13} className="text-[#06C755]" /> 動画エンゲージメント</p>
+              <div className="grid grid-cols-4 gap-2 text-center mb-3">
+                <VStat icon={<PlayCircle size={13} />} label="再生" v={summary?.video.plays} />
+                <VStat icon={<Volume2 size={13} />} label="音量ON" v={summary?.video.unmutes} />
+                <VStat icon={<Maximize size={13} />} label="全画面" v={summary?.video.fullscreens} />
+                <VStat icon={<Flame size={13} />} label="完視聴" v={summary?.video.completed} />
+              </div>
+              {summary && summary.video.plays > 0 ? (
+                <div className="space-y-1">
+                  {[25, 50, 75, 95].map(m => {
+                    const reached = summary.video.reach[String(m)] || 0
+                    const p = summary.video.plays ? reached / summary.video.plays : 0
+                    return (
+                      <div key={m} className="flex items-center gap-2 text-xs">
+                        <span className="w-9 text-right text-slate-400 tabular-nums">{m}%</span>
+                        <div className="flex-1 h-3.5 bg-slate-100 dark:bg-slate-700/50 rounded overflow-hidden">
+                          <div className="h-full bg-[#06C755] rounded" style={{ width: `${Math.round(p * 100)}%` }} />
+                        </div>
+                        <span className="w-9 text-right font-medium text-slate-700 dark:text-slate-300 tabular-nums">{Math.round(p * 100)}%</span>
+                      </div>
+                    )
+                  })}
+                  <p className="text-[11px] text-slate-400 mt-1.5">再生した人のうち、動画のどこまで見たか（途中の急落＝中だるみ/長さ過多）。</p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">まだ動画の再生データがありません</p>
+              )}
+            </div>
+          </div>
+
           {/* AI analysis */}
           <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
@@ -314,6 +374,16 @@ export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function VStat({ icon, label, v }: { icon: React.ReactNode; label: string; v: number | undefined }) {
+  return (
+    <div className="bg-slate-50 dark:bg-slate-900/40 rounded-lg py-2">
+      <div className="flex items-center justify-center text-slate-400 mb-0.5">{icon}</div>
+      <p className="text-lg font-bold text-slate-900 dark:text-white tabular-nums leading-none">{v ?? '—'}</p>
+      <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
     </div>
   )
 }
