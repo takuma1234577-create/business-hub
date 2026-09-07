@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Bot, Save, ToggleLeft, ToggleRight, RefreshCw, Users } from 'lucide-react'
+import { Bot, Save, ToggleLeft, ToggleRight, RefreshCw, Users, Clock } from 'lucide-react'
 import { creashotBotApi, tagApi } from './api'
-import type { CreashotBotSettings, CreashotProfile, CreashotStats } from './api'
+import type { CreashotBotSettings, CreashotProfile, CreashotStats, CreashotQueueItem } from './api'
 import type { Tag } from './types'
 
 const INTENT_LABEL: Record<string, string> = {
@@ -17,6 +17,13 @@ const INTEREST_LABEL: Record<string, string> = {
   low: '低',
 }
 
+const QUEUE_STATUS_LABEL: Record<string, string> = {
+  pending: '送信待ち',
+  sent: '送信済み',
+  skipped: '送信せず',
+  error: 'エラー',
+}
+
 const CREATINE_LABEL: Record<string, string> = {
   drinking: '飲んでいる',
   quit: '買ったけどやめた',
@@ -28,24 +35,27 @@ export default function CreashotBot() {
   const [tags, setTags] = useState<Tag[]>([])
   const [profiles, setProfiles] = useState<CreashotProfile[]>([])
   const [stats, setStats] = useState<CreashotStats | null>(null)
+  const [queue, setQueue] = useState<CreashotQueueItem[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [sub, setSub] = useState<'settings' | 'profiles'>('settings')
+  const [sub, setSub] = useState<'settings' | 'queue' | 'profiles'>('settings')
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, t, p, st] = await Promise.all([
+      const [s, t, p, st, q] = await Promise.all([
         creashotBotApi.getSettings(),
         tagApi.list(),
         creashotBotApi.listProfiles(),
         creashotBotApi.stats(),
+        creashotBotApi.queue(),
       ])
       setSettings(s)
       setTags(t)
       setProfiles(p)
       setStats(st)
+      setQueue(q)
     } catch (err) {
       console.error('Failed to fetch creashot bot data:', err)
     } finally {
@@ -67,8 +77,11 @@ export default function CreashotBot() {
         high_intent_tag_id: settings.high_intent_tag_id,
         knowledge: settings.knowledge,
         extra_instructions: settings.extra_instructions,
-        cta_url: settings.cta_url,
         auto_tagging: settings.auto_tagging,
+        persona: settings.persona,
+        opening_message: settings.opening_message,
+        reply_delay_minutes: settings.reply_delay_minutes,
+        opening_delay_minutes: settings.opening_delay_minutes,
       })
       setSettings(updated)
       setSaved(true)
@@ -86,6 +99,7 @@ export default function CreashotBot() {
   }
 
   const targetTagName = tags.find(t => t.id === settings?.tag_id)?.name || '未設定'
+  const pendingCount = queue.filter(q => q.status === 'pending').length
 
   const inputCls =
     'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500'
@@ -118,14 +132,18 @@ export default function CreashotBot() {
       </div>
 
       <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-900 dark:text-emerald-100">
-        「{targetTagName}」タグが付いた友だちからのメッセージは、このAIだけが返信します。
+        「{targetTagName}」タグが付いた友だちには、FITPEAK代表Takuとして振る舞うこのAIだけが対応します。
         通常のAIチャット（FITPEAK AI）は、このタグが付いた人には即時返信・12時間後の遅延返信ともに一切動きません。
-        会話から聞き出した情報は自動で保存され、下の「収集データ」タブで確認できます。
+        即レスにならないよう、タグが付いてから一定時間後に初回メッセージを送り、返信も一定時間空けてから送ります。
+        会話から聞き取った情報は自動で保存され、「収集データ」タブで確認できます。
       </div>
 
       <div className="flex items-center gap-2">
         <button onClick={() => setSub('settings')} className={subTabCls(sub === 'settings')}>
           設定
+        </button>
+        <button onClick={() => setSub('queue')} className={subTabCls(sub === 'queue')}>
+          送信キュー{pendingCount > 0 ? `（${pendingCount}件待ち）` : ''}
         </button>
         <button onClick={() => setSub('profiles')} className={subTabCls(sub === 'profiles')}>
           収集データ{stats ? `（${stats.total}人）` : ''}
@@ -138,7 +156,7 @@ export default function CreashotBot() {
             <div>
               <div className="text-sm font-medium text-slate-900 dark:text-slate-100">自動返信</div>
               <div className="text-xs text-slate-500 mt-0.5">
-                オフにすると、対象タグの人には何も自動返信しません（通常AIにも流れず、担当者の手動対応になります）。
+                オフにすると、初回メッセージも返信も送りません（通常AIにも流れず、担当者の手動対応になります）。
               </div>
             </div>
             <button onClick={() => set('enabled', !settings.enabled)}>
@@ -196,21 +214,71 @@ export default function CreashotBot() {
             </button>
           </div>
 
-          <div>
-            <label className={labelCls}>予約・詳細の案内先URL（任意）</label>
-            <input
-              className={inputCls}
-              value={settings.cta_url || ''}
-              onChange={e => set('cta_url', e.target.value)}
-              placeholder="https://..."
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              相手が明確に希望したときだけ送ります。空欄ならURLは送りません。
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+              <Clock className="w-4 h-4 text-emerald-600" />
+              送信タイミング
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>初回メッセージ（タグが付いてから）</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputCls}
+                    value={settings.opening_delay_minutes ?? 120}
+                    onChange={e => set('opening_delay_minutes', Number(e.target.value))}
+                  />
+                  <span className="text-sm text-slate-500 shrink-0">分後</span>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>返信（メッセージを受け取ってから）</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputCls}
+                    value={settings.reply_delay_minutes ?? 120}
+                    onChange={e => set('reply_delay_minutes', Number(e.target.value))}
+                  />
+                  <span className="text-sm text-slate-500 shrink-0">分後</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              送信は10分間隔のcronで処理されるため、実際の送信は設定値から最大10分ほど後ろにずれます。
+              待っている間にお客様から追加のメッセージが来た場合は、まとめて1通で返します。
+              担当者が先に手動で返信した場合、予約されていた自動返信は送られません。
             </p>
           </div>
 
           <div>
-            <label className={labelCls}>ナレッジ（AIはここに書かれたことしか答えません）</label>
+            <label className={labelCls}>初回メッセージ</label>
+            <textarea
+              className={inputCls}
+              rows={3}
+              value={settings.opening_message || ''}
+              onChange={e => set('opening_message', e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              {'{name}'} がLINEの表示名に置き換わります。すでに会話が始まっている人には送りません。
+            </p>
+          </div>
+
+          <div>
+            <label className={labelCls}>人格（Takuとしてどう振る舞うか）</label>
+            <textarea
+              className={`${inputCls} leading-relaxed`}
+              rows={10}
+              value={settings.persona || ''}
+              onChange={e => set('persona', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>商品ナレッジ（商品について聞かれたときだけ使う。ここに無いことは答えません）</label>
             <textarea
               className={`${inputCls} font-mono leading-relaxed`}
               rows={22}
@@ -241,6 +309,66 @@ export default function CreashotBot() {
             </button>
             {saved && <span className="text-sm text-emerald-600">保存しました</span>}
           </div>
+        </div>
+      )}
+
+      {sub === 'queue' && (
+        <div className="space-y-4">
+          {queue.length === 0 ? (
+            <div className="p-8 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center text-sm text-slate-500">
+              <Clock className="w-6 h-6 mx-auto mb-2 opacity-50" />
+              送信予定はまだありません。対象タグが付くか、対象の友だちからメッセージが届くとここに並びます。
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">友だち</th>
+                    <th className="px-3 py-2 text-left font-medium">種類</th>
+                    <th className="px-3 py-2 text-left font-medium">状態</th>
+                    <th className="px-3 py-2 text-left font-medium">送信予定</th>
+                    <th className="px-3 py-2 text-left font-medium">内容</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {queue.map(q => (
+                    <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 align-top">
+                      <td className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                        {q.friend?.display_name || '(不明)'}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {q.kind === 'opening' ? '初回' : '返信'}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs ${
+                            q.status === 'pending'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                              : q.status === 'sent'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              : q.status === 'error'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                          }`}
+                        >
+                          {QUEUE_STATUS_LABEL[q.status] || q.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {new Date(q.sent_at || q.scheduled_at).toLocaleString('ja-JP', {
+                          month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-md">
+                        {q.reply_text || q.error || (q.trigger_text ? `受信: ${q.trigger_text}` : '-')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

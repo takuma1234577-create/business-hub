@@ -63,6 +63,14 @@ app.get('/api/public/review-widget.js', cors(), (req, res) => {
 const reviewSubmissionModule = require(path.join(__dirname, 'review-submission.cjs'));
 app.use('/api/public/review-submission', cors(), reviewSubmissionModule.publicRouter);
 
+// FITPEAK 公開AIチャット（Shopifyストアフロント右下ウィジェット用・認証不要）
+const publicChatRoutes = require(path.join(__dirname, 'public-chat.cjs'));
+app.use('/api/public/chat', cors(), publicChatRoutes);
+
+// 定期購入: Shopify webhook と顧客ポータルAPI（HMAC / Supabase JWT で個別に検証）
+const subscriptionModule = require(path.join(__dirname, 'subscription.cjs'));
+app.use('/api/public/subscription', cors(), subscriptionModule.publicRouter);
+
 // ギフティング: インフルエンサー向け住所入力フォーム（認証不要）
 const giftingModule = require(path.join(__dirname, 'gifting.cjs'));
 app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
@@ -140,6 +148,7 @@ app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/image-downloader', imageDownloaderRoutes);
+app.use('/api/subscription', subscriptionModule);
 app.use('/api/review-submission', reviewSubmissionModule);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
@@ -179,6 +188,7 @@ app.get('/api/daily-cron', async (req, res) => {
     followups:           '/api/shopify-line/cron/followups',
     delayedAiReply:      '/api/line-crm/delayed-ai-reply',
     tagScheduledReplies: '/api/line-crm/tag-scheduled-replies/process',
+    creashotBot:         '/api/line-crm/creashot-bot/process',
     broadcastsCron:      '/api/line-crm/broadcasts/cron',
     amazonSync:          '/api/amazon/cron/sync',
     salesEmail:          '/api/sales-email/cron',
@@ -197,6 +207,9 @@ app.get('/api/daily-cron', async (req, res) => {
     // eBay無在庫: 仕入先の在庫追従（消えたら即取り下げ）と利益ウォッチ。cronは10分間隔
     ebayStockCheck:      '/api/ebay/cron/stock-check',
     ebayProfitWatch:     '/api/ebay/cron/profit-watch',
+    // 定期購入: 課金予定の実行・失敗リトライ・配達完了フォールバック
+    // （settings.billing.cron_enabled が false の間は何もしない）
+    subscription:        '/api/subscription/cron',
     dailyBackup:         '/api/backup/run',
   };
 

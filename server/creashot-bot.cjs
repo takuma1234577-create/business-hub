@@ -121,30 +121,39 @@ function formatProfileForPrompt(profile) {
   return lines.join('\n\n');
 }
 
-function buildSystemPrompt({ knowledge, extraInstructions, ctaUrl, profileText, customerName, lastOutgoing }) {
+function buildSystemPrompt({ persona, knowledge, extraInstructions, profileText, customerName, lastOutgoing }) {
   return [
-    'あなたはフィットネスブランド //FITPEAK の公式LINEで、サプリメント「クレアショット（CREASHOT）」の担当をしているスタッフです。',
-    'お客様は、クレアショットの広告・LPを見て公式LINEに登録してくださった方です。まだ発売前で、これから予約販売を行います。',
+    'あなたは筋トレギアブランド //FITPEAK の代表「Taku」本人として、公式LINEでお客様と1対1で会話しています。',
+    'お客様は、開発中のサプリメント「クレアショット（CREASHOT）」の広告を見て公式LINEに登録してくださった方です。',
     '',
-    '## あなたの目的（この2つを、1回の返信のなかで自然に両立させる）',
-    '1. 会話しながら、お客様のトレーニングやクレアチンに関する状況を少しずつ聞き出すこと。',
-    '   聞けた情報は今後の配信内容の出し分けに使う。アンケートではなく雑談のなかで自然に聞く。',
-    '2. 予約販売の申し込みにつなげること。ただし押し売りは絶対にしない。',
-    '   相手が話してくれた状況（外出が多い/飲み忘れる/続かない 等）に紐づけて、クレアショットが',
-    '   その状況にどう効くのかを具体的に伝える。相手の課題が見えていない段階で商品の話を長々としない。',
+    '## あなた（Taku）について',
+    persona && persona.trim() ? persona.trim() : '（未設定）',
     '',
-    '## 会話のルール（最重要）',
+    '## この会話でやること',
+    '1. お客様の筋トレ・トレーニングのことを聞く。これがメイン。',
+    '2. 聞きっぱなしにせず、自分（Taku）のことも話す。相手の話に対して、自分の経験を具体的に返す。',
+    '   例: 相手が「6年通ってます」と言ったら、素直に驚いて、自分は8年であることを伝える。',
+    '3. 聞けた情報は今後の配信内容の出し分けに使うので、自然な流れで少しずつ引き出す。',
+    '',
+    '## やってはいけないこと（重要）',
+    '- 売り込まない。予約・購入をお願いしたり、勧めたりしない。',
+    '- 価格の話を自分から持ち出さない。値段のメリット・デメリットを説明して納得させようとしない。',
+    '- 商品の説明を長々としない。相手から聞かれたときだけ、短く答える。',
+    '- 相手がクレアショットに触れたら、「開発中なので配信を楽しみにしていてください」という温度で返す。それ以上売り込まない。',
+    '',
+    '## 会話のルール',
     '- 1回の返信で質問するのは「1つだけ」。複数の質問を並べない。',
-    '- 返信は短く。LINEで読める長さ（2〜4文、150文字前後）を目安にする。長文にしない。',
-    '- 「まだ聞けていないこと」から、いま話している流れに一番近いものを1つ選んで聞く。脈絡なく質問を差し込まない。',
-    '- お客様が質問してきたときは、まずその質問にきちんと答える。答えてから、必要なら短く1つ質問を添える。',
+    '- 短く。LINEで読める長さ（1〜3文）。長文にしない。',
+    '- アンケートにしない。相手の話にまず素直に反応してから、流れの中で次を聞く。',
     '- すでに分かっていることを聞き直さない。',
-    '- お客様が答えたくなさそう・話を切り上げたそうなときは、追いかけずに引く。会話を終える。',
-    '- 相手の話（種目・重量・目的など）にはまず具体的に反応する。テンプレ的な相づちで流さない。',
-    '- 予約の話は、相手の課題が1つ以上見えてから出す。それまでは会話と情報収集を優先する。',
-    '- 購入を迷っている様子・価格に触れてきた様子があれば、値引きではなく「持ち物が3つから1つになる」',
-    '  「一番高いクレアチンは、飲まなかったクレアチン」という考え方で受ける。',
-    '- 大容量のクレアチンのほうが1回あたりの価格は安い、という事実は隠さず正直に認める。',
+    '- 相手が答えたくなさそう・話を切り上げたそうなときは、追いかけない。お礼を伝えて会話を終える。',
+    '- 相手の話（種目・重量・年数・目的など）にテンプレ的な相づちで流さない。具体的に反応する。',
+    '- 自分の年数・実績と相手のそれを比べるときは、どちらが上か必ず確認してから書く。',
+    '  （例: 自分が8年、相手が6年なら、相手のほうが後から始めている。「私より先輩」は誤り）',
+    '- 直前に自分がした質問を、そのまま繰り返さない。',
+    '  相手がその質問に答えていない・話題を変えたそうなときは、別の話題にするか、お礼を伝えて会話を終える。',
+    '- 敬語だがフランク。硬い接客文体にしない。',
+    '- 絵文字は使ってもよいが、多くても1メッセージに1つまで。無理に入れない。',
     '',
     '## 表現のガードレール（違反は不可）',
     '- クレアショットは食品であり医薬品ではない。効果・効能の断定や暗示をしない',
@@ -153,30 +162,31 @@ function buildSystemPrompt({ knowledge, extraInstructions, ctaUrl, profileText, 
     '- 「必ず」「No.1」「最強」「日本初」などの根拠のない最上級表現を使わない。',
     '- 「無添加」「添加物不使用」は使わない。',
     '- 電解質を「スポーツドリンク代わり」「汗対策」と表現しない。',
-    '- 話してよいのは利便性（持ち運べる・手軽・2WAY・続けやすい・飲み忘れにくい・爽やかな味）まで。',
-    '- 絵文字・顔文字は一切使わない（1つでも入れてはいけない）。',
-    '- 敬語で、フランクすぎず硬すぎない口語。',
+    '- トレーニング内容や栄養について、個別の指導・診断めいた断定をしない。感想と自分の経験として話す。',
     '',
-    '## 使ってよい情報（これ以外の商品知識・数値・キャンペーンは一切使わない）',
-    knowledge && knowledge.trim() ? knowledge.trim() : '（ナレッジ未設定。商品の詳細には答えず、担当者に確認する旨を伝える）',
+    '## 商品について聞かれたときに使ってよい情報（これ以外の商品知識・数値は一切使わない）',
+    knowledge && knowledge.trim() ? knowledge.trim() : '（ナレッジ未設定。商品の詳細には答えず、開発中である旨だけ伝える）',
     '',
-    ctaUrl && ctaUrl.trim() ? `## 予約・詳細の案内先URL（相手が明確に希望したときだけ送る）\n${ctaUrl.trim()}\n` : null,
     extraInstructions && extraInstructions.trim() ? `## 追加の指示\n${extraInstructions.trim()}\n` : null,
-    '',
     '## 分からないことへの対応',
-    '上のナレッジでは回答できない質問（発売日・在庫・個別の注文状況・体調や既往症に関わる相談・',
+    '上のナレッジでは答えられない質問（発売日・在庫・個別の注文状況・体調や既往症に関わる相談・',
     'クレーム・返金など）には、絶対に推測で答えないこと。その場合は reply を',
-    '「担当者が確認してご連絡します」という趣旨にし、needs_escalation を true にする。',
+    '「確認してあらためてご連絡します」という趣旨にし、needs_escalation を true にする。',
     '',
     `## お客様の表示名\n${customerName || '（不明）'}`,
     '',
     `## このお客様について現在分かっていること\n${profileText}`,
-    lastOutgoing ? `\n## こちらから直前に送ったメッセージ\n${lastOutgoing}` : null,
+    lastOutgoing
+      ? `\n## 直前に自分（Taku）が送ったメッセージ\n${lastOutgoing}\n\n` +
+        'これと同じ意図の質問を、今回の返信に入れてはいけない（言い回しを変えるのも不可）。\n' +
+        'このメッセージで投げた質問に相手が答えていない場合は、それ以上聞かず、\n' +
+        '相手の返答を受け止めて会話を締めるか、まったく別の話題にすること。'
+      : null,
     '',
     '## 出力形式',
     '以下のJSONのみを出力する（前後に説明文やコードフェンスを付けない）。値が判断できない項目は null にする。',
     '{',
-    '  "reply": "お客様に送る返信文",',
+    '  "reply": "お客様に送るメッセージ",',
     '  "profile": {',
     '    "training_frequency": null,',
     '    "training_years": null,',
@@ -198,18 +208,19 @@ function buildSystemPrompt({ knowledge, extraInstructions, ctaUrl, profileText, 
     '}',
     '',
     'profile には「今回のお客様の発言から新たに分かったこと」だけを入れる。推測で埋めない。',
+    'profile の値は日本語で、単位まで含めて書く（例: 「6年」「週4回」「ジム」「増量」）。英単語や数字だけにしない。',
     'creatine_status は drinking / quit / never / unknown のいずれかの英単語で返す。',
-    'purchase_intent は、予約したい・買いたいと明言されたら ready、前向きに検討中なら considering、',
-    '断られたら declined、判断できなければ unknown。',
+    'interest_level と purchase_intent は、こちらから聞き出すためのものではなく、',
+    '会話に自然に出てきた範囲での記録用。判断できなければ unknown のままでよい。',
   ].filter((l) => l !== null).join('\n');
 }
 
-// LINEの返信から絵文字を確実に取り除く（プロンプトだけだと稀に混ざるため）
-function stripEmoji(text) {
+// 返信の見た目を整える。Taku本人として話すので絵文字は許可（プロンプト側で1つまでに制限）。
+function tidyReply(text) {
   return String(text || '')
-    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{20E3}]/gu, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -332,9 +343,9 @@ async function generateCreashotReply(userMessage, ctx = {}) {
   const existing = ctx.friendId ? await getProfile(ctx.friendId) : null;
 
   const systemPrompt = buildSystemPrompt({
+    persona: settings?.persona,
     knowledge: settings?.knowledge,
     extraInstructions: settings?.extra_instructions,
-    ctaUrl: settings?.cta_url,
     profileText: formatProfileForPrompt(existing),
     customerName: ctx.customerName,
     lastOutgoing: ctx.lastOutgoing,
@@ -366,11 +377,11 @@ async function generateCreashotReply(userMessage, ctx = {}) {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.reply) reply = stripEmoji(parsed.reply);
+      if (parsed.reply) reply = tidyReply(parsed.reply);
       needsEscalation = !!parsed.needs_escalation;
       escalationReason = parsed.escalation_reason || '';
     } else if (raw) {
-      reply = stripEmoji(raw);
+      reply = tidyReply(raw);
     }
     if (!reply) reply = FALLBACK_REPLY;
   } catch (err) {
@@ -400,8 +411,261 @@ async function generateCreashotReply(userMessage, ctx = {}) {
   return { reply, needsEscalation, appliedTags };
 }
 
+// ===========================================================================
+// スケジューリング
+// 即レスは「人間が返している感じ」を壊すので、受信も初回接触も一定時間空けて送る。
+// 送信は cron（daily-cron 経由・10分間隔）と webhook のpiggybackから processCreashotQueue() で行う。
+// ===========================================================================
+
+/**
+ * お客様からの受信に対する返信を、reply_delay_minutes 後に送るよう予約する。
+ * 既に未送信の予約があれば、そちらに最新の発言を反映するだけにする
+ * （連投されても返信は1通。予約時刻は最初の受信基準のまま＝待たせすぎない）。
+ */
+async function enqueueCreashotReply(friendId, userMessage, settings) {
+  const delayMin = Number(settings?.reply_delay_minutes ?? 120);
+  const scheduledAt = new Date(Date.now() + delayMin * 60 * 1000).toISOString();
+  try {
+    const { data: pending } = await supabase
+      .from('creashot_queue')
+      .select('id, trigger_text')
+      .eq('friend_id', friendId)
+      .eq('kind', 'reply')
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (pending) {
+      const merged = [pending.trigger_text, userMessage].filter(Boolean).join('\n').slice(-2000);
+      await supabase.from('creashot_queue').update({ trigger_text: merged }).eq('id', pending.id);
+      return { queued: true, scheduledAt: null, merged: true };
+    }
+
+    await supabase.from('creashot_queue').insert({
+      friend_id: friendId,
+      kind: 'reply',
+      trigger_text: userMessage,
+      scheduled_at: scheduledAt,
+    });
+    return { queued: true, scheduledAt, merged: false };
+  } catch (err) {
+    console.error('[creashot-bot] enqueue reply error:', err.message);
+    return { queued: false, scheduledAt: null, merged: false };
+  }
+}
+
+/**
+ * 対象タグが付いてから opening_delay_minutes 経った友だちに、初回メッセージを予約する。
+ * タグ付与の経路（流入経路・キーワード自動応答・手動）ごとにフックを差し込むのは漏れるので、
+ * friend_tags.created_at を定期的にスキャンする方式にしている。
+ */
+async function enqueueDueOpenings(settings, limit = 50) {
+  const tagId = settings?.tag_id;
+  if (!tagId) return 0;
+  const delayMin = Number(settings?.opening_delay_minutes ?? 120);
+  const cutoff = new Date(Date.now() - delayMin * 60 * 1000).toISOString();
+
+  const { data: tagged } = await supabase
+    .from('friend_tags')
+    .select('friend_id, created_at')
+    .eq('tag_id', tagId)
+    .lte('created_at', cutoff)
+    .order('created_at', { ascending: false })
+    .limit(limit * 4);
+  if (!tagged || tagged.length === 0) return 0;
+
+  const ids = [...new Set(tagged.map((r) => r.friend_id))];
+  const { data: already } = await supabase
+    .from('creashot_queue')
+    .select('friend_id')
+    .eq('kind', 'opening')
+    .in('friend_id', ids);
+  const done = new Set((already || []).map((r) => r.friend_id));
+
+  const targets = ids.filter((id) => !done.has(id)).slice(0, limit);
+  let queued = 0;
+  for (const friendId of targets) {
+    // 友だち追加の挨拶以外に、こちらから何か送っている／向こうから話しかけられている場合は
+    // 「改めまして」の初回文が不自然になるので出さない。
+    const { data: convo } = await supabase
+      .from('chat_messages')
+      .select('id, direction, content')
+      .eq('friend_id', friendId)
+      .limit(20);
+    const hasConversation = (convo || []).some((m) => {
+      if (m.direction === 'incoming' || m.direction === 'inbound') return true;
+      const src = m.content?.source;
+      return src && src !== 'greeting';
+    });
+    if (hasConversation) {
+      await supabase.from('creashot_queue').insert({
+        friend_id: friendId,
+        kind: 'opening',
+        scheduled_at: new Date().toISOString(),
+        status: 'skipped',
+        error: 'すでに会話が始まっているため初回メッセージは送らない',
+      }).then(() => {}, () => {});
+      continue;
+    }
+    const { error } = await supabase.from('creashot_queue').insert({
+      friend_id: friendId,
+      kind: 'opening',
+      scheduled_at: new Date().toISOString(),
+    });
+    if (!error) queued += 1;
+  }
+  return queued;
+}
+
+// 担当者が手で返信していたら、予約していたAIの返信は送らない
+async function hasHumanReplySince(friendId, sinceIso) {
+  const { data } = await supabase
+    .from('chat_messages')
+    .select('id, content')
+    .eq('friend_id', friendId)
+    .in('direction', ['outgoing', 'outbound'])
+    .gte('created_at', sinceIso)
+    .limit(20);
+  return (data || []).some((m) => {
+    const src = m.content?.source;
+    return !src || src === 'crm_ui' || src === 'slack_escalation';
+  });
+}
+
+/**
+ * 送信期限が来たキューを処理する。cronとwebhookの両方から呼ばれる。
+ * @param {(channelId: string, lineUserId: string, text: string) => Promise<boolean>} pushFn
+ */
+async function processCreashotQueue(pushFn, limit = 10) {
+  const settings = await getCreashotSettings();
+  if (!settings?.enabled || !settings.tag_id) return { processed: 0, queued: 0 };
+
+  const queued = await enqueueDueOpenings(settings);
+
+  const { data: due } = await supabase
+    .from('creashot_queue')
+    .select('*')
+    .eq('status', 'pending')
+    .lte('scheduled_at', new Date().toISOString())
+    .order('scheduled_at', { ascending: true })
+    .limit(limit);
+  if (!due || due.length === 0) return { processed: 0, queued };
+
+  let processed = 0;
+  for (const item of due) {
+    try {
+      const { data: friend } = await supabase
+        .from('friends')
+        .select('id, display_name, line_user_id, channel_id, status')
+        .eq('id', item.friend_id)
+        .maybeSingle();
+
+      if (!friend || !friend.line_user_id || friend.status === 'unfollowed') {
+        await supabase.from('creashot_queue')
+          .update({ status: 'skipped', error: '友だちが見つからない、またはブロック済み' })
+          .eq('id', item.id);
+        continue;
+      }
+
+      if (await hasHumanReplySince(item.friend_id, item.created_at)) {
+        await supabase.from('creashot_queue')
+          .update({ status: 'skipped', error: '担当者が手動で返信済み' })
+          .eq('id', item.id);
+        continue;
+      }
+
+      let text = '';
+      if (item.kind === 'opening') {
+        const template = settings.opening_message || '';
+        if (!template.trim()) {
+          await supabase.from('creashot_queue')
+            .update({ status: 'skipped', error: '初回メッセージが未設定' })
+            .eq('id', item.id);
+          continue;
+        }
+        text = template.replace(/\{name\}/g, friend.display_name || 'さん').trim();
+      } else {
+        const history = await loadChatHistory(item.friend_id);
+        const { reply } = await generateCreashotReply(item.trigger_text || '', {
+          friendId: friend.id,
+          customerName: friend.display_name || '',
+          lineUserId: friend.line_user_id,
+          chatHistory: history.messages,
+          lastOutgoing: history.lastOutgoing,
+          settings,
+        });
+        text = reply;
+      }
+
+      if (!text) {
+        await supabase.from('creashot_queue')
+          .update({ status: 'skipped', error: '送信内容が空' })
+          .eq('id', item.id);
+        continue;
+      }
+
+      const ok = await pushFn(friend.channel_id, friend.line_user_id, text);
+      if (!ok) {
+        await supabase.from('creashot_queue')
+          .update({ status: 'error', error: 'LINEへの送信に失敗' })
+          .eq('id', item.id);
+        continue;
+      }
+
+      await supabase.from('chat_messages').insert({
+        channel_id: friend.channel_id,
+        friend_id: friend.id,
+        direction: 'outgoing',
+        message_type: 'text',
+        content: { text, source: item.kind === 'opening' ? 'creashot_bot_opening' : 'creashot_bot' },
+      });
+      await supabase.from('creashot_queue')
+        .update({ status: 'sent', sent_at: new Date().toISOString(), reply_text: text })
+        .eq('id', item.id);
+      processed += 1;
+      console.log(`[creashot-bot] ${item.kind} sent to ${friend.display_name}`);
+    } catch (err) {
+      console.error('[creashot-bot] queue item error:', err.message);
+      await supabase.from('creashot_queue')
+        .update({ status: 'error', error: err.message })
+        .eq('id', item.id)
+        .then(() => {}, () => {});
+    }
+  }
+  return { processed, queued };
+}
+
+// 直近の会話を、AIに渡せる形（role/content）で取り出す
+async function loadChatHistory(friendId, limit = 20) {
+  const { data: history } = await supabase
+    .from('chat_messages')
+    .select('direction, content, created_at')
+    .eq('friend_id', friendId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (!history || history.length === 0) return { messages: [], lastOutgoing: '' };
+
+  const toText = (m) => {
+    if (m.content?.text) return m.content.text;
+    if (Array.isArray(m.content?.messages)) {
+      return m.content.messages.filter((x) => x.type === 'text' && x.text).map((x) => x.text).join('\n');
+    }
+    return '';
+  };
+  const messages = history.slice().reverse().map((m) => {
+    const content = toText(m);
+    if (!content) return null;
+    const role = m.direction === 'inbound' || m.direction === 'incoming' ? 'user' : 'assistant';
+    return { role, content };
+  }).filter(Boolean);
+  const lastOut = history.find((m) => m.direction === 'outgoing' || m.direction === 'outbound');
+  return { messages, lastOutgoing: lastOut ? toText(lastOut) : '' };
+}
+
 module.exports = {
   generateCreashotReply,
+  enqueueCreashotReply,
+  processCreashotQueue,
+  loadChatHistory,
   getCreashotSettings,
   invalidateCreashotSettingsCache,
   isCreashotFriend,

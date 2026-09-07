@@ -171,7 +171,25 @@ export interface CreashotBotSettings {
   cta_url: string
   model: string
   auto_tagging: boolean
+  persona: string
+  opening_message: string
+  reply_delay_minutes: number
+  opening_delay_minutes: number
   updated_at?: string
+}
+
+export interface CreashotQueueItem {
+  id: string
+  friend_id: string
+  kind: 'opening' | 'reply'
+  trigger_text: string | null
+  scheduled_at: string
+  status: 'pending' | 'sent' | 'skipped' | 'error'
+  sent_at: string | null
+  reply_text: string | null
+  error: string | null
+  created_at: string
+  friend: { id: string; display_name: string; picture_url: string | null } | null
 }
 
 export interface CreashotProfile {
@@ -214,4 +232,7 @@ export const creashotBotApi = {
 
   stats: () =>
     api.get<CreashotStats>('/creashot-bot/stats').then(r => r.data),
+
+  queue: () =>
+    api.get<CreashotQueueItem[]>('/creashot-bot/queue').then(r => r.data),
 }
