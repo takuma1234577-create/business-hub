@@ -3,10 +3,9 @@ import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, S
 import { chatApi } from './api'
 import type { Friend, ChatMessage } from './types'
 
-// 動画/音声はストレージのContent-Typeが不正(octet-stream)だと再生できないため、
-// 正しいMIMEで配信し直すプロキシ経由で読み込む（http(s)のみ・blob:はそのまま）。
-const mediaProxy = (u: string) =>
-  u && /^https?:\/\//i.test(u) ? `/api/line-crm/media-proxy?u=${encodeURIComponent(u)}` : u
+// Supabase Storageは動画をRange対応・正しいContent-Typeで配信できるため、直リンクで読み込む。
+// （保存時に正しいMIMEを付与するよう修正済み。過去の不正MIMEは再送で解消する。）
+const mediaProxy = (u: string) => u
 
 interface ChatViewProps {
   friend: Friend

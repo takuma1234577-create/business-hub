@@ -1259,7 +1259,7 @@ function BlockEditor({ block, index, total, templates, tags, onChange, onRemove,
 
       {block.type === 'video' && (
         <MediaPair
-          accept="video/mp4"
+          accept="video/*"
           urlLabel="動画URL (mp4)"
           previewLabel="サムネイル画像URL（動画アップロード時に自動生成）"
           previewAccept="image/*"
@@ -1350,6 +1350,13 @@ function DropUpload({
   const [progress, setProgress] = useState(0)
 
   const uploadFile = async (file: File) => {
+    // 種別チェック: 動画欄に画像を入れる等の取り違えを防ぐ（動画URLにjpgが入ると再生不可になる）
+    const cat = accept.includes('video') ? 'video' : accept.includes('audio') ? 'audio' : accept.includes('image') ? 'image' : ''
+    if (cat && file.type && !file.type.startsWith(cat + '/')) {
+      const jp = cat === 'video' ? '動画' : cat === 'audio' ? '音声' : '画像'
+      alert(`この欄には${jp}ファイルを指定してください。\n選択されたファイル: ${file.type || file.name}`)
+      return
+    }
     setUploading(true)
     setProgress(0)
     try {
