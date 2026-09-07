@@ -229,14 +229,19 @@ router.post('/screenshot', async (req, res) => {
     const page = await browser.newPage();
     if (isMobile) await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
-    // 遅延読み込み対策で軽くスクロールしてから戻す
+    // 遅延読み込み対策で最後までスクロールしてから戻す（画像・遅延要素を読み込ませる）
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let y = 0; const step = () => { window.scrollBy(0, 1200); y += 1200; if (y < document.body.scrollHeight && y < 40000) setTimeout(step, 120); else { window.scrollTo(0, 0); setTimeout(resolve, 400); } };
         step();
       });
     });
-    const buf = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 70 });
+    // Webフォントの読み込み完了を待つ（文字抜け・グリフ落ち対策）
+    try {
+      await page.evaluate(() => (document.fonts && document.fonts.ready ? document.fonts.ready.then(() => undefined) : undefined));
+      await page.evaluate(() => new Promise((r) => setTimeout(r, 1200)));
+    } catch { /* noop */ }
+    const buf = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 82 });
     await browser.close(); browser = null;
 
     const path = `heatmaps/${sourceCode}_${isMobile ? 'mobile' : 'desktop'}.jpg`;
