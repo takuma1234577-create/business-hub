@@ -14,7 +14,20 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
 
+// Supabase Storage のプロジェクト全体のアップロード上限。
+// バケット(line-media)側は無制限だが、プロジェクト設定の上限が優先されるためここで先に弾く。
+// 超えたときのSupabaseのエラーは英語で理由が分かりにくいので、日本語で対処法まで出す。
+const STORAGE_MAX_BYTES = 50 * 1024 * 1024
+
 async function uploadToStorage(file: File): Promise<string> {
+  if (file.size > STORAGE_MAX_BYTES) {
+    const mb = (file.size / 1024 / 1024).toFixed(1)
+    throw new Error(
+      `このファイルは ${mb}MB で、アップロードできる上限の50MBを超えています。\n\n` +
+      '動画は50MB以下に圧縮してからアップロードしてください。\n' +
+      '（LINEの動画メッセージ自体はmp4で200MBまで対応していますが、この管理画面の保存先の上限が50MBです）'
+    )
+  }
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const path = `templates/${filename}`
