@@ -1114,6 +1114,52 @@ router.post('/chat/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// GET /media-proxy?u=<Supabase Storage公開URL>
+// 受信動画等はストレージ上のContent-Typeが application/octet-stream のことがあり、
+// <video>/<audio> がそのままでは再生できない（特にSafari）。正しいContent-Typeで
+// 配信し直すプロキシ。Rangeリクエストは上流(Supabase)へ転送して部分応答を中継する。
+router.get('/media-proxy', async (req, res) => {
+  try {
+    const raw = req.query.u;
+    if (!raw || typeof raw !== 'string') return res.status(400).json({ error: 'u required' });
+    let parsed;
+    try { parsed = new URL(raw); } catch { return res.status(400).json({ error: 'invalid url' }); }
+    // SSRF対策: Supabaseの公開ストレージのみ許可
+    if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.supabase.co') || !parsed.pathname.includes('/storage/v1/object/public/')) {
+      return res.status(400).json({ error: 'url not allowed' });
+    }
+    const range = req.headers.range;
+    const upstream = await fetch(parsed.toString(), { headers: range ? { Range: range } : {} });
+    if (!upstream.ok && upstream.status !== 206) {
+      return res.status(upstream.status).end();
+    }
+    const ext = (parsed.pathname.split('.').pop() || '').toLowerCase();
+    const typeByExt = {
+      mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+      m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      pdf: 'application/pdf',
+    };
+    const upstreamCt = upstream.headers.get('content-type');
+    const ct = typeByExt[ext] || (upstreamCt && !/^application\/octet-stream/i.test(upstreamCt) ? upstreamCt : 'application/octet-stream');
+    res.status(upstream.status);
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Accept-Ranges', 'bytes');
+    const cr = upstream.headers.get('content-range'); if (cr) res.setHeader('Content-Range', cr);
+    const cl = upstream.headers.get('content-length'); if (cl) res.setHeader('Content-Length', cl);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (upstream.body) {
+      const { Readable } = require('stream');
+      Readable.fromWeb(upstream.body).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    console.error('[media-proxy] error:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'proxy failed' });
+  }
+});
+
 // ===========================================================================
 // Tag Scheduled Replies（タグベース遅延自動返信）
 // タグが付与された友だちに、指定時間後にメッセージを自動送信
@@ -3830,7 +3876,10 @@ async function processWebhookEvents(channelId, events) {
                 const ext = extFromFileName || (msgType === 'video' ? 'mp4' : msgType === 'audio' ? 'm4a' : msgType === 'file' ? 'bin' : 'jpg');
                 const fileName = `line-media/${friend.id}/${Date.now()}.${ext}`;
                 const defaultContentType = msgType === 'video' ? 'video/mp4' : msgType === 'audio' ? 'audio/m4a' : msgType === 'file' ? 'application/octet-stream' : 'image/jpeg';
-                const contentType = contentRes.headers['content-type'] || defaultContentType;
+                // LINEのコンテンツAPIは動画等を application/octet-stream で返すことがあり、
+                // そのまま保存すると <video> が再生できない。種別から正しいMIMEを優先する。
+                const lineCt = contentRes.headers['content-type'];
+                const contentType = (lineCt && !/^application\/octet-stream/i.test(lineCt)) ? lineCt : defaultContentType;
 
                 const { error: uploadErr } = await supabase.storage
                   .from('chat-media')

@@ -331,6 +331,7 @@ function authMiddleware(req, res, next) {
     '/api/daily-cron',
     '/api/line-crm/webhook',
     '/api/line-crm/track/',
+    '/api/line-crm/media-proxy',
     '/api/line-crm/public/',
     '/api/line-crm/delayed-ai-reply',
     '/api/line-crm/tag-scheduled-replies/',

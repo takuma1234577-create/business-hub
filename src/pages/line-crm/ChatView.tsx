@@ -3,6 +3,11 @@ import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, S
 import { chatApi } from './api'
 import type { Friend, ChatMessage } from './types'
 
+// 動画/音声はストレージのContent-Typeが不正(octet-stream)だと再生できないため、
+// 正しいMIMEで配信し直すプロキシ経由で読み込む（http(s)のみ・blob:はそのまま）。
+const mediaProxy = (u: string) =>
+  u && /^https?:\/\//i.test(u) ? `/api/line-crm/media-proxy?u=${encodeURIComponent(u)}` : u
+
 interface ChatViewProps {
   friend: Friend
   onBack: () => void
@@ -278,7 +283,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
       if (obj.type === 'video' || msg.message_type === 'video') {
         const vidUrl = (obj.url || obj.originalContentUrl || '') as string
         if (vidUrl) {
-          return <video src={vidUrl} controls className="w-[240px] max-w-full rounded-lg shadow-sm" />
+          return <video src={mediaProxy(vidUrl)} controls playsInline preload="metadata" className="w-[240px] max-w-full rounded-lg shadow-sm" />
         }
         return (
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500">
@@ -317,7 +322,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
       if (obj.type === 'audio' || msg.message_type === 'audio') {
         const audioUrl = (obj.url || obj.originalContentUrl || '') as string
         if (audioUrl) {
-          return <audio src={audioUrl} controls className="max-w-[240px]" />
+          return <audio src={mediaProxy(audioUrl)} controls preload="metadata" className="max-w-[240px]" />
         }
         return (
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500">
@@ -373,7 +378,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
           } else if (m.type === 'video') {
             const vidUrl = (m.originalContentUrl || m.url || '') as string
             if (vidUrl) {
-              elements.push(<video key={elements.length} src={vidUrl} controls className="max-w-[240px] rounded-lg mt-1" />)
+              elements.push(<video key={elements.length} src={mediaProxy(vidUrl)} controls playsInline preload="metadata" className="max-w-[240px] rounded-lg mt-1" />)
             }
           } else if (m.type === 'template' && m.template) {
             const tmpl = m.template as Record<string, unknown>
@@ -405,7 +410,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
     // String content - check if it's a blob/object URL (media preview)
     if (typeof ct === 'string' && (ct.startsWith('blob:') || ct.startsWith('http'))) {
       if (msg.message_type === 'video') {
-        return <video src={ct} controls className="w-[240px] max-w-full rounded-lg shadow-sm" />
+        return <video src={mediaProxy(ct)} controls playsInline preload="metadata" className="w-[240px] max-w-full rounded-lg shadow-sm" />
       }
       if (msg.message_type === 'image') {
         return <img src={ct} alt="画像" className="w-[240px] max-w-full rounded-lg shadow-sm" style={{ minHeight: 60 }} />
