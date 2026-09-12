@@ -64,7 +64,8 @@ function renderMarkdown(md: string) {
 }
 
 export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose }: Props) {
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
+  // 訪問者の大半はスマホなのでスマホ表示で開く
+  const [device, setDevice] = useState<'desktop' | 'mobile'>('mobile')
   const [days, setDays] = useState(30)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -183,10 +184,10 @@ export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose
         <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 flex-wrap">
           <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg p-0.5">
             <button onClick={() => setDevice('desktop')} className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md cursor-pointer ${device === 'desktop' ? 'bg-white dark:bg-slate-800 text-[#06C755] shadow-sm' : 'text-slate-500'}`}>
-              <Monitor size={13} /> PC
+              <Monitor size={13} /> PC{summary ? <span className="tabular-nums text-slate-400">{summary.device_split.desktop}</span> : null}
             </button>
             <button onClick={() => setDevice('mobile')} className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md cursor-pointer ${device === 'mobile' ? 'bg-white dark:bg-slate-800 text-[#06C755] shadow-sm' : 'text-slate-500'}`}>
-              <Smartphone size={13} /> スマホ
+              <Smartphone size={13} /> スマホ{summary ? <span className="tabular-nums text-slate-400">{summary.device_split.mobile}</span> : null}
             </button>
           </div>
           <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg p-0.5">

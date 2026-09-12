@@ -128,114 +128,18 @@ function screenshotUrl(sourceCode, device) {
   return `${base}/storage/v1/object/public/${SCREENSHOT_BUCKET}/heatmaps/${encodeURIComponent(sourceCode)}_${device}.jpg`;
 }
 
-// 追跡型(LINE CTA)ボタンの判定: リンク先がLINE / 追跡URL、またはラベルにCTA語を含む
-function isCtaClick(e) {
-  const href = (e.href || '').toLowerCase();
-  if (/line\.me|lin\.ee|liff\.line|\/api\/line-crm\/track\//.test(href)) return true;
-  const txt = (e.el_text || '');
-  return /LINE|ライン|登録|予約|受け取|クーポン|友だち|友達|40%|申し込|エントリー/.test(txt);
-}
-
+// 集計はDB関数 heatmap_summary で行う。
+// PostgRESTは1リクエスト最大1000行のため、生イベントを取得してJSで数えると
+// 古い1000行しか読めず、新しいセッションが反映されなくなる（実際に発生した）。
 async function aggregate(sourceCode, device, days) {
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  let q = supabase.from('heatmap_events')
-    .select('session_id, event_type, device, scroll_pct, x_ratio, y_ratio, el_text, el_selector, href, meta')
-    .eq('source_code', sourceCode)
-    .gte('created_at', since)
-    .limit(40000);
-  if (device === 'desktop' || device === 'mobile') q = q.eq('device', device);
-  const { data: rows } = await q;
-  const ev = rows || [];
-
-  const sessions = new Set();
-  const maxScrollBySession = {};
-  const deviceBySession = {};
-  const clicks = [];
-  const elCount = {};
-  let rageClicks = 0;
-
-  // CTA(追跡型ボタン)
-  const ctaDepths = [];
-  let ctaClicks = 0;
-  const ctaByLabel = {};
-  // 動画エンゲージメント
-  const video = { plays: new Set(), unmutes: new Set(), fullscreens: new Set(), ended: new Set(), reach: { 25: new Set(), 50: new Set(), 75: new Set(), 95: new Set() } };
-
-  for (const e of ev) {
-    if (e.session_id) {
-      sessions.add(e.session_id);
-      if (!deviceBySession[e.session_id]) deviceBySession[e.session_id] = e.device || 'desktop';
-    }
-    if (e.event_type === 'scroll' && e.session_id != null && e.scroll_pct != null) {
-      const cur = maxScrollBySession[e.session_id] || 0;
-      if (e.scroll_pct > cur) maxScrollBySession[e.session_id] = e.scroll_pct;
-    }
-    if (e.event_type === 'click' || e.event_type === 'rageclick') {
-      if (e.x_ratio != null && e.y_ratio != null) clicks.push({ x: e.x_ratio, y: e.y_ratio, rage: e.event_type === 'rageclick' });
-      if (e.event_type === 'rageclick') rageClicks++;
-      const key = (e.el_text && e.el_text.trim()) || e.el_selector || '(不明)';
-      elCount[key] = (elCount[key] || 0) + 1;
-      if (isCtaClick(e)) {
-        ctaClicks++;
-        if (e.scroll_pct != null) ctaDepths.push(e.scroll_pct);
-        ctaByLabel[key] = (ctaByLabel[key] || 0) + 1;
-      }
-    }
-    if (e.event_type === 'video' && e.meta && e.session_id) {
-      const a = e.meta.a;
-      if (a === 'play') video.plays.add(e.session_id);
-      else if (a === 'unmute') video.unmutes.add(e.session_id);
-      else if (a === 'fullscreen') video.fullscreens.add(e.session_id);
-      else if (a === 'ended') { video.ended.add(e.session_id); video.reach[95].add(e.session_id); }
-      else if (a === 'progress' && video.reach[e.meta.pct]) video.reach[e.meta.pct].add(e.session_id);
-    }
-  }
-
-  const sessionIds = Array.from(sessions);
-  const totalSessions = sessionIds.length;
-  const maxScrolls = sessionIds.map((s) => maxScrollBySession[s] || 0);
-  const avgScroll = maxScrolls.length ? maxScrolls.reduce((a, b) => a + b, 0) / maxScrolls.length : 0;
-
-  const funnel = [];
-  for (let d = 10; d <= 100; d += 10) {
-    const count = maxScrolls.filter((v) => v * 100 >= d - 0.001).length;
-    funnel.push({ depth: d, count, pct: totalSessions ? count / totalSessions : 0 });
-  }
-
-  const topElements = Object.entries(elCount)
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 12);
-
-  let desktopS = 0, mobileS = 0;
-  for (const s of sessionIds) { (deviceBySession[s] === 'mobile' ? mobileS++ : desktopS++); }
-
-  const avgCtaDepth = ctaDepths.length ? ctaDepths.reduce((a, b) => a + b, 0) / ctaDepths.length : null;
-  const ctaTopLabels = Object.entries(ctaByLabel).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 5);
-
-  return {
-    sessions: totalSessions,
-    avg_scroll_pct: avgScroll,
-    funnel,
-    clicks: clicks.slice(0, 4000),
-    click_total: clicks.length,
-    top_elements: topElements,
-    rage_clicks: rageClicks,
-    device_split: { desktop: desktopS, mobile: mobileS },
-    cta: {
-      clicks: ctaClicks,
-      avg_scroll_at_click: avgCtaDepth,
-      depths: ctaDepths.slice(0, 500),
-      top_labels: ctaTopLabels,
-    },
-    video: {
-      plays: video.plays.size,
-      unmutes: video.unmutes.size,
-      fullscreens: video.fullscreens.size,
-      completed: video.ended.size,
-      reach: { 25: video.reach[25].size, 50: video.reach[50].size, 75: video.reach[75].size, 95: video.reach[95].size },
-    },
-  };
+  const { data, error } = await supabase.rpc('heatmap_summary', {
+    p_source: sourceCode,
+    p_device: device === 'desktop' || device === 'mobile' ? device : 'all',
+    p_since: since,
+  });
+  if (error) throw new Error('heatmap_summary: ' + error.message);
+  return data;
 }
 
 // GET /summary?source_code=&device=desktop&days=30
