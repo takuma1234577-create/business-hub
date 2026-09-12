@@ -20,6 +20,8 @@ export interface Tag {
   name: string
   color: string
   created_at?: string
+  friend_count?: number
+  active_count?: number
 }
 
 export interface Friend {

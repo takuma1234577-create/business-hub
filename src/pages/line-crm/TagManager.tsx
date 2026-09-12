@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Tag as TagIcon, Plus, Trash2, X, Check } from 'lucide-react'
+import { Tag as TagIcon, Plus, Trash2, X, Check, Users } from 'lucide-react'
 import { tagApi } from './api'
 import type { Tag } from './types'
 
@@ -14,6 +14,12 @@ export default function TagManager() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('')
+  const [sortBy, setSortBy] = useState<'count' | 'created'>('count')
+
+  const sortedTags = sortBy === 'count'
+    ? [...tags].sort((a, b) => (b.friend_count || 0) - (a.friend_count || 0))
+    : tags
+  const maxCount = Math.max(1, ...tags.map(t => t.friend_count || 0))
 
   const fetchTags = useCallback(async () => {
     try {
@@ -61,13 +67,26 @@ export default function TagManager() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-lg bg-[#06C755]/10 flex items-center justify-center">
-          <TagIcon size={20} className="text-[#06C755]" />
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#06C755]/10 flex items-center justify-center">
+            <TagIcon size={20} className="text-[#06C755]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">タグ管理</h2>
+            <p className="text-sm text-slate-500">{tags.length} 件のタグ</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">タグ管理</h2>
-          <p className="text-sm text-slate-500">{tags.length} 件のタグ</p>
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg p-0.5">
+          {([['count', '登録人数順'], ['created', '作成順']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setSortBy(k)}
+              className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer ${sortBy === k ? 'bg-white dark:bg-slate-800 text-[#06C755] shadow-sm' : 'text-slate-500'}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -117,7 +136,7 @@ export default function TagManager() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {tags.map(tag => (
+            {sortedTags.map(tag => (
               <div key={tag.id} className="flex items-center gap-4 px-5 py-3.5">
                 <span
                   className="w-4 h-4 rounded-full flex-shrink-0"
@@ -157,7 +176,22 @@ export default function TagManager() {
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 text-sm font-medium text-slate-900 dark:text-white">{tag.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">{tag.name}</span>
+                    <div className="hidden sm:block w-32 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${((tag.friend_count || 0) / maxCount) * 100}%`, backgroundColor: tag.color || '#06C755' }}
+                      />
+                    </div>
+                    <div className="text-right flex-shrink-0 w-24">
+                      <div className="flex items-center justify-end gap-1 text-sm font-semibold text-slate-900 dark:text-white tabular-nums">
+                        <Users size={13} className="text-slate-400" />
+                        {(tag.friend_count || 0).toLocaleString()}人
+                      </div>
+                      {(tag.friend_count || 0) !== (tag.active_count || 0) && (
+                        <p className="text-[11px] text-slate-400 tabular-nums">配信可 {(tag.active_count || 0).toLocaleString()}人</p>
+                      )}
+                    </div>
                     <button
                       onClick={() => handleDelete(tag.id)}
                       className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 cursor-pointer"

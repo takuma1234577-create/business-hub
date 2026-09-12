@@ -630,7 +630,17 @@ router.get('/tags', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    return res.json(data);
+    // タグごとの登録人数（total=付与済み全員 / active=ブロック・解除を除く配信可能な人数）
+    const counts = {};
+    const { data: countRows, error: countErr } = await supabase.rpc('tag_friend_counts', { p_channel: channelId });
+    if (countErr) console.error('GET /tags count error:', countErr.message);
+    for (const r of countRows || []) counts[r.tag_id] = r;
+
+    return res.json((data || []).map((t) => ({
+      ...t,
+      friend_count: Number(counts[t.id]?.total || 0),
+      active_count: Number(counts[t.id]?.active || 0),
+    })));
   } catch (err) {
     console.error('GET /tags error:', err);
     return res.status(500).json({ error: 'Internal server error' });
