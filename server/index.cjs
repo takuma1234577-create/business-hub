@@ -75,6 +75,10 @@ app.use('/api/public/subscription', cors(), subscriptionModule.publicRouter);
 const giftingModule = require(path.join(__dirname, 'gifting.cjs'));
 app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
 
+// 商品在庫管理: たお太郎 担当者向け（キー付きURL・認証不要）
+const inventoryModule = require(path.join(__dirname, 'inventory.cjs'));
+app.use('/api/public/inventory', cors(), inventoryModule.publicRouter);
+
 // eBay アカウント削除通知（認証不要）。
 // eBayが直接叩くので認証ミドルウェアより前に置く必要がある。
 // これが応答しないとProductionキーセットが有効にならない。
@@ -119,6 +123,7 @@ const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verif
 const giftingRoutes = require(path.join(__dirname, 'gifting.cjs'));
 const ebayManagerRoutes = require(path.join(__dirname, 'ebay-manager.cjs'));
 const imageDownloaderRoutes = require(path.join(__dirname, 'image-downloader.cjs'));
+const inventoryRoutes = require(path.join(__dirname, 'inventory.cjs'));
 
 // Mount each tool at its prefix
 app.use('/api/invoice', invoiceRoutes);
@@ -148,6 +153,7 @@ app.use('/api/fitpeak-sns', fitpeakSnsRoutes);
 app.use('/api/sales-agent', salesAgentRoutes);
 app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
+app.use('/api/inventory', inventoryRoutes);
 app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/image-downloader', imageDownloaderRoutes);
 app.use('/api/subscription', subscriptionModule);
@@ -209,6 +215,8 @@ app.get('/api/daily-cron', async (req, res) => {
     // eBay無在庫: 仕入先の在庫追従（消えたら即取り下げ）と利益ウォッチ。cronは10分間隔
     ebayStockCheck:      '/api/ebay/cron/stock-check',
     ebayProfitWatch:     '/api/ebay/cron/profit-watch',
+    // 商品在庫管理: Amazon在庫スナップショット（1日1回）＋売上レポート取り込み（毎回）
+    inventory:           '/api/inventory/cron',
     // 定期購入: 課金予定の実行・失敗リトライ・配達完了フォールバック
     // （settings.billing.cron_enabled が false の間は何もしない）
     subscription:        '/api/subscription/cron',

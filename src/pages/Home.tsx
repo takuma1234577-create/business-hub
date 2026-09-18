@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   Globe,
   Images,
+  Repeat,
+  Boxes,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -129,6 +131,26 @@ const tools: Tool[] = [
       { label: 'レビューリクエスト', path: '/amazon-analytics' },
       { label: 'レビュー監視', path: '/amazon-analytics' },
     ],
+  },
+  {
+    id: 'inventory',
+    name: '商品在庫管理',
+    description: 'Amazon FBA在庫（SP-API自動取得）とたお太郎側の生産・検品・輸送中在庫、資材を一元管理。発注タイミングと推奨発注数を自動判定し、二重発注を防止。',
+    icon: <Boxes size={28} />,
+    path: '/inventory',
+    color: 'text-teal-600 dark:text-teal-400',
+    bgColor: 'bg-teal-50 dark:bg-teal-950/50',
+    status: 'active',
+  },
+  {
+    id: 'subscription',
+    name: '定期購入（サブスク）',
+    description: '到着日を起点に次回課金を組み立てる定期購入。予約販売にも対応。スキップ・解約・継続率分析まで一元管理。',
+    icon: <Repeat size={28} />,
+    path: '/subscription',
+    color: 'text-rose-600 dark:text-rose-400',
+    bgColor: 'bg-rose-50 dark:bg-rose-950/50',
+    status: 'active',
   },
   {
     id: 'shopify-reviews',

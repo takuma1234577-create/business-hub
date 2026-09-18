@@ -16,6 +16,9 @@ import EbayManager from './pages/EbayManager'
 import ReviewForm from './pages/ReviewForm'
 import GiftAddressForm from './pages/GiftAddressForm'
 import ImageDownloader from './pages/ImageDownloader'
+import Subscription from './pages/Subscription'
+import Inventory from './pages/Inventory'
+import InventoryPartner from './pages/InventoryPartner'
 import Login from './pages/Login'
 
 // 全fetchリクエストに認証トークンを自動付与
@@ -38,9 +41,10 @@ function App() {
   const [auth, setAuth] = useState<'loading' | 'ok' | 'login'>('loading')
   const isPublicForm = window.location.pathname === '/review-form'
   const isGiftForm = window.location.pathname === '/gift-address'
+  const isInventoryPartner = window.location.pathname === '/inventory-partner'
 
   useEffect(() => {
-    if (isPublicForm || isGiftForm) return
+    if (isPublicForm || isGiftForm || isInventoryPartner) return
     const token = localStorage.getItem('auth_token')
     if (!token) { setAuth('login'); return }
 
@@ -60,6 +64,11 @@ function App() {
   // インフルエンサー向け住所入力フォーム（認証不要）
   if (isGiftForm) {
     return <GiftAddressForm />
+  }
+
+  // たお太郎 担当者向け在庫更新ページ（キー付きURL・認証不要）
+  if (isInventoryPartner) {
+    return <InventoryPartner />
   }
 
   if (auth === 'loading') {
@@ -90,6 +99,8 @@ function App() {
       <Route path="/gifting" element={<Gifting />} />
       <Route path="/ebay" element={<EbayManager />} />
       <Route path="/image-downloader" element={<ImageDownloader />} />
+      <Route path="/subscription" element={<Subscription />} />
+      <Route path="/inventory" element={<Inventory />} />
     </Routes>
   )
 }
