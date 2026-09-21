@@ -11,7 +11,7 @@
  *
  * フォールバック: PC・Login失敗・キャンセル・未追加 → 従来の友だち追加URL（line.me/R/ti/p/@…）へ
  *
- * 環境変数:
+ * 設定（Business-hubの「API設定」から入力。環境変数はフォールバック）:
  *   LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET  LINE Developers の「LINEログイン」チャネル
  *   PUBLIC_BASE_URL                                  既定 https://business-hub-beige.vercel.app
  */
@@ -32,8 +32,17 @@ function baseUrl() {
 function callbackUrl() {
   return `${baseUrl()}/api/line-crm/line-login/callback`;
 }
-function loginConfigured() {
-  return !!(process.env.LINE_LOGIN_CHANNEL_ID && process.env.LINE_LOGIN_CHANNEL_SECRET);
+// LINE Loginチャネルの認証情報: Business-hubの「API設定」優先、無ければ環境変数
+async function getLoginConfig() {
+  let getActiveApiKey = null;
+  try { ({ getActiveApiKey } = require('./settings.cjs')); } catch {}
+  const pick = async (id, envVar) => {
+    if (getActiveApiKey) { try { const v = await getActiveApiKey(id); if (v) return String(v).trim(); } catch {} }
+    return process.env[envVar] || null;
+  };
+  const channelId = await pick('line_login_channel_id', 'LINE_LOGIN_CHANNEL_ID');
+  const channelSecret = await pick('line_login_channel_secret', 'LINE_LOGIN_CHANNEL_SECRET');
+  return { channelId, channelSecret, configured: !!(channelId && channelSecret) };
 }
 function isMobile(ua) {
   return /iPhone|iPad|iPod|Android/i.test(ua || '');
@@ -121,13 +130,14 @@ router.get('/go/:code', async (req, res) => {
       .then(() => {}, () => {});
 
     // PC / 未設定 → 従来の友だち追加URL（QRが出る）
-    if (!loginConfigured() || !isMobile(ua)) {
+    const login = await getLoginConfig();
+    if (!login.configured || !isMobile(ua)) {
       return res.redirect(addFriendUrl(basicId));
     }
 
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: process.env.LINE_LOGIN_CHANNEL_ID,
+      client_id: login.channelId,
       redirect_uri: callbackUrl(),
       state: row.click_id,
       scope: 'profile openid',
@@ -164,7 +174,8 @@ router.get('/line-login/callback', async (req, res) => {
     basicId = await resolveBasicId(channelId);
 
     // キャンセル・エラー → 従来URLへ
-    if (error || !code || !loginConfigured()) {
+    const login = await getLoginConfig();
+    if (error || !code || !login.configured) {
       return res.redirect(addFriendUrl(basicId));
     }
 
@@ -176,8 +187,8 @@ router.get('/line-login/callback', async (req, res) => {
         grant_type: 'authorization_code',
         code: String(code),
         redirect_uri: callbackUrl(),
-        client_id: process.env.LINE_LOGIN_CHANNEL_ID,
-        client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET,
+        client_id: login.channelId,
+        client_secret: login.channelSecret,
       }),
     });
     if (!tokenResp.ok) {
@@ -291,12 +302,14 @@ router.get('/line-login/callback', async (req, res) => {
 });
 
 // ── GET /line-login/status  設定状態（ダッシュボード用） ───────────────────────
-router.get('/line-login/status', (_req, res) => {
+router.get('/line-login/status', async (_req, res) => {
+  const login = await getLoginConfig();
+  const c = await capi.getConfig();
   res.json({
-    login_configured: loginConfigured(),
-    capi_configured: capi.isConfigured(),
-    capi_event_name: capi.eventName(),
-    capi_test_mode: !!process.env.META_CAPI_TEST_CODE,
+    login_configured: login.configured,
+    capi_configured: !!(c.pixelId && c.token),
+    capi_event_name: c.eventName,
+    capi_test_mode: !!c.testCode,
     callback_url: callbackUrl(),
   });
 });

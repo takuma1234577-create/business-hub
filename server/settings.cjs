@@ -679,6 +679,18 @@ const API_KEY_SERVICES = [
   // トークン交換時の redirect_uri にもこの文字列を渡す必要がある
   { id: 'ebay_runame', label: 'eBay RuName（リダイレクトURL名）', envVar: 'EBAY_RUNAME', placeholder: 'Tatsuma_Ura-TakumaUr-APIdev-xxxxxx' },
   { id: 'ebay_env', label: 'eBay 環境（sandbox / production）', envVar: 'EBAY_ENV', placeholder: 'production' },
+
+  // LINE Login（LPのCTA→許可1タップで友だち追加）。LINE Developersの「LINEログイン」チャネル。
+  // Messaging API（FITPEAK）と同じプロバイダーで作成し、コールバックURLに
+  // https://business-hub-beige.vercel.app/api/line-crm/line-login/callback を登録する。
+  { id: 'line_login_channel_id', label: 'LINEログイン チャネルID', envVar: 'LINE_LOGIN_CHANNEL_ID', placeholder: '1234567890' },
+  { id: 'line_login_channel_secret', label: 'LINEログイン チャネルシークレット', envVar: 'LINE_LOGIN_CHANNEL_SECRET', placeholder: '32文字の英数字' },
+
+  // Meta Conversions API（LINE友だち追加を「登録完了」としてMetaに送り返す）
+  { id: 'meta_pixel_id', label: 'Meta ピクセルID（Fitpeak\'s pixel）', envVar: 'META_PIXEL_ID', placeholder: '1066935279150670' },
+  { id: 'meta_capi_access_token', label: 'Meta コンバージョンAPI アクセストークン', envVar: 'META_CAPI_ACCESS_TOKEN', placeholder: 'EAA...' },
+  { id: 'meta_capi_test_code', label: 'Meta テストイベントコード（テスト中のみ。本番切替後は削除）', envVar: 'META_CAPI_TEST_CODE', placeholder: 'TEST12345' },
+  { id: 'meta_capi_event_name', label: 'Meta CAPI 送信イベント名（既定 CompleteRegistration）', envVar: 'META_CAPI_EVENT_NAME', placeholder: 'CompleteRegistration' },
 ];
 
 // APIキーの暗号化（簡易 - 環境変数のマスターキーで暗号化）

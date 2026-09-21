@@ -5,7 +5,7 @@
  *       広告セットの最適化イベント（登録完了）と一致させ、Metaに「ボタンを押す人」ではなく
  *       「LINEを追加する人」を探させる。
  *
- * 環境変数:
+ * 設定（Business-hubの「API設定」から入力。環境変数はフォールバック）:
  *   META_PIXEL_ID            イベントマネージャの「Fitpeak's pixel」のID
  *   META_CAPI_ACCESS_TOKEN   イベントマネージャ → 設定 → コンバージョンAPI → アクセストークン
  *   META_CAPI_TEST_CODE      テスト中のみ（イベントマネージャ「テストイベント」のコード）
@@ -17,6 +17,22 @@ const { getSupabase } = require('./shared.cjs');
 
 const GRAPH_VERSION = 'v21.0';
 
+// 設定はBusiness-hubの「API設定」（api_keysテーブル・暗号化）優先、無ければ環境変数
+async function getConfig() {
+  let getActiveApiKey = null;
+  try { ({ getActiveApiKey } = require('./settings.cjs')); } catch {}
+  const pick = async (id, envVar) => {
+    if (getActiveApiKey) { try { const v = await getActiveApiKey(id); if (v) return String(v).trim(); } catch {} }
+    return process.env[envVar] || null;
+  };
+  return {
+    pixelId: await pick('meta_pixel_id', 'META_PIXEL_ID'),
+    token: await pick('meta_capi_access_token', 'META_CAPI_ACCESS_TOKEN'),
+    testCode: await pick('meta_capi_test_code', 'META_CAPI_TEST_CODE'),
+    eventName: (await pick('meta_capi_event_name', 'META_CAPI_EVENT_NAME')) || 'CompleteRegistration',
+  };
+}
+
 function sha256(v) {
   if (v === undefined || v === null) return null;
   const s = String(v).trim().toLowerCase();
@@ -24,12 +40,13 @@ function sha256(v) {
   return crypto.createHash('sha256').update(s).digest('hex');
 }
 
-function isConfigured() {
-  return !!(process.env.META_PIXEL_ID && process.env.META_CAPI_ACCESS_TOKEN);
+async function isConfigured() {
+  const c = await getConfig();
+  return !!(c.pixelId && c.token);
 }
 
-function eventName() {
-  return process.env.META_CAPI_EVENT_NAME || 'CompleteRegistration';
+async function eventName() {
+  return (await getConfig()).eventName;
 }
 
 // fbclid → fbc（fb.1.<クリック時刻ms>.<fbclid>）。fbc Cookie があればそちら優先
@@ -47,10 +64,11 @@ function buildFbc({ fbc, fbclid, clickedAt }) {
  * 戻り値: { ok: boolean, status: string, response?: any }
  */
 async function sendConversionForClick(click, opts = {}) {
-  if (!isConfigured()) return { ok: false, status: 'not_configured' };
+  const cfg = await getConfig();
+  if (!cfg.pixelId || !cfg.token) return { ok: false, status: 'not_configured' };
   if (!click || !click.converted_at) return { ok: false, status: 'not_converted' };
 
-  const name = opts.eventName || click.capi_event_name || eventName();
+  const name = opts.eventName || click.capi_event_name || cfg.eventName;
   const userData = {};
   const fbc = buildFbc({ fbc: click.fbc, fbclid: click.fbclid, clickedAt: click.created_at });
   if (fbc) userData.fbc = fbc;
@@ -75,9 +93,9 @@ async function sendConversionForClick(click, opts = {}) {
   };
 
   const body = { data: [event] };
-  if (process.env.META_CAPI_TEST_CODE) body.test_event_code = process.env.META_CAPI_TEST_CODE;
+  if (cfg.testCode) body.test_event_code = cfg.testCode;
 
-  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${process.env.META_PIXEL_ID}/events?access_token=${encodeURIComponent(process.env.META_CAPI_ACCESS_TOKEN)}`;
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${cfg.pixelId}/events?access_token=${encodeURIComponent(cfg.token)}`;
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -115,7 +133,7 @@ async function sendAndRecord(clickId, opts = {}) {
 
   const result = await sendConversionForClick({ ...click, source_name: sourceName }, opts);
   await supabase.from('traffic_clicks').update({
-    capi_event_name: opts.eventName || click.capi_event_name || eventName(),
+    capi_event_name: opts.eventName || click.capi_event_name || (await eventName()),
     capi_attempts: (click.capi_attempts || 0) + 1,
     capi_status: result.status,
     ...(result.ok ? { capi_sent_at: new Date().toISOString() } : {}),
@@ -128,7 +146,7 @@ async function sendAndRecord(clickId, opts = {}) {
  * 未送信（converted済み・capi_sent_at なし・試行5回未満）を再送。cronから呼ぶ。
  */
 async function retryPending(limit = 50) {
-  if (!isConfigured()) return { sent: 0, failed: 0, skipped: 'not_configured' };
+  if (!(await isConfigured())) return { sent: 0, failed: 0, skipped: 'not_configured' };
   const supabase = getSupabase();
   const { data: rows } = await supabase
     .from('traffic_clicks')
@@ -146,4 +164,4 @@ async function retryPending(limit = 50) {
   return { sent, failed };
 }
 
-module.exports = { isConfigured, eventName, buildFbc, sendConversionForClick, sendAndRecord, retryPending };
+module.exports = { getConfig, isConfigured, eventName, buildFbc, sendConversionForClick, sendAndRecord, retryPending };
