@@ -98,6 +98,7 @@ const invoiceRoutes = require(path.join(__dirname, 'invoice.cjs'));
 const tasksRoutes = require(path.join(__dirname, 'tasks.cjs'));
 const amazonRoutes = require(path.join(__dirname, 'amazon.cjs'));
 const lineCrmRoutes = require(path.join(__dirname, 'line-crm.cjs'));
+const lineLoginRoutes = require(path.join(__dirname, 'line-login.cjs'));
 const heatmapRoutes = require(path.join(__dirname, 'heatmap.cjs'));
 const accountingRoutes = require(path.join(__dirname, 'accounting.cjs'));
 const accountingCoreRoutes = require(path.join(__dirname, 'accounting-core.cjs'));
@@ -130,6 +131,7 @@ app.use('/api/invoice', invoiceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm/heatmap', heatmapRoutes);
+app.use('/api/line-crm', lineLoginRoutes); // LINE Login経由の友だち追加・Meta CAPI・広告別集計（line-crm より先にマウント）
 app.use('/api/line-crm', lineCrmRoutes);
 app.use('/api/my-fitpeak', myFitpeakRoutes);
 app.use('/api/consulting', amazonConsultingRoutes);
@@ -220,6 +222,8 @@ app.get('/api/daily-cron', async (req, res) => {
     // 定期購入: 課金予定の実行・失敗リトライ・配達完了フォールバック
     // （settings.billing.cron_enabled が false の間は何もしない）
     subscription:        '/api/subscription/cron',
+    // LINE Login→友だち追加のMeta CAPI未送信分を再送
+    capiRetry:           '/api/line-crm/line-login/capi/retry',
     dailyBackup:         '/api/backup/run',
   };
 

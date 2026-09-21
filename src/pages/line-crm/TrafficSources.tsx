@@ -126,6 +126,14 @@ export default function TrafficSources() {
   }
 
   const getTrackUrl = (code: string) => `${baseUrl}/api/line-crm/track/${code}`
+  // LP用: LINE Login（許可1タップで友だち追加）＋クリック単位の広告ひもづけ
+  const getLoginUrl = (code: string) => `${baseUrl}/api/line-crm/go/${code}`
+  const [copiedLoginId, setCopiedLoginId] = useState<string | null>(null)
+  const copyLoginUrl = (source: TrafficSource) => {
+    navigator.clipboard.writeText(getLoginUrl(source.code))
+    setCopiedLoginId(source.id)
+    setTimeout(() => setCopiedLoginId(null), 2000)
+  }
 
   const copyUrl = (source: TrafficSource) => {
     navigator.clipboard.writeText(getTrackUrl(source.code))
@@ -275,6 +283,9 @@ export default function TrafficSources() {
         </div>
       )}
 
+      {/* 広告別の実追加（LINE Login経由・クリック単位で確定） */}
+      {sources.length > 0 && <AdStatsPanel days={days} />}
+
       {/* Source List */}
       <div className="space-y-3">
         {loading ? (
@@ -338,6 +349,19 @@ export default function TrafficSources() {
                       title="QRコード表示"
                     >
                       <QrCode size={16} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] font-medium text-[#06C755] whitespace-nowrap">LP用（LINEログイン）</span>
+                    <code className="flex-1 text-xs bg-[#06C755]/5 dark:bg-slate-900 border border-[#06C755]/30 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 truncate">
+                      {getLoginUrl(source.code)}
+                    </code>
+                    <button
+                      onClick={() => copyLoginUrl(source)}
+                      className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors cursor-pointer"
+                      title="LP用URLをコピー（広告のfbclid・utmを引き継いでLINE Loginへ）"
+                    >
+                      {copiedLoginId === source.id ? <Check size={16} className="text-[#06C755]" /> : <Copy size={16} />}
                     </button>
                   </div>
                 </div>
@@ -647,6 +671,128 @@ function DailyBarChart({ data }: { data: { date: string; clicks: number; friends
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#06C755]" />友だち {hd.friends}</div>
           <div className="flex items-center gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-sm bg-sky-300" />クリック {hd.clicks}</div>
           <div className="text-slate-300 mt-1 pt-1 border-t border-white/15">CVR {hoverCvr}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── 広告別の実追加（utm_content=広告ID 単位）───────────────────────────────
+interface AdRow {
+  ad_id: string; ad_name: string | null; campaign_id: string; adset_id: string | null; source: string | null
+  clicks: number; friends: number; capi_sent: number; spend: number; add_rate: number; cpa: number | null
+}
+interface AdStats {
+  days: number
+  ads: AdRow[]
+  campaigns: { campaign_id: string; clicks: number; friends: number; add_rate: number }[]
+  totals: { clicks: number; friends: number; spend: number; cpa: number | null }
+}
+interface LoginStatus { login_configured: boolean; capi_configured: boolean; capi_event_name: string; capi_test_mode: boolean; callback_url: string }
+
+function AdStatsPanel({ days }: { days: number }) {
+  const [stats, setStats] = useState<AdStats | null>(null)
+  const [status, setStatus] = useState<LoginStatus | null>(null)
+  const [spendText, setSpendText] = useState('')
+  const [spendMsg, setSpendMsg] = useState<string | null>(null)
+  const [showSpend, setShowSpend] = useState(false)
+
+  const load = useCallback(() => {
+    fetch(`/api/line-crm/traffic-sources/ads?days=${days}&channel_id=${getChannelId()}`)
+      .then(r => (r.ok ? r.json() : null)).then(d => setStats(d)).catch(() => {})
+  }, [days])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    fetch('/api/line-crm/line-login/status').then(r => (r.ok ? r.json() : null)).then(d => setStatus(d)).catch(() => {})
+  }, [])
+
+  const submitSpend = async () => {
+    // 1行1件: 広告ID,日付(YYYY-MM-DD),金額[,広告名]
+    const items = spendText.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+      const [ad_id, spend_date, spend, ...rest] = l.split(/[,\t]/).map(x => x.trim())
+      return { ad_id, spend_date, spend: Number(String(spend || '0').replace(/[¥,]/g, '')), ad_name: rest.join(',') || undefined }
+    }).filter(it => it.ad_id && /^\d{4}-\d{2}-\d{2}$/.test(it.spend_date || ''))
+    if (!items.length) { setSpendMsg('形式: 広告ID,日付(YYYY-MM-DD),金額'); return }
+    const res = await fetch('/api/line-crm/ad-spend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) })
+    if (res.ok) { setSpendMsg(`${items.length}件を保存しました`); setSpendText(''); load() } else { setSpendMsg('保存に失敗しました') }
+  }
+
+  const badge = (ok: boolean, label: string) => (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ok ? 'bg-[#06C755]/10 text-[#06C755]' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}`}>{label}{ok ? '：設定済' : '：未設定'}</span>
+  )
+
+  return (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-6">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">広告別の実追加（LINEログイン経由）</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Metaの「リード」ではなく、実際に友だち追加した人数と実CPAで広告を判断する。直近{days}日</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 justify-end">
+          {status && badge(status.login_configured, 'LINEログイン')}
+          {status && badge(status.capi_configured, `Meta CAPI（${status.capi_event_name}${status.capi_test_mode ? '・テスト中' : ''}）`)}
+        </div>
+      </div>
+
+      {stats && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3 text-xs text-slate-500">
+          <span>クリック <b className="text-slate-800 dark:text-slate-200 tabular-nums">{stats.totals.clicks.toLocaleString()}</b></span>
+          <span>実追加 <b className="text-[#06C755] tabular-nums">{stats.totals.friends.toLocaleString()}</b></span>
+          <span>追加率 <b className="text-slate-800 dark:text-slate-200 tabular-nums">{stats.totals.clicks ? ((stats.totals.friends / stats.totals.clicks) * 100).toFixed(1) + '%' : '-'}</b></span>
+          <span>広告費 <b className="text-slate-800 dark:text-slate-200 tabular-nums">¥{Math.round(stats.totals.spend).toLocaleString()}</b></span>
+          <span>実CPA <b className="text-slate-800 dark:text-slate-200 tabular-nums">{stats.totals.cpa != null ? `¥${stats.totals.cpa.toLocaleString()}` : '-'}</b></span>
+          <button onClick={() => setShowSpend(v => !v)} className="ml-auto text-[#06C755] hover:underline cursor-pointer">広告費を入力</button>
+        </div>
+      )}
+
+      {showSpend && (
+        <div className="mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <p className="text-xs text-slate-500 mb-2">1行1件で「広告ID,日付(YYYY-MM-DD),金額[,広告名]」。広告マネージャの広告IDは utm_content と同じ値。</p>
+          <textarea value={spendText} onChange={e => setSpendText(e.target.value)} rows={4} placeholder="120252392261640787,2026-09-21,1500,想像以上の爽やかさ" className="w-full text-xs font-mono rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-700 dark:text-slate-200" />
+          <div className="flex items-center gap-3 mt-2">
+            <button onClick={submitSpend} className="px-3 py-1.5 rounded-lg bg-[#06C755] text-white text-xs font-medium cursor-pointer">保存</button>
+            {spendMsg && <span className="text-xs text-slate-500">{spendMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      {!stats || stats.ads.length === 0 ? (
+        <p className="text-xs text-slate-400 py-6 text-center">まだデータがありません。LPのCTAを「LP用（LINEログイン）」URLに差し替え、広告のURLパラメータに utm_content={'{{ad.id}}'} を付けると集計されます。</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 border-b border-slate-100 dark:border-slate-700">
+                <th className="text-left py-2 pr-3 font-medium">広告ID / 名前</th>
+                <th className="text-left py-2 pr-3 font-medium">キャンペーン</th>
+                <th className="text-right py-2 pr-3 font-medium">クリック</th>
+                <th className="text-right py-2 pr-3 font-medium">実追加</th>
+                <th className="text-right py-2 pr-3 font-medium">追加率</th>
+                <th className="text-right py-2 pr-3 font-medium">広告費</th>
+                <th className="text-right py-2 pr-3 font-medium">実CPA</th>
+                <th className="text-right py-2 font-medium">CAPI送信</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.ads.map(a => (
+                <tr key={a.ad_id} className="border-b border-slate-50 dark:border-slate-700/50">
+                  <td className="py-2 pr-3">
+                    <div className="font-mono text-slate-700 dark:text-slate-300">{a.ad_id}</div>
+                    {a.ad_name && <div className="text-slate-400 truncate max-w-[220px]">{a.ad_name}</div>}
+                  </td>
+                  <td className="py-2 pr-3 font-mono text-slate-500 truncate max-w-[160px]">{a.campaign_id}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{a.clicks}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums font-semibold text-[#06C755]">{a.friends}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{a.add_rate}%</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{a.spend ? `¥${Math.round(a.spend).toLocaleString()}` : '-'}</td>
+                  <td className={`py-2 pr-3 text-right tabular-nums font-semibold ${a.cpa != null && a.cpa > 700 ? 'text-red-500' : 'text-slate-800 dark:text-slate-200'}`}>{a.cpa != null ? `¥${a.cpa.toLocaleString()}` : '-'}</td>
+                  <td className="py-2 text-right tabular-nums text-slate-500">{a.capi_sent}/{a.friends}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

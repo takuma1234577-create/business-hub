@@ -1,0 +1,22 @@
+{% comment %}
+  Shopify 通知「注文確認」メールに貼る部分（クレアショットの定期購入が含まれる注文だけ表示）
+  貼る場所: 設定 → 通知 → 注文確認 → HTMLの「{{ order_name }}」の下あたり
+{% endcomment %}
+{% assign has_creashot = false %}
+{% for line in subtotal_line_items %}
+  {% if line.product.id == 8556618743943 %}{% assign has_creashot = true %}{% endif %}
+{% endfor %}
+{% if has_creashot %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;border:2px solid #B8CE0C;border-radius:12px;background:#f5f8ec;">
+  <tr><td style="padding:20px;font-family:'Hiragino Sans','Noto Sans JP',Meiryo,sans-serif;color:#1a1a1a;">
+    <p style="margin:0 0 6px;font-size:16px;font-weight:bold;">クレアショットの定期購入、ありがとうございます。</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#444;">次の2ステップで、お届け日の調整・休会・毎日の「飲むタイミング通知」が使えるようになります（合計1分）。</p>
+    <p style="margin:0 0 6px;font-size:14px;font-weight:bold;">① FITPEAK公式LINEを友だち追加</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#444;">追加後、メニューの「会員登録」からご注文時のメールアドレス（{{ customer.email }}）を入力してください。</p>
+    <a href="https://line.me/R/ti/p/@956iyppc" style="display:inline-block;padding:12px 20px;background:#06C755;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px;">公式LINEを友だち追加</a>
+    <p style="margin:18px 0 6px;font-size:14px;font-weight:bold;">② My FITPEAK でクレアショットを管理</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#444;">残りの本数を入れるだけで、飲み切る日に次の袋が届くよう調整できます。</p>
+    <a href="https://my.fitpeak.co/creashot" style="display:inline-block;padding:12px 20px;background:#3F9403;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px;">My FITPEAK を開く</a>
+  </td></tr>
+</table>
+{% endif %}

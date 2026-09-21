@@ -331,6 +331,8 @@ function authMiddleware(req, res, next) {
     '/api/daily-cron',
     '/api/line-crm/webhook',
     '/api/line-crm/track/',
+    '/api/line-crm/go/',
+    '/api/line-crm/line-login/',
     '/api/line-crm/heatmap/hm.js',
     '/api/line-crm/heatmap/collect',
     '/api/line-crm/public/',

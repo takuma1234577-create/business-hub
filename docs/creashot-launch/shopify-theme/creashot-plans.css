@@ -1,0 +1,130 @@
+/* クレアショット 定期プラン選択フォーム  2026-09-16 */
+  .csp-section { margin: 0 !important; padding: 0 !important; }
+  .csp {
+    font-family: "Noto Sans JP", "Hiragino Sans", "ヒラギノ角ゴシック", "Yu Gothic", Meiryo, sans-serif;
+    background: #f5f8ec;
+    color: #1a1a1a;
+    line-height: 1.6;
+  }
+  .csp__inner { max-width: 640px; margin: 0 auto; padding: 32px 16px 120px; box-sizing: border-box; }
+  @media (min-width: 750px) { .csp__inner { padding-bottom: 80px; } }
+  .csp__head { text-align: center; margin-bottom: 18px; }
+  .csp__eyebrow { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .12em; color: #3F9403; }
+  .csp__title { font-size: clamp(24px, 6.5vw, 32px); font-weight: 900; margin: 6px 0 8px; letter-spacing: -.02em; }
+  .csp__lead { margin: 0; font-size: 14px; color: #444; }
+
+  .csp__preorder {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px;
+    background: #fff; border: 2px solid #B8CE0C; border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; text-align: center;
+  }
+  .csp__preorder-label { font-size: 11px; font-weight: 800; color: #fff; background: #3F9403; padding: 2px 10px; border-radius: 999px; }
+  .csp__preorder-date { font-size: 16px; font-weight: 900; color: #1a1a1a; }
+  .csp__preorder-sub { flex-basis: 100%; font-size: 12px; color: #666; }
+
+  .csp__form { background: #fff; border-radius: 16px; padding: 20px 16px 22px; box-shadow: 0 8px 30px rgba(63,148,3,.10); }
+  .csp__step { margin-bottom: 20px; }
+  .csp__step-label { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; margin-bottom: 10px; }
+  .csp__num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #B8CE0C; color: #1a1a1a; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+
+  .csp__seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .csp__seg-item input { position: absolute; opacity: 0; pointer-events: none; }
+  .csp__seg-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 12px 8px; border: 2px solid #e2e6d4; border-radius: 12px; background: #fafbf5; cursor: pointer; text-align: center; transition: .15s; min-height: 62px; }
+  .csp__seg-btn strong { font-size: 16px; font-weight: 900; }
+  .csp__seg-btn small { font-size: 11px; color: #666; line-height: 1.3; }
+  .csp__seg-item input:checked + .csp__seg-btn { border-color: #3F9403; background: #eef7dd; box-shadow: 0 0 0 3px rgba(184,206,12,.35); }
+  .csp__seg-item input:checked + .csp__seg-btn strong { color: #2d6f02; }
+
+  .csp__cards { display: flex; flex-direction: column; gap: 12px; }
+  .csp__card { position: relative; display: block; border: 2px solid #e2e6d4; border-radius: 14px; background: #fff; padding: 16px 14px 14px; cursor: pointer; transition: .15s; }
+  .csp__card input { position: absolute; opacity: 0; pointer-events: none; }
+  .csp__card.is-selected { border-color: #3F9403; background: #f3f9e6; box-shadow: 0 0 0 3px rgba(184,206,12,.35); }
+  .csp__card--hero { border-color: #B8CE0C; }
+  .csp__badge { position: absolute; top: -11px; left: 12px; font-size: 11px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: #B8CE0C; color: #1a1a1a; white-space: nowrap; }
+  .csp__badge--best { background: #ff8c00; color: #fff; }
+  .csp__card-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-right: 34px; }
+  .csp__card-name { font-size: 17px; font-weight: 900; }
+  .csp__card-bags { font-size: 12px; color: #555; font-weight: 600; background: #f0f2e6; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+  .csp__card-price { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .csp__card-price strong { font-size: 24px; font-weight: 900; letter-spacing: -.02em; }
+  .csp__card-price s { font-size: 13px; color: #999; }
+  .csp__card-price em { font-style: normal; font-size: 11px; color: #777; }
+  .csp__card-unit { margin-top: 4px; font-size: 13px; color: #2d6f02; font-weight: 800; }
+  .csp__card-unit small { font-weight: 600; color: #666; }
+  .csp__card-free { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; color: #d32f2f; background: #ffeaea; padding: 1px 8px; border-radius: 6px; }
+  .csp__card-note { margin-top: 6px; font-size: 12px; color: #666; }
+  .csp__card-radio { position: absolute; right: 14px; top: 16px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #cfd6bd; background: #fff; }
+  .csp__card.is-selected .csp__card-radio { border-color: #3F9403; background: radial-gradient(circle, #3F9403 0 45%, #fff 50%); }
+
+  .csp__step--efo { background: #fafcf3; border: 1px solid #e2e6d4; border-radius: 14px; padding: 16px 12px 6px; }
+  .csp__progress { margin-left: auto; font-size: 12px; font-weight: 700; color: #3F9403; background: #eef7dd; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+  .csp__efo-lead { margin: -4px 0 14px; font-size: 12.5px; color: #555; }
+  .csp__field { margin-bottom: 14px; }
+  .csp__row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .csp__label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 800; color: #333; margin-bottom: 6px; }
+  .csp__req { font-size: 10px; font-weight: 800; color: #fff; background: #d32f2f; padding: 1px 6px; border-radius: 4px; }
+  .csp__input-wrap { position: relative; }
+  .csp__input { width: 100%; box-sizing: border-box; min-height: 54px; padding: 14px 44px 14px 14px; border: 2px solid #d9dec9; border-radius: 12px; font-size: 16px; font-family: inherit; background: #fff; outline: none; -webkit-appearance: none; transition: border-color .15s, box-shadow .15s; }
+  .csp__input:focus { border-color: #3F9403; box-shadow: 0 0 0 4px rgba(184,206,12,.3); }
+  .csp__field.is-valid .csp__input { border-color: #3F9403; }
+  .csp__field.is-invalid .csp__input { border-color: #d32f2f; background: #fff8f8; }
+  .csp__select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23666' stroke-width='2' fill='none'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 44px center; }
+  .csp__ok { position: absolute; right: 14px; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; background: #3F9403; display: none; }
+  .csp__ok::after { content: ""; position: absolute; left: 8px; top: 4px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+  .csp__field.is-valid .csp__ok { display: block; }
+  .csp__hint { margin: 5px 0 0; font-size: 11.5px; color: #777; }
+  .csp__err { display: none; margin: 5px 0 0; font-size: 12.5px; font-weight: 700; color: #d32f2f; }
+  .csp__field.is-invalid .csp__err { display: block; }
+  .csp__field.is-invalid .csp__hint { display: none; }
+  .csp__zip-status { position: absolute; right: 44px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #3F9403; font-weight: 700; }
+  .csp__pay { background: #fff; border: 2px solid #e2e6d4; border-radius: 12px; padding: 14px; }
+  .csp__pay-brands { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .csp__pay-brands span { font-size: 11px; font-weight: 800; color: #555; background: #f0f2e6; padding: 3px 9px; border-radius: 6px; }
+  .csp__pay-text { margin: 0; font-size: 12.5px; color: #444; }
+  .csp__pay-text strong { color: #2d6f02; }
+  .csp__submit.is-incomplete { background: #b9c4a6; box-shadow: none; }
+
+  .csp__summary { margin: 18px 0 12px; padding: 12px 14px; border-radius: 12px; background: #1d6b0a; color: #fff; font-size: 14px; line-height: 1.5; }
+  .csp__summary strong { font-size: 18px; font-weight: 900; }
+  .csp__summary small { display: block; font-size: 12px; opacity: .85; margin-top: 2px; }
+
+  .csp__submit { width: 100%; border: none; border-radius: 14px; padding: 16px 12px; background: linear-gradient(135deg, #3F9403 0%, #7cbd0c 100%); color: #fff; font-family: inherit; cursor: pointer; box-shadow: 0 6px 18px rgba(63,148,3,.35); display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; transition: transform .1s; }
+  .csp__submit:active { transform: scale(.98); }
+  .csp__submit:disabled { opacity: .5; cursor: default; box-shadow: none; }
+  .csp__submit-main { font-size: 19px; font-weight: 900; letter-spacing: .04em; }
+  .csp__submit-sub { font-size: 12px; opacity: .9; }
+  .csp__error { margin: 10px 0 0; text-align: center; color: #d32f2f; font-size: 13px; }
+  .csp__checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .csp__checks li { font-size: 12.5px; color: #444; padding-left: 20px; position: relative; }
+  .csp__checks li::before { content: ""; position: absolute; left: 0; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #3F9403; }
+  .csp__checks li::after { content: ""; position: absolute; left: 4px; top: 6px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  .csp__h3 { font-size: 16px; font-weight: 900; margin: 0 0 12px; }
+  .csp__flow { margin-top: 28px; background: #fff; border-radius: 16px; padding: 18px 16px; }
+  .csp__flow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .csp__flow-list li { display: flex; align-items: flex-start; gap: 10px; }
+  .csp__flow-list li span { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #3F9403; color: #fff; font-weight: 800; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+  .csp__flow-list strong { display: block; font-size: 14px; }
+  .csp__flow-list small { display: block; font-size: 12px; color: #666; }
+  .csp__flow-note { margin: 12px 0 0; font-size: 12px; color: #555; }
+
+  .csp__terms { margin-top: 16px; background: #fff; border-radius: 16px; padding: 18px 16px; }
+  .csp__terms dl { margin: 0; display: grid; grid-template-columns: 6.5em 1fr; gap: 8px 10px; font-size: 12.5px; }
+  .csp__terms dt { font-weight: 800; color: #2d6f02; }
+  .csp__terms dd { margin: 0; color: #444; }
+
+  .csp__faq { margin-top: 16px; }
+  .csp__faq details { background: #fff; border-radius: 12px; margin-bottom: 8px; padding: 0 14px; }
+  .csp__faq summary { cursor: pointer; padding: 13px 24px 13px 0; font-weight: 800; font-size: 14px; list-style: none; position: relative; }
+  .csp__faq summary::-webkit-details-marker { display: none; }
+  .csp__faq summary::after { content: "+"; position: absolute; right: 0; top: 10px; font-size: 20px; color: #3F9403; }
+  .csp__faq details[open] summary::after { content: "−"; }
+  .csp__faq p { margin: 0 0 14px; font-size: 13px; color: #444; }
+
+  .csp__legal { margin-top: 20px; font-size: 11px; color: #777; }
+  .csp__legal p { margin: 0 0 8px; }
+
+  .csp-sticky { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); box-shadow: 0 -6px 20px rgba(0,0,0,.12); transform: translateY(110%); transition: transform .25s; }
+  .csp-sticky.is-on { transform: translateY(0); }
+  .csp-sticky__btn { display: flex; flex-direction: column; align-items: center; max-width: 640px; margin: 0 auto; padding: 12px; border-radius: 12px; background: linear-gradient(135deg, #3F9403, #7cbd0c); color: #fff; text-decoration: none; font-family: "Noto Sans JP", "Hiragino Sans", sans-serif; }
+  .csp-sticky__main { font-size: 16px; font-weight: 900; }
+  .csp-sticky__sub { font-size: 11px; opacity: .9; }

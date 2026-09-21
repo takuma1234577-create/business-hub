@@ -4,6 +4,44 @@ import axios from 'axios'
 // 顧客向けフォームは認証不要。トークンなしの素のaxiosを使う。
 const api = axios.create({ baseURL: '/api/public/review-submission' })
 
+// アップロード前に画像を縮小圧縮する（Vercelの関数リクエスト上限4.5MB対策）。
+// スマホのスクショは数MB〜10MBになり、そのままだと413で送信失敗するため。
+async function compressImage(file: File, maxDim = 1600, quality = 0.8): Promise<File> {
+  if (!file.type.startsWith('image/')) return file // PDF等はそのまま
+  try {
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const fr = new FileReader()
+      fr.onload = () => resolve(fr.result as string)
+      fr.onerror = () => reject(new Error('read failed'))
+      fr.readAsDataURL(file)
+    })
+    const img: HTMLImageElement = await new Promise((resolve, reject) => {
+      const im = new Image()
+      im.onload = () => resolve(im)
+      im.onerror = () => reject(new Error('img failed'))
+      im.src = dataUrl
+    })
+    let width = img.naturalWidth || img.width
+    let height = img.naturalHeight || img.height
+    if (width > maxDim || height > maxDim) {
+      const scale = Math.min(maxDim / width, maxDim / height)
+      width = Math.round(width * scale)
+      height = Math.round(height * scale)
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(img, 0, 0, width, height)
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+    if (!blob || blob.size >= file.size) return file // 圧縮できない/逆に大きいなら元を使う
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
+
 interface Submission {
   token: string
   product_name: string | null
@@ -81,7 +119,7 @@ export default function ReviewForm() {
       fd.append('title', title)
       fd.append('body', body)
       fd.append('rating', String(rating))
-      if (draftImage) fd.append('image', draftImage)
+      if (draftImage) fd.append('image', await compressImage(draftImage))
       await api.post('/draft', fd)
       setFlash({ type: 'ok', text: 'レビュー下書きを送信しました。ありがとうございます。' })
       await load()
@@ -98,7 +136,7 @@ export default function ReviewForm() {
     try {
       const fd = new FormData()
       fd.append('t', token)
-      fd.append('image', proofImage)
+      fd.append('image', await compressImage(proofImage))
       const r = await api.post('/proof', fd)
       if (r.data.verify_status === 'verified') {
         setFlash({ type: 'ok', text: 'レビューの確認が完了しました。ご協力ありがとうございました。' })
@@ -119,7 +157,7 @@ export default function ReviewForm() {
     try {
       const fd = new FormData()
       fd.append('t', token)
-      fd.append('file', invoiceFile)
+      fd.append('file', await compressImage(invoiceFile))
       const r = await api.post('/invoice', fd)
       if (r.data.verify_status === 'verified') {
         setFlash({ type: 'ok', text: '請求書を受け付けました。確認後、お振込いたします。ありがとうございました。' })

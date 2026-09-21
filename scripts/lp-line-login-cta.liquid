@@ -1,0 +1,51 @@
+{%- comment -%}
+  クレアショット ティザーLP用: CTA を LINE Login 経由（Business-hub /go/:code）に差し替えるスニペット
+  置き場所: LPのセクション（またはテーマの theme.liquid の </body> 直前）に貼る。
+  動作:
+    - href に line.me/R/ti/p を含む <a> と、/api/line-crm/go/ を含む <a> を対象にする
+    - クリック時に click_id(UUID) を発行して /go に渡す（既存の fbq Lead・hm.js の計測はそのまま）
+    - LPのURLにある fbclid / utm_* と、Cookie の _fbp / _fbc を /go/:code に引き継ぐ
+    - 遷移先: https://business-hub-beige.vercel.app/api/line-crm/go/ytq6hwej
+  ロールバック: このスニペットを外せば元の line.me リンクに戻る
+{%- endcomment -%}
+<script>
+(function () {
+  var GO_URL = 'https://business-hub-beige.vercel.app/api/line-crm/go/ytq6hwej';
+  function cookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+  function buildUrl(cid) {
+    var p = new URLSearchParams();
+    var q = new URLSearchParams(location.search);
+    ['fbclid', 'utm_source', 'utm_campaign', 'utm_content', 'utm_term', 'utm_medium'].forEach(function (k) {
+      var v = q.get(k); if (v) p.set(k, v);
+    });
+    var fbp = cookie('_fbp'); if (fbp) p.set('fbp', fbp);
+    var fbc = cookie('_fbc'); if (fbc) p.set('fbc', fbc);
+    p.set('cid', cid);
+    p.set('lp', location.href.split('#')[0].slice(0, 500));
+    return GO_URL + '?' + p.toString();
+  }
+  function isTarget(a) {
+    var h = (a.getAttribute('href') || '');
+    return /line\.me\/R\/ti\/p\//.test(h) || /\/api\/line-crm\/go\//.test(h);
+  }
+  document.addEventListener('click', function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest('a') : null;
+    if (!a || !isTarget(a)) return;
+    ev.preventDefault();
+    var cid = uuid();
+    // 既存の fbq('track','Lead') と hm.js のクリック計測はそのまま動く（propagationを止めない）
+    var url = buildUrl(cid);
+    // ピクセル送信の猶予を少しだけ取る
+    setTimeout(function () { location.href = url; }, 120);
+  }, true);
+})();
+</script>

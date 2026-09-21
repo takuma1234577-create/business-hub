@@ -316,7 +316,7 @@ router.post('/amazon/accounts/:id/test', async (req, res) => {
 
 // === Shopify OAuth Flow ===
 
-const SHOPIFY_SCOPES = 'read_products,write_products,read_orders,write_orders,read_inventory,write_inventory,read_fulfillments,write_fulfillments,read_locations';
+const SHOPIFY_SCOPES = 'read_products,write_products,read_orders,write_orders,read_inventory,write_inventory,read_fulfillments,write_fulfillments,read_locations,read_customers,read_own_subscription_contracts,write_own_subscription_contracts,read_customer_payment_methods';
 
 router.get('/shopify/login', (req, res) => {
   const { shop } = req.query;

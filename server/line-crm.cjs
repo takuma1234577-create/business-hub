@@ -3557,17 +3557,42 @@ async function processWebhookEvents(channelId, events) {
           } catch {}
         }
 
-        // 流入経路の判定: 直近クリックからマッチング（＋経路別のタグ・専用挨拶を取得）
+        // LINE Login コールバック（line-login.cjs）で既に経路が確定している友だちは、
+        // 30分の推定マッチングで上書きしない
+        let preAttributed = false;
         let trafficSourceId = null;
         let sourceTagIds = [];
         let sourceGreetingTemplateId = null;
         try {
+          const { data: pre } = await supabase.from('friends').select('traffic_source_id')
+            .eq('line_user_id', lineUserId).eq('channel_id', channelId).maybeSingle();
+          let exactSourceId = pre?.traffic_source_id || null;
+          if (!exactSourceId) {
+            // コールバックより先にwebhookが来た場合: このuserIdのLoginクリックがあれば厳密に一致させる
+            const { data: lc } = await supabase.from('traffic_clicks').select('source_id')
+              .eq('line_user_id', lineUserId).eq('entry', 'login')
+              .order('created_at', { ascending: false }).limit(1).maybeSingle();
+            exactSourceId = lc?.source_id || null;
+          }
+          if (exactSourceId) {
+            preAttributed = true;
+            trafficSourceId = exactSourceId;
+            const { data: srcCfg } = await supabase.from('traffic_sources')
+              .select('tag_ids, greeting_template_id').eq('id', exactSourceId).maybeSingle();
+            sourceTagIds = Array.isArray(srcCfg?.tag_ids) ? srcCfg.tag_ids : [];
+            sourceGreetingTemplateId = srcCfg?.greeting_template_id || null;
+          }
+        } catch {}
+
+        // 流入経路の判定: 直近クリックからマッチング（＋経路別のタグ・専用挨拶を取得）
+        if (!preAttributed) try {
           // traffic_clicks の列は created_at（clicked_at は存在しないため照合が毎回失敗していた）。
           // クリック後すぐに追加しない人が多いため、照合ウィンドウを30分に拡大。
           const windowStart = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           const { data: recentClick } = await supabase
             .from('traffic_clicks')
             .select('source_id')
+            .neq('entry', 'login')
             .gte('created_at', windowStart)
             .order('created_at', { ascending: false })
             .limit(1)

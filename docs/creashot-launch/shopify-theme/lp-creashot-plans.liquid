@@ -1,0 +1,260 @@
+{% comment %}
+  クレアショット 定期プラン選択フォーム（販売LP用）
+  - 商品のバリエーション「1日の本数 × お届け周期」と Selling Plan を Liquid から自動で拾う
+    （価格やIDをテーマに直書きしない。Shopify管理画面で価格を変えればここも変わる）
+  - 上部のトグルで「1日1本 / 1日2本」を切替 → 3つの周期カード → 「この内容で予約する」
+  - JSが無くても <form action="/cart/add"> で購入できる
+  作成: 2026-09-16
+{% endcomment %}
+
+{%- assign p = product -%}
+{%- assign default_sticks = section.settings.default_sticks | default: '1日1本' -%}
+{%- assign default_cycle = section.settings.default_cycle | default: '3ヶ月ごと' -%}
+
+<section class="csp" id="creashot-plans">
+  <div class="csp__inner">
+
+    <div class="csp__head">
+      <span class="csp__eyebrow">{{ section.settings.eyebrow | default: '定期購入・送料無料' }}</span>
+      <h2 class="csp__title">{{ section.settings.title | default: '定期プランを選ぶ' }}</h2>
+      <p class="csp__lead">{{ section.settings.lead | default: '今の袋は飲み切ってください。次の1袋から、クレアショットに。' }}</p>
+    </div>
+
+    {%- if section.settings.preorder_note != blank -%}
+    <div class="csp__preorder">
+      <span class="csp__preorder-label">予約受付中</span>
+      <strong class="csp__preorder-date">{{ section.settings.preorder_note }}</strong>
+      {%- if section.settings.preorder_sub != blank -%}<span class="csp__preorder-sub">{{ section.settings.preorder_sub }}</span>{%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <form method="post" action="/cart/add" id="csp-form" class="csp__form" novalidate>
+      <input type="hidden" name="id" id="csp-variant-id" value="">
+      <input type="hidden" name="selling_plan" id="csp-selling-plan" value="">
+      <input type="hidden" name="quantity" value="1">
+      <input type="hidden" name="return_to" value="/checkout">
+
+      <!-- STEP 1 -->
+      <div class="csp__step">
+        <div class="csp__step-label"><span class="csp__num">1</span>1日に飲む本数</div>
+        <div class="csp__seg" role="radiogroup" aria-label="1日に飲む本数">
+          {%- for v in p.options_with_values -%}
+            {%- if v.name == '1日の本数' -%}
+              {%- for val in v.values -%}
+                <label class="csp__seg-item">
+                  <input type="radio" name="csp_sticks" value="{{ val | escape }}" {% if val == default_sticks %}checked{% endif %}>
+                  <span class="csp__seg-btn">
+                    <strong>{{ val }}</strong>
+                    <small>{% if val == '1日1本' %}トレ前に1本。基本はこちら{% else %}朝・トレ前で2本{% endif %}</small>
+                  </span>
+                </label>
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="csp__step">
+        <div class="csp__step-label"><span class="csp__num">2</span>お届け周期（まとめるほど1袋が安く）</div>
+        <div class="csp__cards" id="csp-cards"></div>
+      </div>
+
+      <!-- まとめ -->
+      <div class="csp__summary" id="csp-summary" aria-live="polite"></div>
+
+      <!-- STEP 3: お届け先・ご連絡先（EFO） -->
+      <div class="csp__step csp__step--efo" id="csp-efo">
+        <div class="csp__step-label"><span class="csp__num">3</span>お届け先とご連絡先<span class="csp__progress" id="csp-progress"></span></div>
+        <p class="csp__efo-lead">郵便番号を入れると住所が自動で入ります。入力内容は次の画面に引き継がれるので、二度打ちはありません。</p>
+
+        <div class="csp__field" data-field="email">
+          <label class="csp__label" for="csp-email">メールアドレス<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap">
+            <input type="email" id="csp-email" class="csp__input" name="checkout_email" inputmode="email" autocomplete="email" placeholder="example@email.com" autocapitalize="off" spellcheck="false">
+            <span class="csp__ok" aria-hidden="true"></span>
+          </div>
+          <p class="csp__hint">ご注文確認・お届けのお知らせを送ります</p>
+          <p class="csp__err" role="alert"></p>
+        </div>
+
+        <div class="csp__row">
+          <div class="csp__field" data-field="last_name">
+            <label class="csp__label" for="csp-last-name">姓<span class="csp__req">必須</span></label>
+            <div class="csp__input-wrap"><input type="text" id="csp-last-name" class="csp__input" autocomplete="family-name" placeholder="山田"><span class="csp__ok"></span></div>
+            <p class="csp__err" role="alert"></p>
+          </div>
+          <div class="csp__field" data-field="first_name">
+            <label class="csp__label" for="csp-first-name">名<span class="csp__req">必須</span></label>
+            <div class="csp__input-wrap"><input type="text" id="csp-first-name" class="csp__input" autocomplete="given-name" placeholder="太郎"><span class="csp__ok"></span></div>
+            <p class="csp__err" role="alert"></p>
+          </div>
+        </div>
+
+        <div class="csp__field" data-field="zip">
+          <label class="csp__label" for="csp-zip">郵便番号<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap csp__input-wrap--zip">
+            <input type="text" id="csp-zip" class="csp__input" inputmode="numeric" autocomplete="postal-code" placeholder="1500041" maxlength="8">
+            <span class="csp__ok"></span>
+            <span class="csp__zip-status" id="csp-zip-status"></span>
+          </div>
+          <p class="csp__hint">ハイフンなしでOK。住所が自動で入ります</p>
+          <p class="csp__err" role="alert"></p>
+        </div>
+
+        <div class="csp__field" data-field="province">
+          <label class="csp__label" for="csp-province">都道府県<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap">
+            <select id="csp-province" class="csp__input csp__select" autocomplete="address-level1">
+              <option value="">選択してください</option>
+            </select>
+            <span class="csp__ok"></span>
+          </div>
+          <p class="csp__err" role="alert"></p>
+        </div>
+
+        <div class="csp__field" data-field="city">
+          <label class="csp__label" for="csp-city">市区町村<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap"><input type="text" id="csp-city" class="csp__input" autocomplete="address-level2" placeholder="渋谷区"><span class="csp__ok"></span></div>
+          <p class="csp__err" role="alert"></p>
+        </div>
+
+        <div class="csp__field" data-field="address1">
+          <label class="csp__label" for="csp-address1">番地・建物名・部屋番号<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap"><input type="text" id="csp-address1" class="csp__input" autocomplete="address-line1" placeholder="神南1-2-3 FITビル101"><span class="csp__ok"></span></div>
+          <p class="csp__hint">建物名・部屋番号まで入れると配送がスムーズです</p>
+          <p class="csp__err" role="alert"></p>
+        </div>
+
+        <div class="csp__field" data-field="phone">
+          <label class="csp__label" for="csp-phone">電話番号<span class="csp__req">必須</span></label>
+          <div class="csp__input-wrap"><input type="tel" id="csp-phone" class="csp__input" inputmode="tel" autocomplete="tel" placeholder="09012345678"><span class="csp__ok"></span></div>
+          <p class="csp__hint">配送業者からの連絡に使います</p>
+          <p class="csp__err" role="alert"></p>
+        </div>
+      </div>
+
+      <!-- STEP 4: お支払い -->
+      <div class="csp__step">
+        <div class="csp__step-label"><span class="csp__num">4</span>お支払い方法</div>
+        <div class="csp__pay">
+          <div class="csp__pay-brands"><span>VISA</span><span>Mastercard</span><span>AMEX</span><span>JCB</span><span>Apple Pay</span><span>Shop Pay</span></div>
+          <p class="csp__pay-text">カード番号は次の画面（Shopifyの安全な決済画面）でご入力ください。上で入力したお届け先とメールは引き継がれるので、<strong>残るのはカード番号だけ</strong>です。カードの入力ミスはその場で表示されます。</p>
+        </div>
+      </div>
+
+      <button type="submit" class="csp__submit" id="csp-submit">
+        <span class="csp__submit-main">{{ section.settings.button_text | default: 'この内容で予約する' }}</span>
+        <span class="csp__submit-sub" id="csp-submit-sub"></span>
+      </button>
+      <p class="csp__error" id="csp-error" hidden></p>
+
+      <ul class="csp__checks">
+        <li>送料無料（全プラン）</li>
+        <li>回数の縛りなし・いつでも休会／解約</li>
+        <li>SSL暗号化通信・カード情報は当社サーバーを経由しません</li>
+      </ul>
+    </form>
+
+    <!-- 購入後の流れ -->
+    <div class="csp__flow">
+      <h3 class="csp__h3">ご予約後の流れ</h3>
+      <ol class="csp__flow-list">
+        <li><span>1</span><div><strong>ご注文完了</strong><small>確認メールが届きます</small></div></li>
+        <li><span>2</span><div><strong>公式LINEを友だち追加</strong><small>メニュー「会員登録」で注文時のメールを入力</small></div></li>
+        <li><span>3</span><div><strong>My FITPEAKで管理</strong><small>お届け日の調整・休会・毎日の通知設定</small></div></li>
+      </ol>
+      <p class="csp__flow-note">残りの本数を入れるだけで、飲み切る日に次の袋が届くよう調整できます。毎日の「飲むタイミング通知」もLINEで受け取れます。</p>
+    </div>
+
+    <!-- 定期購入の条件（特定商取引法） -->
+    <div class="csp__terms">
+      <h3 class="csp__h3">定期購入の条件</h3>
+      <dl>
+        <dt>契約内容</dt><dd>選択した周期ごとに、同じ内容を継続してお届けする定期購入契約です。</dd>
+        <dt>各回の金額</dt><dd>1ヶ月ごと：¥6,980（1日2本は¥12,980）／3ヶ月ごと：¥13,960（同¥23,940）／12ヶ月ごと：¥41,880（同¥71,520）。いずれも税込・送料無料。</dd>
+        <dt>お支払い</dt><dd>初回はご注文時。2回目以降は次回お届け予定日の3日前に、ご登録のクレジットカードへ自動決済されます。</dd>
+        <dt>次回お届け日</dt><dd>初回のお届け完了を起点に、周期分の日数後を予定日とします。My FITPEAKでいつでも変更できます。</dd>
+        <dt>休会・解約</dt><dd>回数の縛りはありません。次回決済日の前日までに My FITPEAK（my.fitpeak.co）から手続きしてください。決済後の分は予定どおりお届けします。</dd>
+        <dt>販売者</dt><dd>合同会社SVPコーポレーション（FITPEAK）／沖縄県沖縄市明道1-1-25</dd>
+      </dl>
+    </div>
+
+    <!-- FAQ -->
+    <div class="csp__faq">
+      <h3 class="csp__h3">よくある質問</h3>
+      <details><summary>初回はいつ届きますか？</summary><p>{{ section.settings.faq_first | default: '初回お届けは予約受付中の表示日程を予定しています。準備が整い次第、発送のお知らせをメールとLINEでお送りします。2回目以降は、初回のお届け完了日を起点に周期ごとにお届けします。' }}</p></details>
+      <details><summary>解約や休会はすぐできますか？</summary><p>できます。My FITPEAKにログインし、クレアショットの画面から「休会」「解約」を選ぶだけです。次回決済日の前日まで受け付けています。回数の縛りはありません。</p></details>
+      <details><summary>飲み切る前に次が届いてしまいませんか？</summary><p>手元の残り本数を入力すると、飲み切る日に合わせて次回お届け日が自動で調整されます。出張や旅行で飲めない期間があっても、余らせずに続けられます。</p></details>
+      <details><summary>1日1本と2本、どちらを選べばいいですか？</summary><p>基本は1日1本（クレアチン3,000mg）です。トレーニング量が多い方や、朝とトレ前で分けて飲みたい方は1日2本のプランをお選びください。プランは後から変更できます。</p></details>
+      <details><summary>単品（1回だけ）の購入はできますか？</summary><p>現在は定期購入のみのご案内です。初回1袋だけ試したい場合は「1ヶ月ごと」を選び、届いた後にいつでも休会・解約できます。</p></details>
+      <details><summary>飲み方は？</summary><p>水200〜300mlに溶かすか、水なしでそのまま口に入れて水で流し込む2通りです。シェイカーは不要です。1日1本を目安に、飲みやすいタイミングでお飲みください。</p></details>
+    </div>
+
+    <div class="csp__legal">
+      <p>本品は食品であり、医薬品ではありません。多量摂取により疾病が治癒したり、より健康が増進するものではありません。1日の目安量を守ってください。食生活は、主食、主菜、副菜を基本に、食事のバランスを。妊娠中・授乳中の方、通院・服薬中の方は医師にご相談ください。18歳以上の方を対象としています。</p>
+      <p>原材料の一部に中国製造のクレアチンを使用しています。特定原材料28品目は含みませんが、製造ラインを共有しているため混入の可能性があります。</p>
+    </div>
+  </div>
+</section>
+
+{%- if section.settings.show_sticky -%}
+<div class="csp-sticky" id="csp-sticky" aria-hidden="true">
+  <a href="#creashot-plans" class="csp-sticky__btn" data-csp-sticky>
+    <span class="csp-sticky__main">{{ section.settings.sticky_text | default: '定期プランを見る' }}</span>
+    <span class="csp-sticky__sub">{{ section.settings.sticky_sub | default: '送料無料・いつでも休会OK' }}</span>
+  </a>
+</div>
+{%- endif -%}
+
+<script type="application/json" id="csp-data">
+{
+  "sticksOption": "1日の本数",
+  "cycleOption": "お届け周期",
+  "cycles": ["1ヶ月ごと", "3ヶ月ごと", "12ヶ月ごと"],
+  "variants": [
+    {%- for v in p.variants -%}
+    {
+      "id": {{ v.id }},
+      "available": {{ v.available }},
+      "sticks": {{ v.option1 | json }},
+      "cycle": {{ v.option2 | json }},
+      "price": {{ v.price }},
+      "compareAt": {{ v.compare_at_price | default: 0 }},
+      "sellingPlanId": {%- assign spid = 0 -%}{%- for a in v.selling_plan_allocations -%}{%- if forloop.first -%}{%- assign spid = a.selling_plan.id -%}{%- endif -%}{%- endfor -%}{{ spid }}
+    }{% unless forloop.last %},{% endunless %}
+    {%- endfor -%}
+  ]
+}
+</script>
+
+<script type="application/json" id="csp-config">{ "defaultCycle": {{ default_cycle | json }}, "inlpCtaText": {{ section.settings.inlp_cta_text | default: '定期プランを見る' | json }}, "inlpCtaSub": {{ section.settings.inlp_cta_sub | default: '＼ 送料無料・いつでも休会OK ／' | json }} }</script>
+{{ 'creashot-plans.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'creashot-plans.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "クレアショット 定期プラン",
+  "tag": "section",
+  "class": "csp-section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "上の小見出し", "default": "定期購入・送料無料" },
+    { "type": "text", "id": "title", "label": "見出し", "default": "定期プランを選ぶ" },
+    { "type": "text", "id": "lead", "label": "リード文", "default": "今の袋は飲み切ってください。次の1袋から、クレアショットに。" },
+    { "type": "text", "id": "preorder_note", "label": "予約表示（初回お届け予定）", "default": "初回お届け：2026年12月上旬予定", "info": "空欄にすると予約表示を消します" },
+    { "type": "text", "id": "preorder_sub", "label": "予約表示の補足", "default": "予定数に達し次第、受付を終了します。発送準備が整い次第、LINEとメールでお知らせします。" },
+    { "type": "select", "id": "default_sticks", "label": "初期選択：1日の本数", "options": [ { "value": "1日1本", "label": "1日1本" }, { "value": "1日2本", "label": "1日2本" } ], "default": "1日1本" },
+    { "type": "select", "id": "default_cycle", "label": "初期選択：お届け周期", "options": [ { "value": "1ヶ月ごと", "label": "1ヶ月ごと" }, { "value": "3ヶ月ごと", "label": "3ヶ月ごと" }, { "value": "12ヶ月ごと", "label": "12ヶ月ごと" } ], "default": "3ヶ月ごと" },
+    { "type": "text", "id": "button_text", "label": "ボタン文言", "default": "この内容で予約する" },
+    { "type": "textarea", "id": "faq_first", "label": "FAQ「初回はいつ届く？」の回答" },
+    { "type": "header", "content": "LP本文内のCTA（LINE登録ボタンをこれに置き換える）" },
+    { "type": "text", "id": "inlp_cta_text", "label": "ボタン文言", "default": "定期プランを見る" },
+    { "type": "text", "id": "inlp_cta_sub", "label": "ボタンの上の一言", "default": "＼ 送料無料・いつでも休会OK ／" },
+    { "type": "header", "content": "追従バー" },
+    { "type": "checkbox", "id": "show_sticky", "label": "追従バーを表示", "default": true },
+    { "type": "text", "id": "sticky_text", "label": "追従バーの文言", "default": "定期プランを見る" },
+    { "type": "text", "id": "sticky_sub", "label": "追従バーの補足", "default": "送料無料・いつでも休会OK" }
+  ],
+  "presets": [ { "name": "クレアショット 定期プラン", "category": "カスタム" } ]
+}
+{% endschema %}

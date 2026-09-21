@@ -1,0 +1,65 @@
+{
+  "layout": "lp-landing",
+  "sections": {
+    "lp_images": {
+      "type": "lp-images",
+      "blocks": {
+        "desc_1": {
+          "type": "description",
+          "settings": {}
+        }
+      },
+      "block_order": [
+        "desc_1"
+      ],
+      "settings": {
+        "cta_max": 2,
+        "video2_url": "",
+        "video2_poster": "",
+        "video2_after": 12,
+        "video3_url": "https://cdn.shopify.com/videos/c/vp/2f38554d585040d6889d7319edb1581e/2f38554d585040d6889d7319edb1581e.HD-720p-2.1Mbps-93741671.mp4",
+        "video3_poster": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/preview_images/2f38554d585040d6889d7319edb1581e.thumbnail.0000000000.jpg?v=1788812074",
+        "video3_after": 4,
+        "video3_label": "開発者本人が語る",
+        "video3_heading": "この1本を作った理由。",
+        "video3_body": "<p>「僕が一番、困っていました。」<br>— FITPEAK代表 Taku</p>",
+        "video_url": "",
+        "video_poster": "",
+        "video_after": 2,
+        "video_label": "この商品ができた理由",
+        "video_heading": "世の中のクレアチンに、物申したい。",
+        "video_body": "",
+        "video_note": "※本品は食品です。"
+      }
+    },
+    "lp_creashot_plans": {
+      "type": "lp-creashot-plans",
+      "settings": {
+        "eyebrow": "定期購入・送料無料",
+        "title": "定期プランを選ぶ",
+        "lead": "今の袋は飲み切ってください。次の1袋から、クレアショットに。",
+        "preorder_note": "初回お届け：2026年12月上旬予定",
+        "preorder_sub": "予定数に達し次第、受付を終了します。発送準備が整い次第、LINEとメールでお知らせします。",
+        "default_sticks": "1日1本",
+        "default_cycle": "3ヶ月ごと",
+        "button_text": "この内容で予約する",
+        "show_sticky": true,
+        "sticky_text": "定期プランを見る",
+        "sticky_sub": "送料無料・いつでも休会OK",
+        "inlp_cta_text": "定期プランを見る",
+        "inlp_cta_sub": "＼ 送料無料・いつでも休会OK ／"
+      }
+    },
+    "chatform_widget": {
+      "type": "chatform-widget",
+      "settings": {
+        "enable": true
+      }
+    }
+  },
+  "order": [
+    "lp_images",
+    "lp_creashot_plans",
+    "chatform_widget"
+  ]
+}
