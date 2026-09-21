@@ -289,7 +289,14 @@ router.get('/line-login/callback', async (req, res) => {
         ...(alreadyConverted ? { capi_status: 'skipped: already converted user', capi_sent_at: now } : {}),
       }).eq('id', click.id);
       if (!alreadyConverted) {
-        capi.sendAndRecord(click.click_id, { contentName: source?.name || null }).catch(e => console.error('[line-login] capi error:', e.message));
+        // Vercel のサーバーレスはレスポンス後に処理が打ち切られるため、送信完了を待ってからリダイレクトする
+        // （失敗しても10分cronの capi/retry が再送する）
+        try {
+          await Promise.race([
+            capi.sendAndRecord(click.click_id, { contentName: source?.name || null }),
+            new Promise(r => setTimeout(r, 4000)),
+          ]);
+        } catch (e) { console.error('[line-login] capi error:', e.message); }
       }
     }
     console.log(`[line-login] ${prof.displayName} added via ${source?.name || click.source_id} (click ${click.click_id})`);
