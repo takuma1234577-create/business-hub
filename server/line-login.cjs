@@ -129,6 +129,14 @@ router.get('/go/:code', async (req, res) => {
     supabase.from('traffic_sources').update({ click_count: (source.click_count || 0) + 1 }).eq('id', source.id)
       .then(() => {}, () => {});
 
+    // mode=log: LP側のJSがLINE認可URLへ直接遷移する構成（コールドスタートの待ちを見せない）。
+    // ここでは記録だけして 204 を返す
+    if (String(q.mode || '') === 'log') {
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Cache-Control', 'no-store');
+      return res.status(204).end();
+    }
+
     // PC / 未設定 → 従来の友だち追加URL（QRが出る）
     const login = await getLoginConfig();
     if (!login.configured || !isMobile(ua)) {
@@ -156,13 +164,35 @@ router.get('/line-login/callback', async (req, res) => {
   const { code, state, error } = req.query || {};
   let basicId = '@956iyppc';
   try {
-    if (!state || !UUID_RE.test(String(state))) return res.redirect(FALLBACK_ADD_URL);
+    // state は "<経路コード>.<click_id>"（LP直遷移）または "<click_id>"（/go 経由）
+    const st = String(state || '');
+    const dot = st.indexOf('.');
+    const stateCode = dot > 0 ? st.slice(0, dot) : null;
+    const stateClickId = (dot > 0 ? st.slice(dot + 1) : st).toLowerCase();
+    if (!UUID_RE.test(stateClickId)) return res.redirect(FALLBACK_ADD_URL);
 
-    const { data: click } = await supabase
+    const findClick = () => supabase
       .from('traffic_clicks')
       .select('id, click_id, source_id, converted_at, line_user_id')
-      .eq('click_id', String(state).toLowerCase())
+      .eq('click_id', stateClickId)
       .maybeSingle();
+    let { data: click } = await findClick();
+    if (!click) {
+      // LP側の裏記録（mode=log）がコールドスタートで遅れている場合に備えて少し待つ
+      await new Promise(r => setTimeout(r, 1500));
+      ({ data: click } = await findClick());
+    }
+    if (!click && stateCode) {
+      // 記録が届いていなければ経路コードから最低限の行を作る（広告パラメータは失われるが追加は確定させる）
+      const { data: src } = await supabase.from('traffic_sources').select('id').eq('code', stateCode).maybeSingle();
+      if (src) {
+        const { data: ins } = await supabase.from('traffic_clicks').insert({
+          source_id: src.id, click_id: stateClickId, entry: 'login',
+          ip_address: clientIp(req), user_agent: str(req.headers['user-agent'], 500),
+        }).select('id, click_id, source_id, converted_at, line_user_id').maybeSingle();
+        click = ins || null;
+      }
+    }
     if (!click) return res.redirect(FALLBACK_ADD_URL);
 
     const { data: source } = await supabase
@@ -312,8 +342,10 @@ router.get('/line-login/callback', async (req, res) => {
 router.get('/line-login/status', async (_req, res) => {
   const login = await getLoginConfig();
   const c = await capi.getConfig();
+  res.set('Access-Control-Allow-Origin', '*');
   res.json({
     login_configured: login.configured,
+    login_channel_id: login.configured ? login.channelId : null,
     capi_configured: !!(c.pixelId && c.token),
     capi_event_name: c.eventName,
     capi_test_mode: !!c.testCode,
