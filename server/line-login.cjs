@@ -360,7 +360,7 @@ router.get('/liff/add', async (req, res) => {
   function show(id){ ['loading','done','notfriend','fail'].forEach(function(k){ document.getElementById(k).className = (k===id?'':'hidden'); }); }
   // liff.init 後は LIFF URL に付けたクエリ（?cid=…&code=…）が location.search に復元される
   function qp(k){ var q = new URLSearchParams(location.search); var v = q.get(k); if (v) return v;
-    try { var st = q.get('liff.state'); if (st) { var q2 = new URLSearchParams(st.replace(/^\?/, '')); return q2.get(k) || ''; } } catch (e) {} return ''; }
+    try { var st = q.get('liff.state'); if (st) { var q2 = new URLSearchParams(st.charAt(0) === '?' ? st.slice(1) : st); return q2.get(k) || ''; } } catch (e) {} return ''; }
   function state(){ return (qp('code')||'ytq6hwej') + '.' + (qp('cid')||''); }
   if (!LIFF_ID || !window.liff) { show('fail'); return; }
   liff.init({ liffId: LIFF_ID }).then(function(){
