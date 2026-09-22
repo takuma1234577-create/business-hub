@@ -42,9 +42,11 @@ function App() {
   const isPublicForm = window.location.pathname === '/review-form'
   const isGiftForm = window.location.pathname === '/gift-address'
   const isInventoryPartner = window.location.pathname === '/inventory-partner'
+  // My FITPEAK（顧客向け会員ページ）は社内ログインを通さない。独自のログインを持つ
+  const isMyFitpeak = window.location.pathname.startsWith('/my-fitpeak')
 
   useEffect(() => {
-    if (isPublicForm || isGiftForm || isInventoryPartner) return
+    if (isPublicForm || isGiftForm || isInventoryPartner || isMyFitpeak) return
     const token = localStorage.getItem('auth_token')
     if (!token) { setAuth('login'); return }
 
@@ -69,6 +71,15 @@ function App() {
   // たお太郎 担当者向け在庫更新ページ（キー付きURL・認証不要）
   if (isInventoryPartner) {
     return <InventoryPartner />
+  }
+
+  // My FITPEAK（顧客向け・LINEログイン／メールログイン）
+  if (isMyFitpeak) {
+    return (
+      <Routes>
+        <Route path="/my-fitpeak/*" element={<MyFitpeak />} />
+      </Routes>
+    )
   }
 
   if (auth === 'loading') {
