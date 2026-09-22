@@ -8,8 +8,13 @@
 <!--
   友だち追加用LIFF（静的ページ・CDN配信で即表示）
   LINE Developers「FITPEAK 友だち追加（クレアショットLP）」のエンドポイントURLに設定する。
-  流れ: LINEアプリ内で開く → liff.init（自動ログイン・友だち追加オプション aggressive）→ 友だち判定 →
-        画面をすぐ進めてトークへ。記録（経路確定・Meta CAPI）は /api/line-crm/liff/confirm に裏送り。
+  流れ（画面は出さず、判定が済んだ瞬間に次へ進める）:
+    LINEアプリ内で開く → liff.init（自動ログイン・友だち追加オプション aggressive）→ 友だち判定
+      ・友だち     → そのままトーク画面へ（中間画面なし）
+      ・未友だち   → LINEの友だち追加画面へ自動で送る（「追加」1タップで完了。追加後は follow webhook が
+                     このクリックを確定して CAPI を送る）
+    記録（経路確定・Meta CAPI）は /api/line-crm/liff/confirm に裏送り。
+  画面に文字が出るのは、自動遷移が起きなかった時の保険ボタンだけ。
 -->
 <style>
   html,body{margin:0;background:#fff;font-family:"Noto Sans JP","Hiragino Sans",-apple-system,sans-serif;color:#222}
@@ -22,41 +27,45 @@
   @keyframes s{to{transform:rotate(360deg)}}
   .hidden{display:none}
 </style>
+<link rel="preconnect" href="https://api.line.me"><link rel="preconnect" href="https://access.line.me">
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body><div class="wrap">
   <div class="logo">//FITPEAK</div>
   <div id="loading"><div class="spinner"></div><p>公式LINEを開いています…</p></div>
-  <div id="done" class="hidden"><h1>友だち追加ありがとうございます！</h1><p>40％OFFクーポンと先行予約のご案内は、公式LINEのトークにお送りします。</p><a class="btn" id="talk" href="https://line.me/R/oaMessage/%40956iyppc/">トークを開く</a></div>
-  <div id="notfriend" class="hidden"><h1>あと1タップで完了です</h1><p>公式LINEを友だち追加すると、40％OFFクーポンと先行予約のご案内が届きます。</p><a class="btn" href="https://line.me/R/ti/p/@956iyppc">友だち追加する</a></div>
-  <div id="fail" class="hidden"><h1>LINEを開けませんでした</h1><p>下のボタンから友だち追加してください。</p><a class="btn" href="https://line.me/R/ti/p/@956iyppc">友だち追加する</a></div>
+  <div id="manual" class="hidden"><h1>FITPEAK 公式LINE</h1><p>40％OFFクーポンと先行予約のご案内をお送りします。</p><a class="btn" id="manual-btn" href="https://line.me/R/ti/p/@956iyppc">友だち追加する</a></div>
 </div>
 <script>
 (function(){
   var LIFF_ID = '2006537445-rcvSBpCP';
+  var ADD_URL = 'https://line.me/R/ti/p/@956iyppc';
+  var TALK_URL = 'https://line.me/R/oaMessage/%40956iyppc/';
   var API = location.origin + '/api/line-crm/liff/confirm';
-  function show(id){ ['loading','done','notfriend','fail'].forEach(function(k){ document.getElementById(k).className = (k===id?'':'hidden'); }); }
+  function show(id){ ['loading','manual'].forEach(function(k){ document.getElementById(k).className = (k===id?'':'hidden'); }); }
   function qp(k){ var q = new URLSearchParams(location.search); var v = q.get(k); if (v) return v;
     try { var st = q.get('liff.state'); if (st) { var q2 = new URLSearchParams(st.charAt(0) === '?' ? st.slice(1) : st); return q2.get(k) || ''; } } catch (e) {} return ''; }
   function state(){ return (qp('code')||'ytq6hwej') + '.' + (qp('cid')||''); }
-  if (!window.liff) { show('fail'); return; }
-  var watchdog = setTimeout(function(){ show('fail'); }, 8000);
+  // 自動遷移が起きなかった場合の保険（ボタンを出す）
+  function go(url, label){
+    var b = document.getElementById('manual-btn'); b.href = url; b.textContent = label;
+    try { location.replace(url); } catch (e) { location.href = url; }
+    setTimeout(function(){ if (document.visibilityState === 'visible') show('manual'); }, 1800);
+  }
+  if (!window.liff) { show('manual'); return; }
+  var watchdog = setTimeout(function(){ show('manual'); }, 7000);
   liff.init({ liffId: LIFF_ID }).then(function(){
     if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
     return liff.getFriendship().catch(function(){ return { friendFlag: false }; }).then(function(fr){
       clearTimeout(watchdog);
+      // 記録（経路確定・CAPI）は裏で送る。未友だちの場合も userId を記録し、追加後の webhook で確定する
       try {
         fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, keepalive: true,
           body: JSON.stringify({ accessToken: liff.getAccessToken(), state: state(), friendFlag: !!fr.friendFlag, ua: navigator.userAgent }) }).catch(function(){});
       } catch (e) {}
-      if (fr.friendFlag) {
-        show('done');
-        setTimeout(function(){ location.href = document.getElementById('talk').href; }, 600);
-      } else {
-        show('notfriend');
-      }
+      if (fr.friendFlag) go(TALK_URL, 'トークを開く');
+      else go(ADD_URL, '友だち追加する');
     });
-  }).catch(function(e){ clearTimeout(watchdog); console.error(e); show('fail'); });
+  }).catch(function(e){ clearTimeout(watchdog); console.error(e); show('manual'); });
 })();
 </script>
 </body></html>

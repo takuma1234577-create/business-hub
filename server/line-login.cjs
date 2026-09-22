@@ -211,13 +211,10 @@ async function finalizeAdd({ click, source, channelId, prof, friendFlag }) {
   let friendId = existing?.id || null;
   let attributedNow = false;
   if (existing) {
-    const upd = {
-      display_name: prof.displayName || undefined,
-      picture_url: prof.pictureUrl || null,
-      status_message: prof.statusMessage || null,
-      status: 'active',
-      updated_at: now,
-    };
+    const upd = { status: 'active', updated_at: now };
+    if (prof.displayName) upd.display_name = prof.displayName;
+    if (prof.pictureUrl !== undefined) upd.picture_url = prof.pictureUrl || null;
+    if (prof.statusMessage !== undefined) upd.status_message = prof.statusMessage || null;
     if (!existing.traffic_source_id && click.source_id) { upd.traffic_source_id = click.source_id; attributedNow = true; }
     if (!existing.first_click_id) upd.first_click_id = click.click_id;
     await supabase.from('friends').update(upd).eq('id', existing.id);
@@ -274,6 +271,25 @@ async function finalizeAdd({ click, source, channelId, prof, friendFlag }) {
   }
   console.log(`[line-login] ${prof.displayName} added via ${source?.name || click.source_id} (click ${click.click_id})`);
   return { added: true, friendId };
+}
+
+// ── follow webhook から呼ぶ: LIFFで「未友だち」だった人が、その後に友だち追加したら確定する ──
+// LIFFページは友だち判定が false のとき line_user_id だけ記録して友だち追加画面へ送る。
+// 追加が完了すると follow webhook が来るので、その userId の未確定Loginクリック（24時間以内）を
+// ここで確定し（経路・タグ・CAPI）、広告単位の実追加として集計する。
+async function confirmFollowByUser({ lineUserId, channelId, prof }) {
+  const supabase = getSupabase();
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data: click } = await supabase
+    .from('traffic_clicks').select('id, click_id, source_id, converted_at, line_user_id')
+    .eq('line_user_id', lineUserId).eq('entry', 'login').is('converted_at', null)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (!click) return null;
+  const { data: source } = await supabase
+    .from('traffic_sources').select('id, name, channel_id, friend_count, tag_ids')
+    .eq('id', click.source_id).maybeSingle();
+  return finalizeAdd({ click, source, channelId: channelId || source?.channel_id || DEFAULT_CHANNEL_ID, prof: { userId: lineUserId, ...(prof || {}) }, friendFlag: true });
 }
 
 // ── GET /line-login/callback（LINE Login Web フロー） ─────────────────────────
@@ -535,3 +551,4 @@ router.get('/line-login/capi/retry', async (_req, res) => {
 });
 
 module.exports = router;
+module.exports.confirmFollowByUser = confirmFollowByUser;
