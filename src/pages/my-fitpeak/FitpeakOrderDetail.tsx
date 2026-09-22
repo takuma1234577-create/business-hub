@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Package, Truck, MapPin, CheckCircle } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
+import { apiFetch } from './lib/api'
 
 interface OrderDetail {
   id: number
@@ -41,7 +42,7 @@ export default function FitpeakOrderDetail() {
     async function load() {
       if (!user?.email || !id) return
       try {
-        const res = await fetch(`/api/my-fitpeak/orders/${id}?email=${encodeURIComponent(user.email)}`)
+        const res = await apiFetch(`/api/my-fitpeak/orders/${id}?email=${encodeURIComponent(user.email)}`)
         if (res.ok) {
           setOrder(await res.json())
         }

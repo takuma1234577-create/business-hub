@@ -91,6 +91,13 @@ app.use('/api/ebay-notifications', cors(), ebayNotificationRoutes);
 const ebayOAuthRoutes = require(path.join(__dirname, 'ebay-oauth.cjs'));
 app.use('/api/ebay-oauth', cors(), ebayOAuthRoutes);
 
+const myFitpeakRoutes = require(path.join(__dirname, 'my-fitpeak.cjs'));
+const myFitpeakLineAuthRoutes = require(path.join(__dirname, 'my-fitpeak-line-auth.cjs'));
+const myFitpeakCustomerAuth = require(path.join(__dirname, 'my-fitpeak-auth.cjs'));
+// My FITPEAK（顧客向け）: LINEログインは誰でも、その他は顧客自身のログインで通す
+app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
+app.use('/api/my-fitpeak', cors(), myFitpeakCustomerAuth, myFitpeakRoutes);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)
@@ -107,8 +114,6 @@ const settingsRoutes = require(path.join(__dirname, 'settings.cjs'));
 const emailAutoReplyRoutes = require(path.join(__dirname, 'email-autoresponder.cjs'));
 const returnReviewRoutes = require(path.join(__dirname, 'return-review.cjs'));
 const shopifyLineRoutes = require(path.join(__dirname, 'shopify-line.cjs'));
-const myFitpeakRoutes = require(path.join(__dirname, 'my-fitpeak.cjs'));
-const myFitpeakLineAuthRoutes = require(path.join(__dirname, 'my-fitpeak-line-auth.cjs'));
 const amazonConsultingRoutes = require(path.join(__dirname, 'amazon-consulting.cjs'));
 const outreachRoutes = require(path.join(__dirname, 'outreach.cjs'));
 const proposalRoutes = require(path.join(__dirname, 'proposal.cjs'));
@@ -134,8 +139,6 @@ app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm/heatmap', heatmapRoutes);
 app.use('/api/line-crm', lineLoginRoutes); // LINE Login経由の友だち追加・Meta CAPI・広告別集計（line-crm より先にマウント）
 app.use('/api/line-crm', lineCrmRoutes);
-app.use('/api/my-fitpeak', myFitpeakLineAuthRoutes); // LINEログイン（my-fitpeak より先にマウント）
-app.use('/api/my-fitpeak', myFitpeakRoutes);
 app.use('/api/consulting', amazonConsultingRoutes);
 app.use('/api/outreach', outreachRoutes);
 app.use('/api/line-crm/email-auto-reply', emailAutoReplyRoutes);

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Package, Truck, MessageCircle, ChevronRight } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
+import { apiFetch } from './lib/api'
 
 interface RecentOrder {
   name: string
@@ -23,7 +24,7 @@ export default function FitpeakDashboard() {
       if (!user?.email) return
 
       try {
-        const res = await fetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(user.email)}&limit=3`)
+        const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(user.email)}&limit=3`)
         if (res.ok) {
           const data = await res.json()
           setOrders(data.orders || [])

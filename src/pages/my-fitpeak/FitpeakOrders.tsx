@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, ChevronRight, Truck, Search, ShoppingCart, X } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
+import { apiFetch } from './lib/api'
 
 interface Order {
   id: number | string
@@ -30,7 +31,7 @@ export default function FitpeakOrders() {
     async function load() {
       if (!user?.email) return
       try {
-        const res = await fetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(user.email)}&limit=20`)
+        const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(user.email)}&limit=20`)
         if (res.ok) {
           const data = await res.json()
           setOrders((data.orders || []).map((o: Order) => ({ ...o, source: 'shopify' })))
@@ -48,7 +49,7 @@ export default function FitpeakOrders() {
     setAmazonSearching(true)
 
     try {
-      const res = await fetch('/api/my-fitpeak/amazon-order', {
+      const res = await apiFetch('/api/my-fitpeak/amazon-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId: id }),

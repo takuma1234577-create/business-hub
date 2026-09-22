@@ -27,7 +27,8 @@ async function getShopifyStore() {
 // GET /orders - メールアドレスでShopify注文を取得
 router.get('/orders', async (req, res) => {
   try {
-    const { email, limit = '10' } = req.query;
+    const { limit = '10' } = req.query;
+    const email = req.fitpeakEmail || req.query.email;
     if (!email) return res.status(400).json({ error: 'email required' });
 
     const store = await getShopifyStore();
@@ -78,7 +79,7 @@ router.get('/orders', async (req, res) => {
 // GET /orders/:id - 注文詳細
 router.get('/orders/:id', async (req, res) => {
   try {
-    const { email } = req.query;
+    const email = req.fitpeakEmail || req.query.email;
     if (!email) return res.status(400).json({ error: 'email required' });
 
     const store = await getShopifyStore();
