@@ -22,5 +22,18 @@
       "path": "/api/daily-cron",
       "schedule": "*/10 * * * *"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak",
+      "permanent": false
+    }
   ]
 }
