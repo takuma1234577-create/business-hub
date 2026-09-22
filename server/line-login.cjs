@@ -107,7 +107,8 @@ router.get('/go/:code', async (req, res) => {
     const row = {
       source_id: source.id,
       click_id: clickId,
-      entry: 'login',
+      // entry: 'login'=LINE Login経由 / 'direct'=アプリ内ブラウザ等で従来の追加リンクへ（記録のみ）
+      entry: String(q.entry || '') === 'direct' ? 'direct' : 'login',
       ip_address: clientIp(req),
       user_agent: str(ua, 500),
       fbclid: str(q.fbclid, 500),
