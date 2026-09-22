@@ -176,7 +176,7 @@ async function resolveClick(req, { stateCode, stateClickId }) {
   let { data: click } = await findClick();
   if (!click) {
     // LP側の裏記録（mode=log）がコールドスタートで遅れている場合に備えて少し待つ
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 700));
     ({ data: click } = await findClick());
   }
   if (!click && stateCode) {
@@ -264,13 +264,12 @@ async function finalizeAdd({ click, source, channelId, prof, friendFlag }) {
       ...(alreadyConverted ? { capi_status: 'skipped: already converted user', capi_sent_at: now } : {}),
     }).eq('id', click.id);
     if (!alreadyConverted) {
-      // Vercel のサーバーレスはレスポンス後に処理が打ち切られるため、送信完了を待つ（失敗時は cron が再送）
-      try {
-        await Promise.race([
-          capi.sendAndRecord(click.click_id, { contentName: source?.name || null }),
-          new Promise(r => setTimeout(r, 4000)),
-        ]);
-      } catch (e) { console.error('[line-login] capi error:', e.message); }
+      // レスポンスを遅らせないため waitUntil で送る（使えない環境では完了を待つ。失敗時は cron が再送）
+      const p = capi.sendAndRecord(click.click_id, { contentName: source?.name || null })
+        .catch(e => console.error('[line-login] capi error:', e.message));
+      let deferred = false;
+      try { const { waitUntil } = require('@vercel/functions'); if (typeof waitUntil === 'function') { waitUntil(p); deferred = true; } } catch {}
+      if (!deferred) { try { await Promise.race([p, new Promise(r => setTimeout(r, 4000))]); } catch {} }
     }
   }
   console.log(`[line-login] ${prof.displayName} added via ${source?.name || click.source_id} (click ${click.click_id})`);
@@ -365,20 +364,18 @@ router.get('/liff/add', async (req, res) => {
   if (!LIFF_ID || !window.liff) { show('fail'); return; }
   liff.init({ liffId: LIFF_ID }).then(function(){
     if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
-    return Promise.all([liff.getProfile(), liff.getFriendship().catch(function(){ return { friendFlag: false }; })]).then(function(r){
-      var prof = r[0], fr = r[1];
-      return fetch('/api/line-crm/liff/confirm', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ accessToken: liff.getAccessToken(), state: state(), friendFlag: !!fr.friendFlag, ua: navigator.userAgent }) })
-        .then(function(x){ return x.json(); }).catch(function(){ return { ok:false }; })
-        .then(function(){
-          if (fr.friendFlag) {
-            show('done');
-            // そのままトーク画面へ
-            setTimeout(function(){ location.href = document.getElementById('talk').href; }, 800);
-          } else {
-            show('notfriend');
-          }
-        });
+    return liff.getFriendship().catch(function(){ return { friendFlag: false }; }).then(function(fr){
+      // 記録（経路確定・CAPI）は裏で送り、画面はすぐ次へ進める
+      try {
+        fetch('/api/line-crm/liff/confirm', { method:'POST', headers:{'Content-Type':'application/json'}, keepalive: true,
+          body: JSON.stringify({ accessToken: liff.getAccessToken(), state: state(), friendFlag: !!fr.friendFlag, ua: navigator.userAgent }) }).catch(function(){});
+      } catch (e) {}
+      if (fr.friendFlag) {
+        show('done');
+        setTimeout(function(){ location.href = document.getElementById('talk').href; }, 700);
+      } else {
+        show('notfriend');
+      }
     });
   }).catch(function(e){ console.error(e); show('fail'); });
 })();
