@@ -3592,7 +3592,7 @@ async function processWebhookEvents(channelId, events) {
           const { data: recentClick } = await supabase
             .from('traffic_clicks')
             .select('source_id')
-            .neq('entry', 'login')
+            .not('entry', 'in', '("login","bot")')
             .gte('created_at', windowStart)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -4772,6 +4772,14 @@ router.get('/public/friend-count', async (req, res) => {
   }
 });
 
+function isMetaCrawlerReq(req) {
+  try {
+    const { isMetaCrawler } = require('./line-login.cjs');
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+    return isMetaCrawler(ip, req.headers['user-agent']);
+  } catch { return false; }
+}
+
 // GET /track/:code - クリック追跡 → LINE友だち追加URLにリダイレクト
 router.get('/track/:code', async (req, res) => {
   try {
@@ -4790,6 +4798,8 @@ router.get('/track/:code', async (req, res) => {
         source_id: source.id,
         ip_address: req.headers['x-forwarded-for'] || req.ip || null,
         user_agent: req.headers['user-agent'] || null,
+        // Meta の広告審査クローラーは 'bot' として保存し、集計・経路推定から除外する
+        ...(isMetaCrawlerReq(req) ? { entry: 'bot' } : {}),
       }),
       supabase.from('traffic_sources')
         .update({ click_count: (source.click_count || 0) + 1 })

@@ -51,6 +51,15 @@ function isMobile(ua) {
 function clientIp(req) {
   return (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim() || null;
 }
+// Meta（Facebook/Instagram）の広告審査クローラー判定。広告を公開・編集した直後に
+// Meta のIP帯（AS32934）から数十件の「クリック」が来て集計を汚すので、entry='bot' として保存し集計から除く
+const META_IP_PREFIXES = ['31.13.', '66.220.', '69.63.', '69.171.', '74.119.', '103.4.', '129.134.', '157.240.', '173.252.', '179.60.', '185.60.', '204.15.', '2a03:2880:'];
+function isMetaCrawler(ip, ua) {
+  const u = String(ua || '');
+  if (/facebookexternalhit|facebookcatalog|Facebot|Dalvik\//i.test(u)) return true;
+  const a = String(ip || '');
+  return META_IP_PREFIXES.some(pfx => a.startsWith(pfx));
+}
 function str(v, max = 300) {
   if (v === undefined || v === null) return null;
   const s = String(v).trim();
@@ -109,7 +118,7 @@ router.get('/go/:code', async (req, res) => {
       source_id: source.id,
       click_id: clickId,
       // entry: 'login'=LINE Login経由 / 'direct'=アプリ内ブラウザ等で従来の追加リンクへ（記録のみ）
-      entry: String(q.entry || '') === 'direct' ? 'direct' : 'login',
+      entry: isMetaCrawler(clientIp(req), ua) ? 'bot' : (String(q.entry || '') === 'direct' ? 'direct' : 'login'),
       ip_address: clientIp(req),
       user_agent: str(ua, 500),
       fbclid: str(q.fbclid, 500),
@@ -476,6 +485,7 @@ router.get('/traffic-sources/ads', async (req, res) => {
       .from('traffic_clicks')
       .select('source_id, entry, utm_campaign, utm_content, utm_term, converted_at, capi_sent_at, user_agent')
       .in('source_id', sourceIds)
+      .neq('entry', 'bot')
       .gte('created_at', sinceIso)
       .limit(20000);
 
@@ -552,3 +562,4 @@ router.get('/line-login/capi/retry', async (_req, res) => {
 
 module.exports = router;
 module.exports.confirmFollowByUser = confirmFollowByUser;
+module.exports.isMetaCrawler = isMetaCrawler;
