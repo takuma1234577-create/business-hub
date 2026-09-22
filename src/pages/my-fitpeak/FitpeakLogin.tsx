@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useFitpeakAuth } from './lib/auth'
+import { fitpeakSupabase } from './lib/supabase'
 import { CheckCircle, MessageCircle } from 'lucide-react'
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID || ''
@@ -27,6 +28,79 @@ export default function FitpeakLogin() {
   const linkTriedRef = useRef(false)
 
   const isLineContext = !!lineUserId || !!code
+
+  // LINEログイン（メール・パスワード不要）
+  const [lineLoginLoading, setLineLoginLoading] = useState(false)
+
+  // ブラウザでLINEログインから戻ってきたとき（#lt=<token_hash>）にセッションを作る
+  useEffect(() => {
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
+    if (!hash) return
+    const params = new URLSearchParams(hash)
+    const tokenHash = params.get('lt')
+    if (!tokenHash) return
+    const next = params.get('next') || '/my-fitpeak'
+    setLineLoginLoading(true)
+    ;(async () => {
+      const { error: otpError } = await fitpeakSupabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: 'magiclink',
+      })
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      setLineLoginLoading(false)
+      if (otpError) {
+        setError('LINEログインに失敗しました。お手数ですが、もう一度お試しください。')
+        return
+      }
+      navigate(next)
+    })()
+  }, [navigate])
+
+  // LINEログインのエラー表示（コールバックからの戻り）
+  useEffect(() => {
+    const lineError = searchParams.get('line_error')
+    if (lineError) setError(lineError)
+  }, [searchParams])
+
+  const handleLineLogin = async () => {
+    setError('')
+    setLineLoginLoading(true)
+    try {
+      // LINEアプリ内（LIFF）ならIDトークンでそのままログイン
+      if (LIFF_ID) {
+        try {
+          const liff = (await import('@line/liff')).default
+          await liff.init({ liffId: LIFF_ID })
+          if (liff.isLoggedIn()) {
+            const idToken = liff.getIDToken()
+            if (idToken) {
+              const res = await fetch('/api/my-fitpeak/auth/line', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken }),
+              })
+              const data = await res.json()
+              if (!res.ok) throw new Error(data.error || 'LINEログインに失敗しました')
+              const { error: otpError } = await fitpeakSupabase.auth.verifyOtp({
+                token_hash: data.tokenHash,
+                type: 'magiclink',
+              })
+              if (otpError) throw new Error(otpError.message)
+              navigate('/my-fitpeak')
+              return
+            }
+          }
+        } catch (liffErr) {
+          console.error('LIFF login error:', liffErr)
+        }
+      }
+      // 通常のブラウザはLINEの認可画面へ
+      window.location.href = '/api/my-fitpeak/auth/line/start?redirect=/my-fitpeak'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'LINEログインに失敗しました')
+      setLineLoginLoading(false)
+    }
+  }
 
   // LIFF初期化
   useEffect(() => {
@@ -277,6 +351,22 @@ export default function FitpeakLogin() {
             </div>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={handleLineLogin}
+                disabled={lineLoginLoading}
+                className="w-full mb-4 py-3 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <MessageCircle size={18} />
+                {lineLoginLoading ? 'ログイン中...' : 'LINEでログイン'}
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[10px] text-white/30">メールアドレスでログイン</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
               <div className="flex gap-1 mb-6 bg-white/5 rounded-lg p-1">
                 <button
                   type="button"

@@ -425,14 +425,25 @@ router.post('/liff/confirm', async (req, res) => {
 
     // トークン検証（このLoginチャネルで発行されたものか）
     const login = await getLoginConfig();
+    const uaShort = String(req.body?.ua || req.headers['user-agent'] || '').slice(0, 160);
     const v = await fetch(`https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`);
-    if (!v.ok) return res.status(401).json({ ok: false, error: 'invalid token' });
+    if (!v.ok) {
+      const body = await v.text().catch(() => '');
+      console.error(`[liff/confirm] verify failed ${v.status} ${body.slice(0, 200)} tokenLen=${String(accessToken).length} state=${state} ua=${uaShort}`);
+      return res.status(401).json({ ok: false, error: 'invalid token' });
+    }
     const vj = await v.json();
-    if (login.channelId && String(vj.client_id) !== String(login.channelId)) return res.status(401).json({ ok: false, error: 'token channel mismatch' });
+    if (login.channelId && String(vj.client_id) !== String(login.channelId)) {
+      console.error(`[liff/confirm] channel mismatch client_id=${vj.client_id} expected=${login.channelId} ua=${uaShort}`);
+      return res.status(401).json({ ok: false, error: 'token channel mismatch' });
+    }
 
     const auth = { Authorization: `Bearer ${accessToken}` };
     const profResp = await fetch('https://api.line.me/v2/profile', { headers: auth });
-    if (!profResp.ok) return res.status(401).json({ ok: false, error: 'profile failed' });
+    if (!profResp.ok) {
+      console.error(`[liff/confirm] profile failed ${profResp.status} scope=${vj.scope} ua=${uaShort}`);
+      return res.status(401).json({ ok: false, error: 'profile failed' });
+    }
     const prof = await profResp.json();
     let friendFlag = false;
     try { const fr = await fetch('https://api.line.me/friendship/v1/status', { headers: auth }); if (fr.ok) friendFlag = !!(await fr.json()).friendFlag; } catch {}
