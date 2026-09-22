@@ -34,6 +34,17 @@
       ],
       "destination": "/my-fitpeak",
       "permanent": false
+    },
+    {
+      "source": "/line-link",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/line-link",
+      "permanent": false
     }
   ]
 }
