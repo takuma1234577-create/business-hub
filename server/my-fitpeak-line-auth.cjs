@@ -171,11 +171,14 @@ async function issueSessionForLineUser({ lineUserId, displayName, email }) {
       authUserId = found.id;
     }
 
-    await admin.from('members').update({
+    const { error: linkErr2 } = await admin.from('members').update({
       auth_user_id: authUserId,
       email: member.email || loginEmail,
       nickname: member.nickname || displayName || null,
     }).eq('id', member.id);
+    if (linkErr2) {
+      console.error(`[my-fitpeak/auth/line] members更新に失敗: ${linkErr2.message} member=${member.id}`);
+    }
   }
 
   // 3) セッション発行用のリンクを作る（メールは送られない）

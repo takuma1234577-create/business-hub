@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MessageCircle, CheckCircle, ExternalLink, User } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
+import { displayName } from './lib/api'
 
 interface LinkInfo {
   id: string
@@ -66,7 +67,7 @@ export default function FitpeakLineConnect() {
                 <h2 className="text-lg font-semibold text-white">
                   {linkInfo.friends?.display_name || linkInfo.shopify_customer_name || 'LINEユーザー'}
                 </h2>
-                <p className="text-xs text-white/40 mt-0.5">{user?.email}</p>
+                <p className="text-xs text-white/40 mt-0.5">{displayName(user)}</p>
               </div>
             </div>
 
@@ -122,7 +123,7 @@ export default function FitpeakLineConnect() {
               <ol className="text-xs text-white/40 space-y-1.5 list-decimal list-inside">
                 <li>上のボタンからFITPEAK公式LINEを友だち追加</li>
                 <li>リッチメニューの「会員登録」をタップ</li>
-                <li>このアカウントのメールアドレス ({user?.email}) を入力</li>
+                <li>このアカウントのメールアドレス ({displayName(user)}) を入力</li>
                 <li>「会員登録完了」のメッセージが届いたら連携完了</li>
               </ol>
             </div>

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Package, Truck, MessageCircle, ChevronRight } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
-import { apiFetch } from './lib/api'
+import { apiFetch, displayName } from './lib/api'
 
 interface RecentOrder {
   name: string
@@ -63,7 +63,7 @@ export default function FitpeakDashboard() {
     <div className="space-y-8">
       <div>
         <h1 className="text-xl font-bold text-white">マイページ</h1>
-        <p className="text-white/40 text-sm mt-1">{user?.email}</p>
+        <p className="text-white/40 text-sm mt-1">{displayName(user)}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

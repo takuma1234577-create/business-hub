@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { Home, Package, MessageCircle, LogOut } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
+import { displayName } from './lib/api'
 
 export default function FitpeakLayout() {
   const { user, signOut } = useFitpeakAuth()
@@ -27,7 +28,7 @@ export default function FitpeakLayout() {
             <span className="text-xs text-white/40 hidden sm:inline">My Account</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-white/40 hidden sm:inline">{user?.email}</span>
+            <span className="text-xs text-white/40 hidden sm:inline">{displayName(user)}</span>
             <button
               onClick={handleSignOut}
               className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition"
