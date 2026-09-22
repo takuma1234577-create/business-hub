@@ -383,7 +383,14 @@ router.get('/liff/add', async (req, res) => {
 });
 
 // POST /liff/confirm : LIFFのアクセストークンを検証して友だち追加を確定
+router.options('/liff/confirm', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.status(204).end();
+});
 router.post('/liff/confirm', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
   try {
     const supabase = getSupabase();
     const { accessToken, state } = req.body || {};

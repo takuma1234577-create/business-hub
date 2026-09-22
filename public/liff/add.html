@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>FITPEAK 公式LINE</title>
+<!--
+  友だち追加用LIFF（静的ページ・CDN配信で即表示）
+  LINE Developers「FITPEAK 友だち追加（クレアショットLP）」のエンドポイントURLに設定する。
+  流れ: LINEアプリ内で開く → liff.init（自動ログイン・友だち追加オプション aggressive）→ 友だち判定 →
+        画面をすぐ進めてトークへ。記録（経路確定・Meta CAPI）は /api/line-crm/liff/confirm に裏送り。
+-->
+<style>
+  html,body{margin:0;background:#fff;font-family:"Noto Sans JP","Hiragino Sans",-apple-system,sans-serif;color:#222}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;box-sizing:border-box}
+  .logo{font-weight:900;font-size:22px;letter-spacing:.04em;color:#3F9403;margin-bottom:18px}
+  h1{font-size:20px;margin:0 0 10px}
+  p{font-size:14px;line-height:1.7;color:#555;margin:0 0 22px}
+  .btn{display:block;width:100%;max-width:360px;padding:16px;border-radius:12px;background:#06C755;color:#fff;font-weight:700;font-size:17px;text-decoration:none;box-sizing:border-box}
+  .spinner{width:36px;height:36px;border:4px solid #e6ecd8;border-top-color:#06C755;border-radius:50%;animation:s 1s linear infinite;margin:0 auto 18px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .hidden{display:none}
+</style>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body><div class="wrap">
+  <div class="logo">//FITPEAK</div>
+  <div id="loading"><div class="spinner"></div><p>公式LINEを開いています…</p></div>
+  <div id="done" class="hidden"><h1>友だち追加ありがとうございます！</h1><p>40％OFFクーポンと先行予約のご案内は、公式LINEのトークにお送りします。</p><a class="btn" id="talk" href="https://line.me/R/oaMessage/%40956iyppc/">トークを開く</a></div>
+  <div id="notfriend" class="hidden"><h1>あと1タップで完了です</h1><p>公式LINEを友だち追加すると、40％OFFクーポンと先行予約のご案内が届きます。</p><a class="btn" href="https://line.me/R/ti/p/@956iyppc">友だち追加する</a></div>
+  <div id="fail" class="hidden"><h1>LINEを開けませんでした</h1><p>下のボタンから友だち追加してください。</p><a class="btn" href="https://line.me/R/ti/p/@956iyppc">友だち追加する</a></div>
+</div>
+<script>
+(function(){
+  var LIFF_ID = '2006537445-rcvSBpCP';
+  var API = location.origin + '/api/line-crm/liff/confirm';
+  function show(id){ ['loading','done','notfriend','fail'].forEach(function(k){ document.getElementById(k).className = (k===id?'':'hidden'); }); }
+  function qp(k){ var q = new URLSearchParams(location.search); var v = q.get(k); if (v) return v;
+    try { var st = q.get('liff.state'); if (st) { var q2 = new URLSearchParams(st.charAt(0) === '?' ? st.slice(1) : st); return q2.get(k) || ''; } } catch (e) {} return ''; }
+  function state(){ return (qp('code')||'ytq6hwej') + '.' + (qp('cid')||''); }
+  if (!window.liff) { show('fail'); return; }
+  var watchdog = setTimeout(function(){ show('fail'); }, 8000);
+  liff.init({ liffId: LIFF_ID }).then(function(){
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    return liff.getFriendship().catch(function(){ return { friendFlag: false }; }).then(function(fr){
+      clearTimeout(watchdog);
+      try {
+        fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, keepalive: true,
+          body: JSON.stringify({ accessToken: liff.getAccessToken(), state: state(), friendFlag: !!fr.friendFlag, ua: navigator.userAgent }) }).catch(function(){});
+      } catch (e) {}
+      if (fr.friendFlag) {
+        show('done');
+        setTimeout(function(){ location.href = document.getElementById('talk').href; }, 600);
+      } else {
+        show('notfriend');
+      }
+    });
+  }).catch(function(e){ clearTimeout(watchdog); console.error(e); show('fail'); });
+})();
+</script>
+</body></html>
