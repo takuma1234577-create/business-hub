@@ -64,15 +64,15 @@ export default function FitpeakOrderDetail() {
     return (
       <div className="text-center py-20">
         <p className="text-white/40">注文が見つかりません</p>
-        <Link to="/my-fitpeak/orders" className="text-[#c8a960] text-sm hover:underline mt-2 inline-block">注文履歴に戻る</Link>
+        <Link to="/my-fitpeak" className="text-[#c8a960] text-sm hover:underline mt-2 inline-block">ご注文一覧に戻る</Link>
       </div>
     )
   }
 
   return (
     <div>
-      <Link to="/my-fitpeak/orders" className="inline-flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition">
-        <ArrowLeft size={16} /> 注文履歴に戻る
+      <Link to="/my-fitpeak" className="inline-flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition">
+        <ArrowLeft size={16} /> ご注文一覧に戻る
       </Link>
 
       <div className="flex items-center justify-between mb-6">
@@ -82,7 +82,7 @@ export default function FitpeakOrderDetail() {
             {new Date(order.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <span className="text-lg font-semibold text-white">{order.total}円</span>
+        <span className="text-lg font-semibold text-white">¥{Number(order.total || 0).toLocaleString('ja-JP')}</span>
       </div>
 
       <section className="bg-[#151515] border border-white/10 rounded-xl p-5 mb-4">

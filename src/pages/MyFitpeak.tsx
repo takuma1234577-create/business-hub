@@ -3,10 +3,9 @@ import { FitpeakAuthProvider, useFitpeakAuth } from './my-fitpeak/lib/auth'
 import { fitpeakSupabase } from './my-fitpeak/lib/supabase'
 import FitpeakLayout from './my-fitpeak/FitpeakLayout'
 import FitpeakLogin from './my-fitpeak/FitpeakLogin'
-import FitpeakDashboard from './my-fitpeak/FitpeakDashboard'
-import FitpeakOrders from './my-fitpeak/FitpeakOrders'
+import FitpeakHome from './my-fitpeak/FitpeakHome'
 import FitpeakOrderDetail from './my-fitpeak/FitpeakOrderDetail'
-import FitpeakLineConnect from './my-fitpeak/FitpeakLineConnect'
+import FitpeakAccount from './my-fitpeak/FitpeakAccount'
 import { type ReactNode, useEffect, useState } from 'react'
 
 function AutoLoginHandler({ children }: { children: ReactNode }) {
@@ -73,10 +72,12 @@ export default function MyFitpeak() {
           <Route path="login" element={<FitpeakLogin />} />
           <Route path="line-link" element={<FitpeakLogin />} />
           <Route path="/" element={<ProtectedRoute><FitpeakLayout /></ProtectedRoute>}>
-            <Route index element={<FitpeakDashboard />} />
-            <Route path="orders" element={<FitpeakOrders />} />
+            <Route index element={<FitpeakHome />} />
+            <Route path="orders" element={<Navigate to="/my-fitpeak" replace />} />
             <Route path="orders/:id" element={<FitpeakOrderDetail />} />
-            <Route path="line" element={<FitpeakLineConnect />} />
+            <Route path="account" element={<FitpeakAccount />} />
+            {/* 旧URL（メールやLINEのリンクから来る人のため） */}
+            <Route path="line" element={<Navigate to="/my-fitpeak/account" replace />} />
           </Route>
         </Routes>
       </AutoLoginHandler>
