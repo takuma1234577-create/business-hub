@@ -50,20 +50,15 @@ function getAdmin() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-// LINEログインチャネルの認証情報（API設定 → 環境変数の順）
+// LINEログインチャネルの設定は line-login.cjs と共通のものを使う
+// （Business-hubの「API設定」→ 環境変数の順で解決される）
 async function getLoginConfig() {
-  let getActiveApiKey = null;
-  try { ({ getActiveApiKey } = require('./settings.cjs')); } catch {}
-  const pick = async (id, envVar) => {
-    if (getActiveApiKey) { try { const v = await getActiveApiKey(id); if (v) return String(v).trim(); } catch {} }
-    return (process.env[envVar] || '').trim() || null;
-  };
-  const channelId = await pick('line_login_channel_id', 'LINE_LOGIN_CHANNEL_ID');
-  const channelSecret = await pick('line_login_channel_secret', 'LINE_LOGIN_CHANNEL_SECRET');
-  return { channelId, channelSecret, configured: !!(channelId && channelSecret) };
+  const { getLoginConfig: shared } = require('./line-login.cjs');
+  return shared();
 }
 
-// LINEのIDトークンを検証して { lineUserId, displayName, pictureUrl, email } を返す
+// LINEのIDトークン／アクセストークンを検証して { lineUserId, displayName, pictureUrl, email } を返す
+// 検証の失敗理由はログに残す（/api/line-crm/liff/confirm と同じ方針）
 async function verifyIdToken(idToken, channelId) {
   const resp = await fetch(LINE_VERIFY_URL, {
     method: 'POST',
@@ -72,7 +67,8 @@ async function verifyIdToken(idToken, channelId) {
   });
   if (!resp.ok) {
     const body = await resp.text().catch(() => '');
-    throw new Error(`LINEのIDトークン検証に失敗しました: ${resp.status} ${body}`);
+    console.error(`[my-fitpeak/auth/line] id_token verify failed ${resp.status} ${body.slice(0, 200)} expected=${channelId}`);
+    throw new Error('LINEのIDトークン検証に失敗しました');
   }
   const claims = await resp.json();
   if (!claims.sub) throw new Error('LINEのIDトークンにユーザーIDがありません');
@@ -81,6 +77,33 @@ async function verifyIdToken(idToken, channelId) {
     displayName: claims.name || null,
     pictureUrl: claims.picture || null,
     email: claims.email || null,
+  };
+}
+
+// LIFF の access_token（/api/line-crm/liff/confirm と同じ検証の流れ）
+async function verifyAccessToken(accessToken, channelId) {
+  const v = await fetch(`https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`);
+  if (!v.ok) {
+    const body = await v.text().catch(() => '');
+    console.error(`[my-fitpeak/auth/line] access_token verify failed ${v.status} ${body.slice(0, 200)}`);
+    throw new Error('LINEのトークン検証に失敗しました');
+  }
+  const vj = await v.json();
+  if (channelId && String(vj.client_id) !== String(channelId)) {
+    console.error(`[my-fitpeak/auth/line] channel mismatch client_id=${vj.client_id} expected=${channelId}`);
+    throw new Error('LINEのチャネルが一致しません');
+  }
+  const profResp = await fetch('https://api.line.me/v2/profile', { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!profResp.ok) {
+    console.error(`[my-fitpeak/auth/line] profile failed ${profResp.status} scope=${vj.scope}`);
+    throw new Error('LINEのプロフィールを取得できませんでした');
+  }
+  const prof = await profResp.json();
+  return {
+    lineUserId: prof.userId,
+    displayName: prof.displayName || null,
+    pictureUrl: prof.pictureUrl || null,
+    email: null,
   };
 }
 
@@ -166,15 +189,17 @@ async function issueSessionForLineUser({ lineUserId, displayName, email }) {
 // ── POST /auth/line （LIFF：LINEアプリ内） ──────────────────────────────────
 router.post('/auth/line', async (req, res) => {
   try {
-    const { idToken } = req.body || {};
-    if (!idToken) return res.status(400).json({ error: 'idToken required' });
+    const { idToken, accessToken } = req.body || {};
+    if (!idToken && !accessToken) return res.status(400).json({ error: 'idToken or accessToken required' });
 
     const login = await getLoginConfig();
     // LIFFのIDトークンはLIFFアプリが属するチャネルで発行される
     const channelId = (req.body.channelId || login.channelId || '').trim();
     if (!channelId) return res.status(500).json({ error: 'LINEログインチャネルが未設定です' });
 
-    const profile = await verifyIdToken(idToken, channelId);
+    const profile = idToken
+      ? await verifyIdToken(idToken, channelId)
+      : await verifyAccessToken(accessToken, channelId);
     const result = await issueSessionForLineUser(profile);
     if (!result.tokenHash) return res.status(500).json({ error: 'ログイン用トークンを取得できませんでした' });
 

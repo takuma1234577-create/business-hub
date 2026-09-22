@@ -574,3 +574,4 @@ router.get('/line-login/capi/retry', async (_req, res) => {
 module.exports = router;
 module.exports.confirmFollowByUser = confirmFollowByUser;
 module.exports.isMetaCrawler = isMetaCrawler;
+module.exports.getLoginConfig = getLoginConfig; // LINEログインチャネルの設定は他モジュールと共通で使う

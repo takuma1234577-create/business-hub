@@ -73,11 +73,12 @@ export default function FitpeakLogin() {
           await liff.init({ liffId: LIFF_ID })
           if (liff.isLoggedIn()) {
             const idToken = liff.getIDToken()
-            if (idToken) {
+            const accessToken = liff.getAccessToken()
+            if (idToken || accessToken) {
               const res = await fetch('/api/my-fitpeak/auth/line', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken }),
+                body: JSON.stringify({ idToken, accessToken }),
               })
               const data = await res.json()
               if (!res.ok) throw new Error(data.error || 'LINEログインに失敗しました')
