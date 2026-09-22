@@ -328,7 +328,8 @@ router.get('/line-login/callback', async (req, res) => {
 // ── LIFF フロー（LINEアプリ内で開く。アプリ内ブラウザ経由でもLINEアプリに遷移できる） ──
 // GET /liff/add : LIFFのエンドポイント（HTML）。liff.init → 自動ログイン（友だち追加オプション aggressive）→ /liff/confirm
 router.get('/liff/add', async (req, res) => {
-  const liffId = str(req.query.liff_id) || (await getLoginConfig()).liffId || '';
+  // 既定は「FITPEAK 友だち追加（クレアショットLP）」LIFF（LIFF IDは秘密情報ではない）
+  const liffId = str(req.query.liff_id) || (await getLoginConfig()).liffId || '2006537445-rcvSBpCP';
   const basicId = await resolveBasicId(DEFAULT_CHANNEL_ID);
   res.set('Cache-Control', 'no-store');
   res.type('html').send(`<!doctype html>
