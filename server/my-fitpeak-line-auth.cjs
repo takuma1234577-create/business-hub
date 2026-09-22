@@ -25,7 +25,6 @@
 const express = require('express');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { getSupabase } = require('./shared.cjs');
 
 const router = express.Router();
 
@@ -110,14 +109,18 @@ async function verifyAccessToken(accessToken, channelId) {
 // LINEユーザー → FITPEAK ID（members）→ Supabaseユーザー → ログイン用 token_hash
 async function issueSessionForLineUser({ lineUserId, displayName, email }) {
   const admin = getAdmin();
-  const db = getSupabase();
 
-  // 1) FITPEAK ID を解決（無ければ作る）
-  let { data: member } = await db
-    .from('members')
-    .select('id, auth_user_id, email, nickname')
-    .eq('line_user_id', lineUserId)
-    .maybeSingle();
+  // 1) FITPEAK ID を解決（無ければ作る）。RLSの影響を受けないよう service role で読む
+  const findMember = async () => {
+    const { data } = await admin
+      .from('members')
+      .select('id, auth_user_id, email, nickname')
+      .eq('line_user_id', lineUserId)
+      .maybeSingle();
+    return data || null;
+  };
+
+  let member = await findMember();
 
   if (!member) {
     const { data: created, error } = await admin
@@ -125,8 +128,13 @@ async function issueSessionForLineUser({ lineUserId, displayName, email }) {
       .insert({ line_user_id: lineUserId, nickname: displayName, email, source: 'line_login' })
       .select('id, auth_user_id, email, nickname')
       .single();
-    if (error) throw new Error(`会員情報の作成に失敗しました: ${error.message}`);
-    member = created;
+    if (error) {
+      // 同時アクセスなどで既に作られていた場合は、その会員を使う
+      member = await findMember();
+      if (!member) throw new Error(`会員情報の作成に失敗しました: ${error.message}`);
+    } else {
+      member = created;
+    }
   }
 
   // 2) Supabaseのログインユーザーを用意

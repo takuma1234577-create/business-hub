@@ -145,11 +145,12 @@ export default function FitpeakLogin() {
   }, [user, isLineContext, linking, linkDone])
 
   // ログイン済み + 非LINEコンテキストならダッシュボードへリダイレクト
+  // ただしLINEログインから戻ってきた直後（#lt=）は、その処理が終わるまで待つ
   useEffect(() => {
-    if (user && !isLineContext) {
+    if (user && !isLineContext && !lineLoginLoading && !window.location.hash.includes('lt=')) {
       navigate('/my-fitpeak')
     }
-  }, [user, isLineContext, navigate])
+  }, [user, isLineContext, lineLoginLoading, navigate])
 
   const performLineLink = async () => {
     if (!lineUserId && !code) return
