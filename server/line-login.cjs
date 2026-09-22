@@ -42,7 +42,8 @@ async function getLoginConfig() {
   };
   const channelId = await pick('line_login_channel_id', 'LINE_LOGIN_CHANNEL_ID');
   const channelSecret = await pick('line_login_channel_secret', 'LINE_LOGIN_CHANNEL_SECRET');
-  return { channelId, channelSecret, configured: !!(channelId && channelSecret) };
+  const liffId = await pick('line_liff_add_id', 'LINE_LIFF_ADD_ID');
+  return { channelId, channelSecret, liffId, configured: !!(channelId && channelSecret) };
 }
 function isMobile(ua) {
   return /iPhone|iPad|iPod|Android/i.test(ua || '');
@@ -159,67 +160,149 @@ router.get('/go/:code', async (req, res) => {
   }
 });
 
-// ── GET /line-login/callback ────────────────────────────────────────────────
+// ── 共通: state を解釈してクリック行を取得（無ければ作る） ─────────────────
+function parseState(state) {
+  const st = String(state || '');
+  const dot = st.indexOf('.');
+  const stateCode = dot > 0 ? st.slice(0, dot) : null;
+  const stateClickId = (dot > 0 ? st.slice(dot + 1) : st).toLowerCase();
+  return { stateCode, stateClickId: UUID_RE.test(stateClickId) ? stateClickId : null };
+}
+
+async function resolveClick(req, { stateCode, stateClickId }) {
+  const supabase = getSupabase();
+  const sel = 'id, click_id, source_id, converted_at, line_user_id';
+  const findClick = () => supabase.from('traffic_clicks').select(sel).eq('click_id', stateClickId).maybeSingle();
+  let { data: click } = await findClick();
+  if (!click) {
+    // LP側の裏記録（mode=log）がコールドスタートで遅れている場合に備えて少し待つ
+    await new Promise(r => setTimeout(r, 1500));
+    ({ data: click } = await findClick());
+  }
+  if (!click && stateCode) {
+    // 記録が届いていなければ経路コードから最低限の行を作る（広告パラメータは失われるが追加は確定させる）
+    const { data: src } = await supabase.from('traffic_sources').select('id').eq('code', stateCode).maybeSingle();
+    if (src) {
+      const { data: ins } = await supabase.from('traffic_clicks').insert({
+        source_id: src.id, click_id: stateClickId, entry: 'login',
+        ip_address: clientIp(req), user_agent: str(req.headers['user-agent'], 500),
+      }).select(sel).maybeSingle();
+      click = ins || null;
+    }
+  }
+  return click;
+}
+
+// ── 共通: 友だち追加を確定（friends upsert・経路確定・タグ・CAPI） ─────────────
+async function finalizeAdd({ click, source, channelId, prof, friendFlag }) {
+  const supabase = getSupabase();
+  const lineUserId = prof.userId;
+  await supabase.from('traffic_clicks').update({ line_user_id: lineUserId }).eq('id', click.id);
+  if (!friendFlag) return { added: false };
+
+  const now = new Date().toISOString();
+  const { data: existing } = await supabase
+    .from('friends')
+    .select('id, traffic_source_id, first_click_id, status')
+    .eq('line_user_id', lineUserId)
+    .eq('channel_id', channelId)
+    .maybeSingle();
+
+  let friendId = existing?.id || null;
+  let attributedNow = false;
+  if (existing) {
+    const upd = {
+      display_name: prof.displayName || undefined,
+      picture_url: prof.pictureUrl || null,
+      status_message: prof.statusMessage || null,
+      status: 'active',
+      updated_at: now,
+    };
+    if (!existing.traffic_source_id && click.source_id) { upd.traffic_source_id = click.source_id; attributedNow = true; }
+    if (!existing.first_click_id) upd.first_click_id = click.click_id;
+    await supabase.from('friends').update(upd).eq('id', existing.id);
+  } else {
+    const { data: ins } = await supabase.from('friends').insert({
+      line_user_id: lineUserId,
+      display_name: prof.displayName || 'Unknown',
+      picture_url: prof.pictureUrl || null,
+      status_message: prof.statusMessage || null,
+      status: 'active',
+      channel_id: channelId,
+      traffic_source_id: click.source_id,
+      first_click_id: click.click_id,
+      followed_at: now,
+    }).select('id').maybeSingle();
+    friendId = ins?.id || null;
+    attributedNow = !!click.source_id;
+  }
+
+  if (attributedNow && source) {
+    supabase.from('traffic_sources').update({ friend_count: (source.friend_count || 0) + 1 }).eq('id', source.id)
+      .then(() => {}, () => {});
+    const tagIds = Array.isArray(source.tag_ids) ? source.tag_ids.filter(Boolean) : [];
+    if (friendId && tagIds.length) {
+      try {
+        const { data: have } = await supabase.from('friend_tags').select('tag_id').eq('friend_id', friendId);
+        const hs = new Set((have || []).map(r => r.tag_id));
+        const rows = tagIds.filter(t => !hs.has(t)).map(t => ({ friend_id: friendId, tag_id: t }));
+        if (rows.length) await supabase.from('friend_tags').insert(rows);
+      } catch (e) { console.error('[line-login] tag apply error:', e.message); }
+    }
+  }
+
+  // 同じ人の2回目以降（ブロック→再追加など）は CAPI を送らない
+  const { data: prior } = await supabase
+    .from('traffic_clicks').select('id')
+    .eq('line_user_id', lineUserId).not('converted_at', 'is', null).neq('id', click.id).limit(1);
+  const alreadyConverted = (prior || []).length > 0;
+
+  if (!click.converted_at) {
+    await supabase.from('traffic_clicks').update({
+      converted_at: now,
+      friend_id: friendId,
+      ...(alreadyConverted ? { capi_status: 'skipped: already converted user', capi_sent_at: now } : {}),
+    }).eq('id', click.id);
+    if (!alreadyConverted) {
+      // Vercel のサーバーレスはレスポンス後に処理が打ち切られるため、送信完了を待つ（失敗時は cron が再送）
+      try {
+        await Promise.race([
+          capi.sendAndRecord(click.click_id, { contentName: source?.name || null }),
+          new Promise(r => setTimeout(r, 4000)),
+        ]);
+      } catch (e) { console.error('[line-login] capi error:', e.message); }
+    }
+  }
+  console.log(`[line-login] ${prof.displayName} added via ${source?.name || click.source_id} (click ${click.click_id})`);
+  return { added: true, friendId };
+}
+
+// ── GET /line-login/callback（LINE Login Web フロー） ─────────────────────────
 router.get('/line-login/callback', async (req, res) => {
   const supabase = getSupabase();
   const { code, state, error } = req.query || {};
   let basicId = '@956iyppc';
   try {
-    // state は "<経路コード>.<click_id>"（LP直遷移）または "<click_id>"（/go 経由）
-    const st = String(state || '');
-    const dot = st.indexOf('.');
-    const stateCode = dot > 0 ? st.slice(0, dot) : null;
-    const stateClickId = (dot > 0 ? st.slice(dot + 1) : st).toLowerCase();
-    if (!UUID_RE.test(stateClickId)) return res.redirect(FALLBACK_ADD_URL);
-
-    const findClick = () => supabase
-      .from('traffic_clicks')
-      .select('id, click_id, source_id, converted_at, line_user_id')
-      .eq('click_id', stateClickId)
-      .maybeSingle();
-    let { data: click } = await findClick();
-    if (!click) {
-      // LP側の裏記録（mode=log）がコールドスタートで遅れている場合に備えて少し待つ
-      await new Promise(r => setTimeout(r, 1500));
-      ({ data: click } = await findClick());
-    }
-    if (!click && stateCode) {
-      // 記録が届いていなければ経路コードから最低限の行を作る（広告パラメータは失われるが追加は確定させる）
-      const { data: src } = await supabase.from('traffic_sources').select('id').eq('code', stateCode).maybeSingle();
-      if (src) {
-        const { data: ins } = await supabase.from('traffic_clicks').insert({
-          source_id: src.id, click_id: stateClickId, entry: 'login',
-          ip_address: clientIp(req), user_agent: str(req.headers['user-agent'], 500),
-        }).select('id, click_id, source_id, converted_at, line_user_id').maybeSingle();
-        click = ins || null;
-      }
-    }
+    const st = parseState(state);
+    if (!st.stateClickId) return res.redirect(FALLBACK_ADD_URL);
+    const click = await resolveClick(req, st);
     if (!click) return res.redirect(FALLBACK_ADD_URL);
 
     const { data: source } = await supabase
-      .from('traffic_sources')
-      .select('id, name, channel_id, friend_count, tag_ids')
-      .eq('id', click.source_id)
-      .maybeSingle();
+      .from('traffic_sources').select('id, name, channel_id, friend_count, tag_ids')
+      .eq('id', click.source_id).maybeSingle();
     const channelId = source?.channel_id || DEFAULT_CHANNEL_ID;
     basicId = await resolveBasicId(channelId);
 
-    // キャンセル・エラー → 従来URLへ
     const login = await getLoginConfig();
-    if (error || !code || !login.configured) {
-      return res.redirect(addFriendUrl(basicId));
-    }
+    if (error || !code || !login.configured) return res.redirect(addFriendUrl(basicId));
 
-    // トークン交換
     const tokenResp = await fetch('https://api.line.me/oauth2/v2.1/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: String(code),
-        redirect_uri: callbackUrl(),
-        client_id: login.channelId,
-        client_secret: login.channelSecret,
+        grant_type: 'authorization_code', code: String(code), redirect_uri: callbackUrl(),
+        client_id: login.channelId, client_secret: login.channelSecret,
       }),
     });
     if (!tokenResp.ok) {
@@ -228,114 +311,113 @@ router.get('/line-login/callback', async (req, res) => {
     }
     const token = await tokenResp.json();
     const auth = { Authorization: `Bearer ${token.access_token}` };
-
-    // プロフィール（userId は Messaging API と同一プロバイダーなら一致する）
     const profResp = await fetch('https://api.line.me/v2/profile', { headers: auth });
     if (!profResp.ok) return res.redirect(addFriendUrl(basicId));
     const prof = await profResp.json();
-    const lineUserId = prof.userId;
-
-    // 友だち状態
     let friendFlag = false;
-    try {
-      const fr = await fetch('https://api.line.me/friendship/v1/status', { headers: auth });
-      if (fr.ok) friendFlag = !!(await fr.json()).friendFlag;
-    } catch {}
+    try { const fr = await fetch('https://api.line.me/friendship/v1/status', { headers: auth }); if (fr.ok) friendFlag = !!(await fr.json()).friendFlag; } catch {}
 
-    // クリックに userId を記録（未追加でも）
-    await supabase.from('traffic_clicks').update({ line_user_id: lineUserId }).eq('id', click.id);
-
-    if (!friendFlag) {
-      // 「友だち追加」のチェックを外して許可した人 → 追加画面へ
-      return res.redirect(addFriendUrl(basicId));
-    }
-
-    // friends upsert（経路を確定）
-    const now = new Date().toISOString();
-    const { data: existing } = await supabase
-      .from('friends')
-      .select('id, traffic_source_id, first_click_id, status')
-      .eq('line_user_id', lineUserId)
-      .eq('channel_id', channelId)
-      .maybeSingle();
-
-    let friendId = existing?.id || null;
-    let attributedNow = false;
-    if (existing) {
-      const upd = {
-        display_name: prof.displayName || undefined,
-        picture_url: prof.pictureUrl || null,
-        status_message: prof.statusMessage || null,
-        status: 'active',
-        updated_at: now,
-      };
-      if (!existing.traffic_source_id && click.source_id) { upd.traffic_source_id = click.source_id; attributedNow = true; }
-      if (!existing.first_click_id) upd.first_click_id = click.click_id;
-      await supabase.from('friends').update(upd).eq('id', existing.id);
-    } else {
-      const { data: ins } = await supabase.from('friends').insert({
-        line_user_id: lineUserId,
-        display_name: prof.displayName || 'Unknown',
-        picture_url: prof.pictureUrl || null,
-        status_message: prof.statusMessage || null,
-        status: 'active',
-        channel_id: channelId,
-        traffic_source_id: click.source_id,
-        first_click_id: click.click_id,
-        followed_at: now,
-      }).select('id').maybeSingle();
-      friendId = ins?.id || null;
-      attributedNow = !!click.source_id;
-    }
-
-    if (attributedNow && source) {
-      supabase.from('traffic_sources').update({ friend_count: (source.friend_count || 0) + 1 }).eq('id', source.id)
-        .then(() => {}, () => {});
-      // 経路別タグ（付与のみ）
-      const tagIds = Array.isArray(source.tag_ids) ? source.tag_ids.filter(Boolean) : [];
-      if (friendId && tagIds.length) {
-        try {
-          const { data: have } = await supabase.from('friend_tags').select('tag_id').eq('friend_id', friendId);
-          const hs = new Set((have || []).map(r => r.tag_id));
-          const rows = tagIds.filter(t => !hs.has(t)).map(t => ({ friend_id: friendId, tag_id: t }));
-          if (rows.length) await supabase.from('friend_tags').insert(rows);
-        } catch (e) { console.error('[line-login] tag apply error:', e.message); }
-      }
-    }
-
-    // 同じ人の2回目以降（ブロック→再追加など）は CAPI を送らない
-    const { data: prior } = await supabase
-      .from('traffic_clicks')
-      .select('id')
-      .eq('line_user_id', lineUserId)
-      .not('converted_at', 'is', null)
-      .neq('id', click.id)
-      .limit(1);
-    const alreadyConverted = (prior || []).length > 0;
-
-    if (!click.converted_at) {
-      await supabase.from('traffic_clicks').update({
-        converted_at: now,
-        friend_id: friendId,
-        ...(alreadyConverted ? { capi_status: 'skipped: already converted user', capi_sent_at: now } : {}),
-      }).eq('id', click.id);
-      if (!alreadyConverted) {
-        // Vercel のサーバーレスはレスポンス後に処理が打ち切られるため、送信完了を待ってからリダイレクトする
-        // （失敗しても10分cronの capi/retry が再送する）
-        try {
-          await Promise.race([
-            capi.sendAndRecord(click.click_id, { contentName: source?.name || null }),
-            new Promise(r => setTimeout(r, 4000)),
-          ]);
-        } catch (e) { console.error('[line-login] capi error:', e.message); }
-      }
-    }
-    console.log(`[line-login] ${prof.displayName} added via ${source?.name || click.source_id} (click ${click.click_id})`);
-
-    return res.redirect(talkUrl(basicId));
+    const r = await finalizeAdd({ click, source, channelId, prof, friendFlag });
+    return res.redirect(r.added ? talkUrl(basicId) : addFriendUrl(basicId));
   } catch (err) {
     console.error('GET /line-login/callback error:', err.message);
     return res.redirect(addFriendUrl(basicId));
+  }
+});
+
+// ── LIFF フロー（LINEアプリ内で開く。アプリ内ブラウザ経由でもLINEアプリに遷移できる） ──
+// GET /liff/add : LIFFのエンドポイント（HTML）。liff.init → 自動ログイン（友だち追加オプション aggressive）→ /liff/confirm
+router.get('/liff/add', async (req, res) => {
+  const liffId = str(req.query.liff_id) || (await getLoginConfig()).liffId || '';
+  const basicId = await resolveBasicId(DEFAULT_CHANNEL_ID);
+  res.set('Cache-Control', 'no-store');
+  res.type('html').send(`<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FITPEAK 公式LINE</title>
+<style>
+  html,body{margin:0;background:#fff;font-family:"Noto Sans JP","Hiragino Sans",-apple-system,sans-serif;color:#222}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;box-sizing:border-box}
+  .logo{font-weight:900;font-size:22px;letter-spacing:.04em;color:#3F9403;margin-bottom:18px}
+  h1{font-size:20px;margin:0 0 10px}
+  p{font-size:14px;line-height:1.7;color:#555;margin:0 0 22px}
+  .btn{display:block;width:100%;max-width:360px;padding:16px;border-radius:12px;background:#06C755;color:#fff;font-weight:700;font-size:17px;text-decoration:none;box-sizing:border-box}
+  .spinner{width:36px;height:36px;border:4px solid #e6ecd8;border-top-color:#06C755;border-radius:50%;animation:s 1s linear infinite;margin:0 auto 18px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .hidden{display:none}
+</style></head>
+<body><div class="wrap">
+  <div class="logo">//FITPEAK</div>
+  <div id="loading"><div class="spinner"></div><p>LINEに接続しています…</p></div>
+  <div id="done" class="hidden"><h1>友だち追加ありがとうございます！</h1><p>40％OFFクーポンと先行予約のご案内は、公式LINEのトークにお送りします。</p><a class="btn" id="talk" href="https://line.me/R/oaMessage/${encodeURIComponent(basicId)}/">トークを開く</a></div>
+  <div id="notfriend" class="hidden"><h1>あと1タップで完了です</h1><p>公式LINEを友だち追加すると、40％OFFクーポンと先行予約のご案内が届きます。</p><a class="btn" href="https://line.me/R/ti/p/${basicId}">友だち追加する</a></div>
+  <div id="fail" class="hidden"><h1>LINEを開けませんでした</h1><p>下のボタンから友だち追加してください。</p><a class="btn" href="https://line.me/R/ti/p/${basicId}">友だち追加する</a></div>
+</div>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+(function(){
+  var LIFF_ID = ${JSON.stringify(liffId)};
+  function show(id){ ['loading','done','notfriend','fail'].forEach(function(k){ document.getElementById(k).className = (k===id?'':'hidden'); }); }
+  // liff.init 後は LIFF URL に付けたクエリ（?cid=…&code=…）が location.search に復元される
+  function qp(k){ var q = new URLSearchParams(location.search); var v = q.get(k); if (v) return v;
+    try { var st = q.get('liff.state'); if (st) { var q2 = new URLSearchParams(st.replace(/^\?/, '')); return q2.get(k) || ''; } } catch (e) {} return ''; }
+  function state(){ return (qp('code')||'ytq6hwej') + '.' + (qp('cid')||''); }
+  if (!LIFF_ID || !window.liff) { show('fail'); return; }
+  liff.init({ liffId: LIFF_ID }).then(function(){
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    return Promise.all([liff.getProfile(), liff.getFriendship().catch(function(){ return { friendFlag: false }; })]).then(function(r){
+      var prof = r[0], fr = r[1];
+      return fetch('/api/line-crm/liff/confirm', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ accessToken: liff.getAccessToken(), state: state(), friendFlag: !!fr.friendFlag, ua: navigator.userAgent }) })
+        .then(function(x){ return x.json(); }).catch(function(){ return { ok:false }; })
+        .then(function(){
+          if (fr.friendFlag) {
+            show('done');
+            // そのままトーク画面へ
+            setTimeout(function(){ location.href = document.getElementById('talk').href; }, 800);
+          } else {
+            show('notfriend');
+          }
+        });
+    });
+  }).catch(function(e){ console.error(e); show('fail'); });
+})();
+</script></body></html>`);
+});
+
+// POST /liff/confirm : LIFFのアクセストークンを検証して友だち追加を確定
+router.post('/liff/confirm', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    const { accessToken, state } = req.body || {};
+    if (!accessToken) return res.status(400).json({ ok: false, error: 'accessToken required' });
+    const st = parseState(state);
+    if (!st.stateClickId) return res.status(400).json({ ok: false, error: 'bad state' });
+
+    // トークン検証（このLoginチャネルで発行されたものか）
+    const login = await getLoginConfig();
+    const v = await fetch(`https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`);
+    if (!v.ok) return res.status(401).json({ ok: false, error: 'invalid token' });
+    const vj = await v.json();
+    if (login.channelId && String(vj.client_id) !== String(login.channelId)) return res.status(401).json({ ok: false, error: 'token channel mismatch' });
+
+    const auth = { Authorization: `Bearer ${accessToken}` };
+    const profResp = await fetch('https://api.line.me/v2/profile', { headers: auth });
+    if (!profResp.ok) return res.status(401).json({ ok: false, error: 'profile failed' });
+    const prof = await profResp.json();
+    let friendFlag = false;
+    try { const fr = await fetch('https://api.line.me/friendship/v1/status', { headers: auth }); if (fr.ok) friendFlag = !!(await fr.json()).friendFlag; } catch {}
+
+    const click = await resolveClick(req, st);
+    if (!click) return res.status(404).json({ ok: false, error: 'click not found' });
+    const { data: source } = await supabase
+      .from('traffic_sources').select('id, name, channel_id, friend_count, tag_ids')
+      .eq('id', click.source_id).maybeSingle();
+    const channelId = source?.channel_id || DEFAULT_CHANNEL_ID;
+    const r = await finalizeAdd({ click, source, channelId, prof, friendFlag });
+    res.json({ ok: true, added: r.added, friendFlag });
+  } catch (err) {
+    console.error('POST /liff/confirm error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -347,6 +429,7 @@ router.get('/line-login/status', async (_req, res) => {
   res.json({
     login_configured: login.configured,
     login_channel_id: login.configured ? login.channelId : null,
+    liff_add_id: login.liffId || null,
     capi_configured: !!(c.pixelId && c.token),
     capi_event_name: c.eventName,
     capi_test_mode: !!c.testCode,

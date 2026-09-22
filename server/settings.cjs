@@ -685,6 +685,7 @@ const API_KEY_SERVICES = [
   // https://business-hub-beige.vercel.app/api/line-crm/line-login/callback を登録する。
   { id: 'line_login_channel_id', label: 'LINEログイン チャネルID', envVar: 'LINE_LOGIN_CHANNEL_ID', placeholder: '1234567890' },
   { id: 'line_login_channel_secret', label: 'LINEログイン チャネルシークレット', envVar: 'LINE_LOGIN_CHANNEL_SECRET', placeholder: '32文字の英数字' },
+  { id: 'line_liff_add_id', label: 'LIFF ID（友だち追加用LIFFアプリ）', envVar: 'LINE_LIFF_ADD_ID', placeholder: '2006537445-xxxxxxxx' },
 
   // Meta Conversions API（LINE友だち追加を「登録完了」としてMetaに送り返す）
   { id: 'meta_pixel_id', label: 'Meta ピクセルID（Fitpeak\'s pixel）', envVar: 'META_PIXEL_ID', placeholder: '1066935279150670' },

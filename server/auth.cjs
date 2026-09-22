@@ -333,6 +333,7 @@ function authMiddleware(req, res, next) {
     '/api/line-crm/track/',
     '/api/line-crm/go/',
     '/api/line-crm/line-login/',
+    '/api/line-crm/liff/',
     '/api/line-crm/heatmap/hm.js',
     '/api/line-crm/heatmap/collect',
     '/api/line-crm/public/',
