@@ -301,6 +301,24 @@ async function confirmFollowByUser({ lineUserId, channelId, prof }) {
   return finalizeAdd({ click, source, channelId: channelId || source?.channel_id || DEFAULT_CHANNEL_ID, prof: { userId: lineUserId, ...(prof || {}) }, friendFlag: true });
 }
 
+// follow webhook から呼ぶ（iPhoneのInstagram/Facebookアプリ内ブラウザ向け）:
+// そこでは LINEアプリを外部から起動できないため、LPは従来の友だち追加リンク（entry='direct'）で記録だけ残す。
+// 追加が来たら「直近30分の未確定 direct クリック」に紐づけ、経路・タグ・CAPI を確定する（時間近接による推定）。
+async function confirmFollowByRecentDirectClick({ lineUserId, channelId, prof, windowMinutes = 30 }) {
+  const supabase = getSupabase();
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+  const { data: click } = await supabase
+    .from('traffic_clicks').select('id, click_id, source_id, converted_at, line_user_id')
+    .eq('entry', 'direct').is('converted_at', null).is('line_user_id', null)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (!click) return null;
+  const { data: source } = await supabase
+    .from('traffic_sources').select('id, name, channel_id, friend_count, tag_ids')
+    .eq('id', click.source_id).maybeSingle();
+  return finalizeAdd({ click, source, channelId: channelId || source?.channel_id || DEFAULT_CHANNEL_ID, prof: { userId: lineUserId, ...(prof || {}) }, friendFlag: true });
+}
+
 // ── GET /line-login/callback（LINE Login Web フロー） ─────────────────────────
 router.get('/line-login/callback', async (req, res) => {
   const supabase = getSupabase();
@@ -574,4 +592,5 @@ router.get('/line-login/capi/retry', async (_req, res) => {
 module.exports = router;
 module.exports.confirmFollowByUser = confirmFollowByUser;
 module.exports.isMetaCrawler = isMetaCrawler;
+module.exports.confirmFollowByRecentDirectClick = confirmFollowByRecentDirectClick;
 module.exports.getLoginConfig = getLoginConfig; // LINEログインチャネルの設定は他モジュールと共通で使う

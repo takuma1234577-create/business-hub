@@ -3650,14 +3650,15 @@ async function processWebhookEvents(channelId, events) {
         console.log(`[follow] ${displayName} added. Source: ${trafficSourceId || 'direct'}`);
 
         // LIFF（LP）から来て「未友だち」だった人が追加を完了した場合: Loginクリックを確定（経路・CAPI）
-        if (preAttributed) {
-          try {
-            const lineLogin = require('./line-login.cjs');
-            if (typeof lineLogin.confirmFollowByUser === 'function') {
-              await lineLogin.confirmFollowByUser({ lineUserId, channelId, prof: { displayName, pictureUrl, statusMessage } });
-            }
-          } catch (e) { console.error('[follow] login click confirm error:', e.message); }
-        }
+        // 従来リンク（direct）で来た人は、直近30分の未確定クリックに紐づけて確定（広告ID・CAPI）
+        try {
+          const lineLogin = require('./line-login.cjs');
+          if (preAttributed && typeof lineLogin.confirmFollowByUser === 'function') {
+            await lineLogin.confirmFollowByUser({ lineUserId, channelId, prof: { displayName, pictureUrl, statusMessage } });
+          } else if (!preAttributed && trafficSourceId && typeof lineLogin.confirmFollowByRecentDirectClick === 'function') {
+            await lineLogin.confirmFollowByRecentDirectClick({ lineUserId, channelId, prof: { displayName, pictureUrl, statusMessage } });
+          }
+        } catch (e) { console.error('[follow] click confirm error:', e.message); }
 
         // 経路別タグを付与（付与のみ・タグ連動配信は発火させない）
         if (trafficSourceId && sourceTagIds.length > 0) {
