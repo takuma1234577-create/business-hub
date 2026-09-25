@@ -13,6 +13,7 @@ import {
   Images,
   Repeat,
   Boxes,
+  Activity,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -29,6 +30,21 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+  {
+    id: 'site-analytics',
+    name: 'FITPEAK サイト分析',
+    description: 'fitpeak.co のアクセス解析。リアルタイムの閲覧状況、サイト全体・ページ別の数値、クリック／スクロール／熟読のヒートマップ。',
+    icon: <Activity size={28} />,
+    path: '/site-analytics',
+    color: 'text-slate-900 dark:text-white',
+    bgColor: 'bg-slate-100 dark:bg-slate-800',
+    status: 'active',
+    links: [
+      { label: 'リアルタイム', path: '/site-analytics?tab=realtime' },
+      { label: 'サイト全体', path: '/site-analytics?tab=overview' },
+      { label: 'ヒートマップ', path: '/site-analytics?tab=heatmap' },
+    ],
+  },
   {
     id: 'invoice',
     name: '請求書ツール',

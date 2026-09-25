@@ -98,6 +98,10 @@ const myFitpeakCustomerAuth = require(path.join(__dirname, 'my-fitpeak-auth.cjs'
 app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
 app.use('/api/my-fitpeak', cors(), myFitpeakCustomerAuth, myFitpeakRoutes);
 
+// FITPEAKサイト分析：計測タグ(fa.js)と収集は公開（fitpeak.co の閲覧者のブラウザから叩く）
+const siteAnalytics = require(path.join(__dirname, 'site-analytics.cjs'));
+app.use('/api/public/site-analytics', cors(), siteAnalytics.publicRouter);
+
 app.use(authMiddleware);
 
 // Tool route modules (use absolute paths for Vercel compatibility)
@@ -137,6 +141,7 @@ app.use('/api/invoice', invoiceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/amazon', amazonRoutes);
 app.use('/api/line-crm/heatmap', heatmapRoutes);
+app.use('/api/site-analytics', siteAnalytics.router);
 app.use('/api/line-crm', lineLoginRoutes); // LINE Login経由の友だち追加・Meta CAPI・広告別集計（line-crm より先にマウント）
 app.use('/api/line-crm', lineCrmRoutes);
 app.use('/api/consulting', amazonConsultingRoutes);
