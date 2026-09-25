@@ -345,10 +345,29 @@ router.post('/screenshot', async (req, res) => {
       headless: chromium.headless,
     });
     const page = await browser.newPage();
-    if (isMobile) await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1');
-    // 計測タグが撮影アクセスを数えないように opt-out 状態で開く
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('fa_optout', '1'); } catch { /* noop */ } });
-    await page.goto(SITE_ORIGIN + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
+    // Shopify のボット対策で「There was a problem loading this website」になるのを避けるため、
+    // 通常のブラウザと同じ見え方（UA・言語・webdriver フラグ）にする
+    await page.setUserAgent(isMobile
+      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8' });
+    await page.evaluateOnNewDocument(() => {
+      try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch { /* noop */ }
+      try { Object.defineProperty(navigator, 'languages', { get: () => ['ja-JP', 'ja'] }); } catch { /* noop */ }
+      // 計測タグが撮影アクセスを数えないように opt-out 状態で開く
+      try { localStorage.setItem('fa_optout', '1'); } catch { /* noop */ }
+    });
+    let resp = await page.goto(SITE_ORIGIN + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
+    // ボット判定の画面が出たら少し待って1回だけ読み直す
+    const blocked = async () => page.evaluate(() => /There was a problem loading this website|Checking your browser/i.test(document.body ? document.body.innerText : ''));
+    if ((resp && resp.status() >= 400) || await blocked()) {
+      await new Promise((r) => setTimeout(r, 4000));
+      resp = await page.goto(SITE_ORIGIN + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
+      if (await blocked()) {
+        await browser.close(); browser = null;
+        return res.status(502).json({ error: 'Shopify側のボット対策で撮影できませんでした。時間をおいて再度お試しください。' });
+      }
+    }
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let y = 0;
