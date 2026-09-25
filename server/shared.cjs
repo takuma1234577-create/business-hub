@@ -8,7 +8,7 @@
  *   - Anthropic Claude
  *
  * 環境変数:
- *   SUPABASE_URL, SUPABASE_ANON_KEY
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY（サーバー専用。無ければ SUPABASE_ANON_KEY）
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
  *   CHATWORK_API_TOKEN
  *   ANTHROPIC_API_KEY
@@ -18,13 +18,31 @@ const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 
 // ── Supabase (singleton) ──
+// サーバーはサービスキーで接続する。2026-09-21 のセキュリティ強化で31テーブルのRLSを有効化
+// （ポリシーなし＝公開キーからは読み書き不可）したため、公開キー（anon）のままだと
+// それらのテーブル（heatmap_events, gifting_*, review_*, cron_runs など）への読み書きが
+// 黙って失敗していた。サービスキーはサーバーの環境変数にしか無く、ブラウザには出ない。
+function isServiceRoleKey(key) {
+  if (!key) return false;
+  if (key.startsWith('sb_secret_')) return true;
+  try {
+    const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
+    return payload.role === 'service_role';
+  } catch { return false; }
+}
+function getServerSupabaseKey() {
+  const service = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (isServiceRoleKey(service)) return service;
+  return (process.env.SUPABASE_ANON_KEY || '').trim();
+}
 let _supabase;
 function getSupabase() {
   if (!_supabase) {
     const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY;
-    if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_ANON_KEY が未設定です');
-    _supabase = createClient(url, key);
+    const key = getServerSupabaseKey();
+    if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY が未設定です');
+    if (!isServiceRoleKey(key)) console.warn('[shared] SUPABASE_SERVICE_ROLE_KEY が無いため公開キーで接続しています（RLSで保護されたテーブルは使えません）');
+    _supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   }
   return _supabase;
 }
@@ -222,6 +240,8 @@ async function getGoogleAuthClient(serviceId = 'gmail') {
 
 module.exports = {
   getSupabase,
+  getServerSupabaseKey,
+  isServiceRoleKey,
   awaitApiKeys,
   getGoogleOAuth2,
   getGoogleAuthClient,

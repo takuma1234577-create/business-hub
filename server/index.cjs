@@ -27,7 +27,7 @@ app.use('/api/auth', authRoutes);
 // ===== Public endpoints (認証不要) =====
 const { createClient: createPublicClient } = require('@supabase/supabase-js');
 function getPublicSupabase() {
-  return createPublicClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '');
+  return createPublicClient(process.env.SUPABASE_URL || '', require(path.join(__dirname, 'shared.cjs')).getServerSupabaseKey());
 }
 
 // レビューウィジェットデータ（CORS許可）

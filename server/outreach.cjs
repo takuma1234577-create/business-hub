@@ -4,7 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const cheerio = require('cheerio');
 
 function getSupabase() {
-  return createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '');
+  return createClient(process.env.SUPABASE_URL || '', require('./shared.cjs').getServerSupabaseKey());
 }
 
 // Gmail送信

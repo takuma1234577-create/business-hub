@@ -6,8 +6,9 @@ const axios = require('axios');
 // Supabase
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_ANON_KEY missing');
+  // データ読み書き用。サービスキー（サーバー専用）を優先する
+  const key = require('./shared.cjs').getServerSupabaseKey();
+  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing');
   return createClient(url, key);
 }
 

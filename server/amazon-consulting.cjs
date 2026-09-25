@@ -9,7 +9,7 @@ const SPREADSHEET_ID = '1I82ET0kOl1RmVpeS46iblpJYhowofTGcLefJrJhPFAk';
 function getSupabase() {
   return createClient(
     process.env.SUPABASE_URL || '',
-    process.env.SUPABASE_ANON_KEY || ''
+    require('./shared.cjs').getServerSupabaseKey()
   );
 }
 
