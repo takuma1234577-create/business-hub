@@ -4,6 +4,7 @@ import { saApi, type Heatmap, type PageRow, type Preset } from './api'
 import { PageSelector } from './PageTab'
 import { Card, Seg, Empty, ScrollReach } from './ui'
 import { fmtNum, fmtPct } from './format'
+import { t as tr, useLang, useT } from './i18n'
 
 type Mode = 'click' | 'scroll' | 'attention'
 type Dev = 'mobile' | 'desktop'
@@ -40,6 +41,8 @@ const LUT = (() => {
 export default function HeatmapTab({ preset, path, onChangePath, pages }: {
   preset: Preset; path: string; onChangePath: (p: string) => void; pages: PageRow[]
 }) {
+  const t = useT()
+  const lang = useLang() // キャンバスに焼いた文字を言語切り替えで描き直すため依存に入れる
   const [device, setDevice] = useState<Dev>('mobile')
   const [mode, setMode] = useState<Mode>('click')
   const [data, setData] = useState<Heatmap | null>(null)
@@ -58,7 +61,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
     setLoading(true); setErr(''); setShotUrl(null); setImgFailed(false)
     saApi.get<Heatmap>('/heatmap', { params: { preset, path, device } })
       .then((r) => { if (alive) setData(r.data) })
-      .catch((e) => { if (alive) setErr(e?.response?.data?.error || '取得に失敗しました') })
+      .catch((e) => { if (alive) setErr(e?.response?.data?.error || tr('取得に失敗しました')) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [preset, path, device])
@@ -159,8 +162,8 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
       ctx.fillRect(0, y, W, bh)
       if (mode === 'scroll' ? i % 2 === 0 : true) {
         const label = mode === 'scroll'
-          ? `${Math.round(((new Map(data.scroll_reach.map((s) => [s.depth, s.pct])).get(i * 5)) ?? 0) * 100)}% がここまで到達`
-          : `注目度 ${Math.round(vals[i] * 100)}`
+          ? `${Math.round(((new Map(data.scroll_reach.map((s) => [s.depth, s.pct])).get(i * 5)) ?? 0) * 100)}${t('% がここまで到達')}`
+          : `${t('注目度 ')}${Math.round(vals[i] * 100)}`
         const tw = ctx.measureText(label).width
         ctx.fillStyle = 'rgba(15,23,42,0.82)'
         ctx.fillRect(6, y + 4, tw + 12, 20)
@@ -168,7 +171,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
         ctx.fillText(label, 12, y + 18)
       }
     }
-  }, [data, box, mode])
+  }, [data, box, mode, lang, t])
 
   const takeShot = async () => {
     setShotBusy(true)
@@ -177,7 +180,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
       setShotUrl(r.data.url); setImgFailed(false)
     } catch (e: unknown) {
       const m = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-      alert('スクリーンショットの撮影に失敗しました：' + (m || ''))
+      alert(tr('スクリーンショットの撮影に失敗しました：') + (m || ''))
     } finally { setShotBusy(false) }
   }
 
@@ -189,13 +192,13 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
         <PageSelector pages={pages} value={path} onChange={onChangePath} />
         <div className="flex flex-wrap items-center gap-2">
           <Seg<Dev> value={device} onChange={setDevice} options={[
-            { value: 'mobile', label: <span className="inline-flex items-center gap-1"><Smartphone size={12} />スマホ</span> },
-            { value: 'desktop', label: <span className="inline-flex items-center gap-1"><Monitor size={12} />PC</span> },
+            { value: 'mobile', label: <span className="inline-flex items-center gap-1"><Smartphone size={12} />{t('スマホ')}</span> },
+            { value: 'desktop', label: <span className="inline-flex items-center gap-1"><Monitor size={12} />{t('PC')}</span> },
           ]} />
           <Seg<Mode> value={mode} onChange={setMode} options={[
-            { value: 'click', label: <span className="inline-flex items-center gap-1"><MousePointerClick size={12} />クリック</span> },
-            { value: 'scroll', label: <span className="inline-flex items-center gap-1"><ArrowDown size={12} />スクロール</span> },
-            { value: 'attention', label: <span className="inline-flex items-center gap-1"><Eye size={12} />熟読エリア</span> },
+            { value: 'click', label: <span className="inline-flex items-center gap-1"><MousePointerClick size={12} />{t('クリック')}</span> },
+            { value: 'scroll', label: <span className="inline-flex items-center gap-1"><ArrowDown size={12} />{t('スクロール')}</span> },
+            { value: 'attention', label: <span className="inline-flex items-center gap-1"><Eye size={12} />{t('熟読エリア')}</span> },
           ]} />
         </div>
       </div>
@@ -204,10 +207,10 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
         <Card
-          title={<span className="inline-flex items-center gap-2">ページ上の分布 {loading && <RefreshCw size={12} className="animate-spin text-slate-400" />}</span>}
+          title={<span className="inline-flex items-center gap-2">{t('ページ上の分布')} {loading && <RefreshCw size={12} className="animate-spin text-slate-400" />}</span>}
           right={
             <button onClick={takeShot} disabled={shotBusy} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-50 cursor-pointer">
-              <Camera size={13} /> {shotBusy ? '撮影中…（30秒ほど）' : imgSrc ? 'スクショを撮り直す' : 'ページを撮影する'}
+              <Camera size={13} /> {shotBusy ? t('撮影中…（30秒ほど）') : imgSrc ? t('スクショを撮り直す') : t('ページを撮影する')}
             </button>
           }
         >
@@ -217,7 +220,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
                 <img
                   ref={imgRef}
                   src={imgSrc}
-                  alt="ページのスクリーンショット"
+                  alt={t('ページのスクリーンショット')}
                   className="block w-full"
                   onLoad={measure}
                   onError={() => setImgFailed(true)}
@@ -225,7 +228,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
               ) : (
                 <div className="bg-white dark:bg-slate-950 border border-dashed border-slate-300 dark:border-slate-700" style={{ width: box.w, height: box.h }}>
                   <p className="text-[11px] text-slate-400 p-3 leading-relaxed">
-                    まだページの画像がありません。右上の「ページを撮影する」で、実際の画面の上に重ねて表示できます。
+                    {t('まだページの画像がありません。右上の「ページを撮影する」で、実際の画面の上に重ねて表示できます。')}
                   </p>
                 </div>
               )}
@@ -233,21 +236,21 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-3 text-[10px] text-slate-500">
-            <span>{mode === 'click' ? 'クリック 少' : mode === 'scroll' ? '到達 少' : '注目 少'}</span>
+            <span>{mode === 'click' ? t('クリック 少') : mode === 'scroll' ? t('到達 少') : t('注目 少')}</span>
             <span className="h-2 w-40 rounded-full" style={{ background: `linear-gradient(90deg, ${STOPS.map(([p, c]) => `rgb(${c.join(',')}) ${p * 100}%`).join(',')})` }} />
-            <span>多</span>
-            {mode === 'click' && <span className="ml-3 inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full border-2 border-red-600 inline-block" />連打（イライラの兆候）</span>}
+            <span>{t('多')}</span>
+            {mode === 'click' && <span className="ml-3 inline-flex items-center gap-1"><span className="w-3 h-3 rounded-full border-2 border-red-600 inline-block" />{t('連打（イライラの兆候）')}</span>}
           </div>
         </Card>
 
         <div className="space-y-4">
-          <Card title="このページ（期間内）">
+          <Card title={t('このページ（期間内）')}>
             <div className="grid grid-cols-2 gap-2 text-center">
               {[
-                ['ページビュー', fmtNum(data?.pageviews)],
-                ['セッション', fmtNum(data?.sessions)],
-                ['クリック', fmtNum(clickCount)],
-                ['連打', fmtNum(data?.rage_total)],
+                [t('ページビュー'), fmtNum(data?.pageviews)],
+                [t('セッション'), fmtNum(data?.sessions)],
+                [t('クリック'), fmtNum(clickCount)],
+                [t('連打'), fmtNum(data?.rage_total)],
               ].map(([l, v]) => (
                 <div key={l} className="rounded-lg bg-slate-50 dark:bg-slate-900 py-2">
                   <p className="text-[10px] text-slate-500">{l}</p>
@@ -256,11 +259,11 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
               ))}
             </div>
             <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
-              {device === 'mobile' ? 'スマホ' : 'PC'}で見られたときのデータです。クリック位置はページ全体の縦横比で記録しているため、ページの構成を大きく変えた後は撮り直してください。
+              {device === 'mobile' ? t('スマホ') : t('PC')}{t('で見られたときのデータです。クリック位置はページ全体の縦横比で記録しているため、ページの構成を大きく変えた後は撮り直してください。')}
             </p>
           </Card>
 
-          <Card title={<span className="inline-flex items-center gap-1.5"><Flame size={14} />クリックされている要素</span>}>
+          <Card title={<span className="inline-flex items-center gap-1.5"><Flame size={14} />{t('クリックされている要素')}</span>}>
             {data && data.top_elements.length ? (
               <ul className="space-y-1.5">
                 {data.top_elements.map((e) => (
@@ -271,18 +274,18 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
                     </span>
                     <span className="shrink-0 tabular-nums font-medium text-slate-900 dark:text-white">
                       {fmtNum(e.count)}
-                      {e.rage > 0 && <span className="ml-1 text-rose-600">（連打{e.rage}）</span>}
+                      {e.rage > 0 && <span className="ml-1 text-rose-600">{t('（連打')}{e.rage}{t('）')}</span>}
                     </span>
                   </li>
                 ))}
               </ul>
-            ) : <Empty>クリックのデータがまだありません</Empty>}
+            ) : <Empty>{t('クリックのデータがまだありません')}</Empty>}
           </Card>
 
-          <Card title="スクロール到達率">
+          <Card title={t('スクロール到達率')}>
             <ScrollReach data={(data?.scroll_reach || []).filter((s) => s.depth % 10 === 0 && s.depth > 0)} />
             {data && data.scroll_reach.length > 0 && (
-              <p className="text-[10px] text-slate-400 mt-2">ページの半分まで読まれた割合：{fmtPct(data.scroll_reach.find((s) => s.depth === 50)?.pct)}</p>
+              <p className="text-[10px] text-slate-400 mt-2">{t('ページの半分まで読まれた割合：')}{fmtPct(data.scroll_reach.find((s) => s.depth === 50)?.pct)}</p>
             )}
           </Card>
         </div>

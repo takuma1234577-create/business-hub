@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { fmtNum, fmtPct, prettyPath } from './format'
+import { getLang, useT } from './i18n'
 
 // ---------------------------------------------------------------------------
 // レイアウト部品
@@ -47,10 +48,11 @@ export function Empty({ children }: { children: ReactNode }) {
 export function Kpi({ label, value, cur, prev, lowerIsBetter, hint }: {
   label: string; value: string; cur?: number; prev?: number; lowerIsBetter?: boolean; hint?: string
 }) {
+  const t = useT()
   let delta: ReactNode = null
   if (cur != null && prev != null && isFinite(cur) && isFinite(prev)) {
-    if (prev === 0 && cur === 0) delta = <span className="text-slate-400">前期間 0</span>
-    else if (prev === 0) delta = <span className="text-slate-400">前期間 0</span>
+    if (prev === 0 && cur === 0) delta = <span className="text-slate-400">{t('前期間 0')}</span>
+    else if (prev === 0) delta = <span className="text-slate-400">{t('前期間 0')}</span>
     else {
       const ch = (cur - prev) / prev
       const good = lowerIsBetter ? ch < 0 : ch > 0
@@ -58,7 +60,7 @@ export function Kpi({ label, value, cur, prev, lowerIsBetter, hint }: {
       delta = (
         <span className={flat ? 'text-slate-400' : good ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
           {flat ? '±0%' : `${ch > 0 ? '▲' : '▼'} ${Math.abs(ch * 100).toFixed(ch > 9.99 ? 0 : 1)}%`}
-          <span className="text-slate-400 ml-1">前期間比</span>
+          <span className="text-slate-400 ml-1">{t('前期間比')}</span>
         </span>
       )
     }
@@ -77,11 +79,12 @@ export function BarList({ items, valueKey = 'users', unit = '', format, onClickI
   items: Record<string, unknown>[]; valueKey?: string; unit?: string; format?: (n: string) => ReactNode
   onClickItem?: (name: string) => void; max?: number; label?: string
 }) {
+  const t = useT()
   const [all, setAll] = useState(false)
   const list = all ? items : items.slice(0, max)
   const top = Math.max(1, ...items.map((i) => Number(i[valueKey]) || 0))
   const total = items.reduce((a, i) => a + (Number(i[valueKey]) || 0), 0)
-  if (!items.length) return <Empty>データがまだありません</Empty>
+  if (!items.length) return <Empty>{t('データがまだありません')}</Empty>
   return (
     <div>
       {label && <div className="flex justify-between text-[10px] text-slate-400 mb-1"><span /> <span>{label}</span></div>}
@@ -95,7 +98,7 @@ export function BarList({ items, valueKey = 'users', unit = '', format, onClickI
                 type="button"
                 disabled={!onClickItem}
                 onClick={() => onClickItem?.(name)}
-                title={`${prettyPath(name)}：${fmtNum(v)}${unit}（${fmtPct(total ? v / total : 0, 1)}）`}
+                title={`${prettyPath(name)}${t('：')}${fmtNum(v)}${unit}${t('（')}${fmtPct(total ? v / total : 0, 1)}${t('）')}`}
                 className={`relative w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-md text-left text-xs ${onClickItem ? 'hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer' : 'cursor-default'}`}
               >
                 <span className="absolute inset-y-0.5 left-0 rounded bg-slate-100 dark:bg-slate-800" style={{ width: `${(v / top) * 100}%` }} />
@@ -111,7 +114,7 @@ export function BarList({ items, valueKey = 'users', unit = '', format, onClickI
       </ul>
       {items.length > max && (
         <button onClick={() => setAll(!all)} className="mt-2 text-[11px] text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer">
-          {all ? '閉じる' : `すべて表示（${items.length}件）`}
+          {all ? t('閉じる') : `${t('すべて表示（')}${items.length}${t('件）')}`}
         </button>
       )}
     </div>
@@ -224,11 +227,14 @@ export function Columns({ items, height = 120, unit = '' }: { items: { label: st
 
 /** 曜日×時間帯のアクセス量（1色の濃淡） */
 export function WeekHour({ data }: { data: { dow: number; hour: number; pageviews: number }[] }) {
+  const t = useT()
   const map = new Map(data.map((d) => [`${d.dow}-${d.hour}`, d.pageviews]))
   const max = Math.max(1, ...data.map((d) => d.pageviews))
-  const days = ['月', '火', '水', '木', '金', '土', '日']
+  const days = getLang() === 'en'
+    ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    : ['月', '火', '水', '木', '金', '土', '日']
   const dowIdx = [1, 2, 3, 4, 5, 6, 0]
-  if (!data.length) return <Empty>データがまだありません</Empty>
+  if (!data.length) return <Empty>{t('データがまだありません')}</Empty>
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[520px]">
@@ -245,7 +251,7 @@ export function WeekHour({ data }: { data: { dow: number; hour: number; pageview
                 return (
                   <div
                     key={h}
-                    title={`${days[r]}曜 ${h}時台：${fmtNum(v)} PV`}
+                    title={`${days[r]}${t('曜')} ${h}${t('時台：')}${fmtNum(v)} PV`}
                     className="h-5 rounded-[3px] bg-slate-100 dark:bg-slate-800 relative overflow-hidden"
                   >
                     {v > 0 && <div className="absolute inset-0 bg-slate-900 dark:bg-white" style={{ opacity: a }} />}
@@ -255,7 +261,7 @@ export function WeekHour({ data }: { data: { dow: number; hour: number; pageview
             </FragmentRow>
           ))}
         </div>
-        <p className="text-[10px] text-slate-400 mt-2">日本時間。濃いほどページビューが多い時間帯</p>
+        <p className="text-[10px] text-slate-400 mt-2">{t('日本時間。濃いほどページビューが多い時間帯')}</p>
       </div>
     </div>
   )
@@ -271,7 +277,8 @@ function FragmentRow({ label, children }: { label: string; children: ReactNode }
 
 /** スクロール到達率（深さごと） */
 export function ScrollReach({ data }: { data: { depth: number; pct: number }[] }) {
-  if (!data.length) return <Empty>データがまだありません</Empty>
+  const t = useT()
+  if (!data.length) return <Empty>{t('データがまだありません')}</Empty>
   return (
     <div className="space-y-1">
       {data.map((f) => (
@@ -289,6 +296,7 @@ export function ScrollReach({ data }: { data: { depth: number; pct: number }[] }
 
 /** 購入までのファネル */
 export function Funnel({ steps }: { steps: { step: string; sessions: number }[] }) {
+  const t = useT()
   const first = steps[0]?.sessions || 0
   return (
     <div className="space-y-2">
@@ -297,10 +305,10 @@ export function Funnel({ steps }: { steps: { step: string; sessions: number }[] 
         return (
           <div key={s.step}>
             <div className="flex justify-between text-xs mb-0.5">
-              <span className="text-slate-700 dark:text-slate-200">{s.step}</span>
+              <span className="text-slate-700 dark:text-slate-200">{t(s.step)}</span>
               <span className="tabular-nums text-slate-900 dark:text-white font-medium">
                 {fmtNum(s.sessions)}
-                <span className="text-slate-400 font-normal ml-1.5">{i ? `前の段階から ${fmtPct(prev ? s.sessions / prev : 0)}` : ''}</span>
+                <span className="text-slate-400 font-normal ml-1.5">{i ? `${t('前の段階から ')}${fmtPct(prev ? s.sessions / prev : 0)}` : ''}</span>
               </span>
             </div>
             <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
