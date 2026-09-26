@@ -8,7 +8,7 @@
 --                        セッション内の順番/前後ページ/入口・流入元まで計算済み（site_pv_base と同じ列）
 --   site_click_hourly … クリックを 1時間 × ページ × デバイス × 要素 で数えたもの
 --
--- pg_cron で15分ごとに site_rollup() を実行し、「3時間より前」まで確定させる
+-- pg_cron で15分ごとに site_rollup() を実行し、「1時間より前」まで確定させる
 -- （閲覧時間・スクロールは離脱時に届くため、少し待ってから確定する）。
 -- 集計関数は「確定済みの行」＋「まだ確定していない直近の分だけ生データから計算」を合わせて使う。
 -- ============================================================================
@@ -108,7 +108,7 @@ end $$;
 create or replace function public.site_rollup(p_site text default 'fitpeak.co', p_max_hours int default 48)
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare
-  v_until timestamptz := date_trunc('hour', now() - interval '3 hours');
+  v_until timestamptz := date_trunc('hour', now() - interval '1 hour');
   v_from  timestamptz;
   v_to    timestamptz;
   v_stop  timestamptz;

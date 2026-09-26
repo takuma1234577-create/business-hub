@@ -7,7 +7,7 @@
  *   リアルタイム／サイト全体／ページ別／ヒートマップの4タブ。
  * - 保存先は Supabase の site_events。集計は DB 関数（site_overview / site_realtime / site_heatmap）。
  * - 集計の事前計算：pg_cron が15分ごとに site_rollup（1ページビュー1行の site_pageviews と
- *   クリックの時間集計 site_click_hourly を「3時間前」まで確定）と site_warm_cache（サイト全体の
+ *   クリックの時間集計 site_click_hourly を「1時間前」まで確定）と site_warm_cache（サイト全体の
  *   7日間・30日間・90日間を計算して site_report_cache に保存）を実行する。
  *   site_overview は確定済みの行＋直近の未確定分だけ生データから計算する（site_pv_rows）。
  * - 個人を特定する情報は保存しない（IPは保存せず、国・都市のみ。visitor_id はブラウザ内のランダムID）。
