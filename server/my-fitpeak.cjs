@@ -462,4 +462,78 @@ router.post('/amazon-order', async (req, res) => {
   }
 });
 
+// ── 通知の設定（2026-09-26）──────────────────────────────
+// LINEで受け取るのは「セール・新商品のお知らせ」だけ（campaign）。
+// 価格アラート・大会の続報・リマインドはメールで受け取る（初期値OFF・希望者のみ）。
+const NOTIFY_FIELDS = ['campaign', 'email_price_alert', 'email_contest', 'email_reminder'];
+const INTERNAL_EMAIL = /@line\.fitpeak\.co$/i;
+
+async function resolveMember(supabase, req) {
+  const user = req.fitpeakUser;
+  if (!user) return null;
+  const byAuth = await supabase.from('members').select('id, email').eq('auth_user_id', user.id).maybeSingle();
+  if (byAuth.data) return byAuth.data;
+  if (user.email) {
+    const byEmail = await supabase.from('members').select('id, email').eq('email', user.email).limit(1).maybeSingle();
+    if (byEmail.data) return byEmail.data;
+  }
+  return null;
+}
+
+// GET /notification-prefs - 本人の通知設定
+router.get('/notification-prefs', async (req, res) => {
+  try {
+    if (!req.fitpeakUser) return res.status(401).json({ error: 'ログインが必要です' });
+    const supabase = getSupabase();
+    const member = await resolveMember(supabase, req);
+    if (!member) return res.status(404).json({ error: '会員情報が見つかりません' });
+
+    const { data: row } = await supabase.from('notification_prefs').select('*').eq('member_id', member.id).maybeSingle();
+    const loginEmail = req.fitpeakUser.email || '';
+    const defaultEmail = INTERNAL_EMAIL.test(loginEmail) ? '' : loginEmail;
+    res.json({
+      campaign: row ? row.campaign : true,
+      email_price_alert: row ? row.email_price_alert : false,
+      email_contest: row ? row.email_contest : false,
+      email_reminder: row ? row.email_reminder : false,
+      notify_email: (row && row.notify_email) || defaultEmail,
+    });
+  } catch (err) {
+    console.error('GET /api/my-fitpeak/notification-prefs error:', err.message);
+    res.status(500).json({ error: '通知設定の取得に失敗しました' });
+  }
+});
+
+// PUT /notification-prefs - 本人の通知設定を保存
+router.put('/notification-prefs', async (req, res) => {
+  try {
+    if (!req.fitpeakUser) return res.status(401).json({ error: 'ログインが必要です' });
+    const supabase = getSupabase();
+    const member = await resolveMember(supabase, req);
+    if (!member) return res.status(404).json({ error: '会員情報が見つかりません' });
+
+    const body = req.body || {};
+    const update = { member_id: member.id, updated_at: new Date().toISOString() };
+    for (const f of NOTIFY_FIELDS) {
+      if (typeof body[f] === 'boolean') update[f] = body[f];
+    }
+    const email = typeof body.notify_email === 'string' ? body.notify_email.trim() : '';
+    const wantsEmail = ['email_price_alert', 'email_contest', 'email_reminder'].some((f) => update[f] === true);
+    if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || INTERNAL_EMAIL.test(email))) {
+      return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' });
+    }
+    if (wantsEmail && !email) {
+      return res.status(400).json({ error: 'メールで受け取るには、メールアドレスを入力してください' });
+    }
+    update.notify_email = email || null;
+
+    const { error } = await supabase.from('notification_prefs').upsert(update, { onConflict: 'member_id' });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('PUT /api/my-fitpeak/notification-prefs error:', err.message);
+    res.status(500).json({ error: '通知設定の保存に失敗しました' });
+  }
+});
+
 module.exports = router;
