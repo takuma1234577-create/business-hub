@@ -2320,6 +2320,21 @@ async function lineAuth(channelId) {
   return { Authorization: `Bearer ${token}` };
 }
 
+// リッチメニューエイリアス（タブ切替 richmenuswitch の切替先）を作成、既にあれば付け替える
+async function upsertRichMenuAlias(auth, aliasId, richMenuId) {
+  const headers = { ...auth, 'Content-Type': 'application/json' };
+  try {
+    await axios.post(`${LINE_API}/v2/bot/richmenu/alias`, { richMenuAliasId: aliasId, richMenuId }, { headers });
+  } catch (err) {
+    // 既に同じIDのエイリアスがある場合は 400 → 付け替え
+    if (err.response?.status === 400) {
+      await axios.post(`${LINE_API}/v2/bot/richmenu/alias/${encodeURIComponent(aliasId)}`, { richMenuId }, { headers });
+    } else {
+      throw err;
+    }
+  }
+}
+
 // GET /rich-menus
 router.get('/rich-menus', async (req, res) => {
   try {
@@ -2493,27 +2508,39 @@ router.post('/rich-menus/:id/activate', async (req, res) => {
       maxBodyLength: Infinity,
     });
 
-    // 3. デフォルトリッチメニューに設定
-    await axios.post(`${LINE_API}/v2/bot/user/all/richmenu/${richMenuId}`, null, {
-      headers: menuAuth,
-    });
+    // 2.5 タブ切替メニュー: config.alias_id があれば、そのエイリアスを新しいメニューに向け直す
+    //     （作り直すたびに richMenuId が変わるため、公開のたびに付け替えないとタブ切替が壊れる）
+    const aliasId = menu.config && typeof menu.config === 'object' ? menu.config.alias_id : null;
+    if (aliasId) {
+      await upsertRichMenuAlias(menuAuth, aliasId, richMenuId);
+    }
 
-    // 4. 他のメニューのis_defaultを解除
-    await supabase
-      .from('rich_menus')
-      .update({ is_default: false })
-      .eq('channel_id', menu.channel_id);
+    // ?set_default=0 のときはLINEに登録するだけで、全員のデフォルトにはしない（タブ切替メニューの2枚目以降用）
+    const setDefault = String(req.query.set_default ?? '1') !== '0';
+
+    if (setDefault) {
+      // 3. デフォルトリッチメニューに設定
+      await axios.post(`${LINE_API}/v2/bot/user/all/richmenu/${richMenuId}`, null, {
+        headers: menuAuth,
+      });
+
+      // 4. 他のメニューのis_defaultを解除
+      await supabase
+        .from('rich_menus')
+        .update({ is_default: false })
+        .eq('channel_id', menu.channel_id);
+    }
 
     // 5. このメニューを更新
     const { data: updated, error: updErr } = await supabase
       .from('rich_menus')
-      .update({ line_rich_menu_id: richMenuId, is_default: true })
+      .update(setDefault ? { line_rich_menu_id: richMenuId, is_default: true } : { line_rich_menu_id: richMenuId })
       .eq('id', menu.id)
       .select()
       .single();
     if (updErr) return res.status(500).json({ error: updErr.message });
 
-    return res.json({ ok: true, rich_menu: updated });
+    return res.json({ ok: true, rich_menu: updated, alias_id: aliasId || null });
   } catch (err) {
     const details = err.response?.data || err.message;
     console.error('POST /rich-menus/:id/activate error:', details);
