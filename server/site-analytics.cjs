@@ -6,6 +6,10 @@
  * - 画面は Business-hub の「FITPEAKサイト分析」（/site-analytics）。
  *   リアルタイム／サイト全体／ページ別／ヒートマップの4タブ。
  * - 保存先は Supabase の site_events。集計は DB 関数（site_overview / site_realtime / site_heatmap）。
+ * - 集計の事前計算：pg_cron が15分ごとに site_rollup（1ページビュー1行の site_pageviews と
+ *   クリックの時間集計 site_click_hourly を「3時間前」まで確定）と site_warm_cache（サイト全体の
+ *   7日間・30日間・90日間を計算して site_report_cache に保存）を実行する。
+ *   site_overview は確定済みの行＋直近の未確定分だけ生データから計算する（site_pv_rows）。
  * - 個人を特定する情報は保存しない（IPは保存せず、国・都市のみ。visitor_id はブラウザ内のランダムID）。
  * - 自分のアクセスを除外したいときは、fitpeak.co を ?fa_optout=1 付きで一度開く（?fa_optout=0 で解除）。
  * - 登録の分析（「登録」タブ）：
@@ -292,15 +296,43 @@ router.get('/realtime', async (req, res) => {
   }
 });
 
+// 集計結果の保存（site_report_cache）。7日間以上の期間は、保存済みの結果が20分以内なら即返す。
+// サイト全体の7日間・30日間・90日間は pg_cron（site_warm_cache）が15分ごとに更新している。
+const CACHE_TTL_MS = 20 * 60 * 1000;
+const CACHEABLE_PRESETS = new Set(['7d', '30d', '90d']);
+async function readCache(key) {
+  try {
+    const { data } = await supabase.from('site_report_cache').select('data, created_at').eq('key', key).maybeSingle();
+    if (data && Date.now() - new Date(data.created_at).getTime() < CACHE_TTL_MS) return data.data;
+  } catch { /* noop */ }
+  return null;
+}
+function writeCache(key, data) {
+  supabase.from('site_report_cache')
+    .upsert({ key, data, created_at: new Date().toISOString() }, { onConflict: 'key' })
+    .then(() => {}, () => {});
+}
+
 router.get('/overview', async (req, res) => {
   try {
+    const site = siteOf(req.query);
+    const device = deviceOf(req.query.device);
+    const pagePath = req.query.path ? String(req.query.path) : null;
+    const preset = req.query.preset || '7d';
+    const cacheKey = !req.query.from && CACHEABLE_PRESETS.has(preset)
+      ? `overview|${site}|${preset}|${device}|${pagePath || ''}` : null;
+    if (cacheKey && req.query.fresh !== '1') {
+      const hit = await readCache(cacheKey);
+      if (hit) return res.json(hit);
+    }
     const { from, to } = range(req.query);
     const { data, error } = await supabase.rpc('site_overview', {
-      p_site: siteOf(req.query), p_from: from, p_to: to,
-      p_device: deviceOf(req.query.device), p_path: req.query.path ? String(req.query.path) : null,
+      p_site: site, p_from: from, p_to: to, p_device: device, p_path: pagePath,
     });
     if (error) throw new Error(error.message);
-    return res.json({ from, to, ...data });
+    const body = { from, to, cached_at: new Date().toISOString(), ...data };
+    if (cacheKey) writeCache(cacheKey, body);
+    return res.json(body);
   } catch (err) {
     console.error('[site-analytics/overview]', err.message);
     return res.status(500).json({ error: err.message });

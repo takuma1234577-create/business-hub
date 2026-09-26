@@ -27,6 +27,12 @@ export default function OverviewTab({ preset, device, onOpenPage }: { preset: Pr
         </div>
       )}
 
+      {data.cached_at && (preset === '7d' || preset === '30d' || preset === '90d') && (
+        <p className="text-[11px] text-slate-400 -mt-1">
+          集計時刻 {new Date(data.cached_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}（7日間以上の期間は15分ごとに更新）
+        </p>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         <Kpi label="ユーザー" value={fmtNum(k.users)} cur={k.users} prev={p.users} />
         <Kpi label="新規ユーザー" value={fmtNum(k.new_users)} cur={k.new_users} prev={p.new_users} />

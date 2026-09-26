@@ -42,6 +42,7 @@ export interface PageRow {
 export interface Overview {
   from: string
   to: string
+  cached_at?: string
   granularity: 'hour' | 'day'
   kpis: Kpis
   prev_kpis: Kpis
