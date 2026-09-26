@@ -377,6 +377,14 @@ async function syncContract(contractId, { origin = 'regular' } = {}) {
   } catch (err) {
     console.error('[subscription] onboarding hook error:', err.message);
   }
+
+  // FITPEAK PRO（会員プラン）: 配送を待たずに開始し、無料期間の終了日を次回課金日にする
+  try {
+    const fresh = await require('./fitpeak-pro.cjs').onContractCreated(inserted, plan, contract);
+    if (fresh) return fresh;
+  } catch (err) {
+    console.error('[subscription] fitpeak-pro hook error:', err.message);
+  }
   return inserted;
 }
 
@@ -838,6 +846,18 @@ async function handleBillingSuccess(body) {
     .eq('id', subscription.id);
 
   await logEvent(subscription.id, 'billing_success', 'shopify', { order_id: orderId, attempt_id: attemptId });
+
+  // FITPEAK PRO（会員プラン）: 配送が無いので、ここで次回課金日を確定して active に戻す
+  try {
+    const pro = require('./fitpeak-pro.cjs');
+    const plan = await pro.loadPlan(subscription.plan_id);
+    if (pro.isMembershipPlan(plan)) {
+      await pro.onBillingSuccess({ ...subscription, cycle_count: subscription.cycle_count + 1 }, plan);
+      return 'billed_membership';
+    }
+  } catch (err) {
+    console.error('[subscription] fitpeak-pro billing hook error:', err.message);
+  }
   return 'billed';
 }
 
@@ -888,6 +908,15 @@ async function handleBillingFailure(body) {
   await logEvent(subscription.id, 'billing_failed', 'shopify', {
     reason, retry_count: retryCount, next_retry_at: nextRetryAt, exhausted,
   });
+
+  // FITPEAK PRO（会員プラン）: リトライ中はPRO維持、上限に達したらPROを外す
+  try {
+    const pro = require('./fitpeak-pro.cjs');
+    const plan = await pro.loadPlan(subscription.plan_id);
+    if (pro.isMembershipPlan(plan)) await pro.onBillingFailure(subscription, plan, { exhausted, nextRetryAt });
+  } catch (err) {
+    console.error('[subscription] fitpeak-pro failure hook error:', err.message);
+  }
   return exhausted ? 'paused' : 'past_due';
 }
 
@@ -1105,14 +1134,16 @@ async function runDeliveryFallbackCron() {
 router.get('/cron', async (_req, res) => {
   try {
     const creashot = require('./creashot-subscription.cjs');
-    const [billing, retry, fallback, reminders, resume] = await Promise.all([
+    const pro = require('./fitpeak-pro.cjs');
+    const [billing, retry, fallback, reminders, resume, proExpiry] = await Promise.all([
       runBillingCron().catch((e) => ({ error: e.message })),
       runRetryCron().catch((e) => ({ error: e.message })),
       runDeliveryFallbackCron().catch((e) => ({ error: e.message })),
       creashot.runReminderCron().catch((e) => ({ error: e.message })),
       creashot.runPauseResumeCron().catch((e) => ({ error: e.message })),
+      pro.runProExpiryCron().catch((e) => ({ error: e.message })),
     ]);
-    res.json({ ok: true, billing, retry, fallback, reminders, resume });
+    res.json({ ok: true, billing, retry, fallback, reminders, resume, pro_expiry: proExpiry });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1729,6 +1760,12 @@ publicRouter.post('/portal/claim', async (req, res) => {
   const creashot = require('./creashot-subscription.cjs');
   router.use('/creashot', creashot.adminRouter);
   publicRouter.use('/portal/creashot', creashot.portalRouter);
+}
+
+// ── FITPEAK PRO（有料会員）（管理: /api/subscription/pro/*） ──
+{
+  const pro = require('./fitpeak-pro.cjs');
+  router.use('/pro', pro.adminRouter);
 }
 
 module.exports = router;

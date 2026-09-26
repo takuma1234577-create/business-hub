@@ -834,4 +834,5 @@ module.exports = {
   setupShopifySellingPlans,
   getCreashotSettings,
   listCreashotPlans,
+  sendGmail,
 };
