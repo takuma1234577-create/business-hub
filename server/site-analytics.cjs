@@ -321,7 +321,8 @@ router.get('/signups', async (req, res) => {
     const prevFrom = new Date(new Date(from).getTime() - span).toISOString();
     const [cur, prev] = await Promise.all([
       supabase.rpc('site_signups_report', { ...args, p_from: from, p_to: to }),
-      supabase.rpc('site_signups_report', { ...args, p_from: prevFrom, p_to: from }),
+      // 前期間はKPIだけ（軽量モード）
+      supabase.rpc('site_signups_report', { ...args, p_from: prevFrom, p_to: from, p_kpis_only: true }),
     ]);
     if (cur.error) throw new Error(cur.error.message);
     return res.json({ from, to, ...cur.data, prev_kpis: prev.data?.kpis || null });

@@ -38,9 +38,14 @@ comment on table public.site_signups is 'fitpeak.co から My FITPEAK に来て�
 -- 登録の集計
 -- ----------------------------------------------------------------------------
 drop function if exists public.site_signups_report(text, timestamptz, timestamptz, text, text);
+drop function if exists public.site_signups_report(text, timestamptz, timestamptz, text, text, boolean);
+-- ページビューの件数・セッション数をヒープを読まずに数えるための索引（statement timeout 対策）
+create index if not exists site_events_pv_cover_idx on public.site_events (site, event_type, created_at) include (session_id, path, device);
+
+-- p_kpis_only = true のときは前期間比較用にKPIだけ返す（軽量）
 create or replace function public.site_signups_report(
   p_site text, p_from timestamptz, p_to timestamptz, p_device text default 'all', p_path text default null,
-  p_include_ads boolean default false
+  p_include_ads boolean default false, p_kpis_only boolean default false
 ) returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   v_gran text := case when p_to - p_from <= interval '2 days' then 'hour' else 'day' end;
@@ -141,23 +146,29 @@ begin
       and (p_path is null or path = p_path)
   ),
   regs as (select * from f where converted and is_new),
-  pv as (
-    select e.path, count(*) as pageviews, count(distinct e.session_id) as sessions, max(e.title) as title
+  paths as (select path from f where path is not null union select path from mcf where path is not null),
+  -- 期間内のページビューをページ別に数える（site_events_pv_cover_idx の index only scan。
+  -- 人気ページを path 索引で引くとヒープを大量に読んで遅くなるため、先に全体を集計してから絞る）
+  pv_all as materialized (
+    select e.path, count(*) as pageviews, count(distinct e.session_id) as sessions
     from site_events e
-    where e.site = p_site and e.event_type = 'pageview' and e.created_at >= p_from and e.created_at < p_to
+    where not p_kpis_only
+      and e.site = p_site and e.event_type = 'pageview' and e.created_at >= p_from and e.created_at < p_to
       and (p_device = 'all' or e.device = p_device or (p_device = 'mobile' and e.device = 'tablet'))
-      and (p_path is null or e.path = p_path)
     group by e.path
   ),
+  pv as (select * from pv_all where path in (select path from paths)),
   titles as (
-    select distinct on (e.path) e.path, e.title from site_events e
-    where e.site = p_site and e.event_type = 'pageview' and e.created_at >= p_from - interval '30 days' and e.created_at < p_to
-      and e.path in (select path from f union select path from mcf)
-    order by e.path, e.created_at desc
+    select pt.path,
+      (select e.title from site_events e
+        where e.site = p_site and e.path = pt.path and e.event_type = 'pageview' and e.created_at < p_to
+        order by e.created_at desc limit 1) as title
+    from paths pt
+    where not p_kpis_only
   ),
   pages as (
     select p.path,
-      coalesce(t.title, pv.title) as title,
+      t.title,
       coalesce(pv.pageviews, 0) as pageviews,
       coalesce(pv.sessions, 0) as sessions,
       count(*) filter (where f.kind = 'line') as line_clicks,
@@ -165,30 +176,15 @@ begin
       count(*) filter (where f.kind = 'line' and f.converted and not f.is_new) as line_existing,
       (select count(*) from mcf where mcf.path = p.path) as myfp_clicks,
       count(*) filter (where f.kind = 'myfitpeak') as myfp_signups
-    from (select path from f union select path from mcf) p
+    from paths p
     left join f on f.path = p.path
     left join pv on pv.path = p.path
     left join titles t on t.path = p.path
-    group by p.path, t.title, pv.title, pv.pageviews, pv.sessions
+    group by p.path, t.title, pv.pageviews, pv.sessions
   )
-  select jsonb_build_object(
+  select case when p_kpis_only then jsonb_build_object('kpis', k.kpis) else jsonb_build_object(
     'granularity', v_gran,
-    'kpis', jsonb_build_object(
-      'sessions', (select count(distinct e.session_id) from site_events e
-                    where e.site = p_site and e.event_type = 'pageview' and e.created_at >= p_from and e.created_at < p_to
-                      and (p_device = 'all' or e.device = p_device or (p_device = 'mobile' and e.device = 'tablet'))
-                      and (p_path is null or e.path = p_path)),
-      'line_clicks', (select count(*) from f where kind = 'line'),
-      'line_signups', (select count(*) from f where kind = 'line' and converted and is_new),
-      'line_existing', (select count(*) from f where kind = 'line' and converted and not is_new),
-      'myfp_clicks', (select count(*) from mcf),
-      'myfp_signups', (select count(*) from f where kind = 'myfitpeak'),
-      'ad_line_clicks', (select count(*) from lc_all where is_ad),
-      'ad_line_signups', (select count(*) from lc_all a left join friends fr on fr.id = a.friend_id
-                           where a.is_ad and a.converted_at is not null
-                             and (fr.followed_at is null or fr.followed_at >= a.created_at - interval '10 minutes')),
-      'include_ads', p_include_ads
-    ),
+    'kpis', k.kpis,
     'timeseries', coalesce((
       select jsonb_agg(jsonb_build_object('t', t, 'line', line, 'myfp', myfp) order by t) from (
         select gs as t,
@@ -239,7 +235,25 @@ begin
         where f.converted
         order by f.done_at desc limit 100
       ) q), '[]'::jsonb)
-  ) into v_res;
+  ) end
+  from (select jsonb_build_object(
+      'sessions', (select count(distinct e.session_id) from site_events e
+                    where e.site = p_site and e.event_type = 'pageview' and e.created_at >= p_from and e.created_at < p_to
+                      and (p_device = 'all' or e.device = p_device or (p_device = 'mobile' and e.device = 'tablet'))
+                      -- path 索引を使わせない（人気ページだとヒープ読みで遅い）。カバー索引の index only scan で数える
+                      and (p_path is null or e.path || '' = p_path)),
+      'line_clicks', (select count(*) from f where kind = 'line'),
+      'line_signups', (select count(*) from f where kind = 'line' and converted and is_new),
+      'line_existing', (select count(*) from f where kind = 'line' and converted and not is_new),
+      'myfp_clicks', (select count(*) from mcf),
+      'myfp_signups', (select count(*) from f where kind = 'myfitpeak'),
+      'ad_line_clicks', (select count(*) from lc_all where is_ad),
+      'ad_line_signups', (select count(*) from lc_all a left join friends fr on fr.id = a.friend_id
+                           where a.is_ad and a.converted_at is not null
+                             and (fr.followed_at is null or fr.followed_at >= a.created_at - interval '10 minutes')),
+      'include_ads', p_include_ads
+    ) as kpis) k
+  into v_res;
   return v_res;
 end $$;
 
@@ -259,7 +273,20 @@ returns jsonb language sql stable security definer set search_path = public as $
   ) e;
 $$;
 
-revoke execute on function public.site_signups_report(text, timestamptz, timestamptz, text, text, boolean) from public, anon, authenticated;
+revoke execute on function public.site_signups_report(text, timestamptz, timestamptz, text, text, boolean, boolean) from public, anon, authenticated;
 revoke execute on function public.site_session_journey(text) from public, anon, authenticated;
-grant execute on function public.site_signups_report(text, timestamptz, timestamptz, text, text, boolean) to service_role;
+grant execute on function public.site_signups_report(text, timestamptz, timestamptz, text, text, boolean, boolean) to service_role;
 grant execute on function public.site_session_journey(text) to service_role;
+
+-- ----------------------------------------------------------------------------
+-- 速度対策（statement timeout が出たため・2026-09-26）
+-- ----------------------------------------------------------------------------
+-- My FITPEAK へのリンククリックだけを引く部分索引
+create index if not exists site_events_myfp_click_idx on public.site_events (site, created_at)
+  where event_type = 'click' and href ~* '^https?://my\.fitpeak\.co';
+-- site_pv_base（サイト全体・ページ別）のページビュー別集計を index only scan にする
+create index if not exists site_events_pvagg_cover_idx on public.site_events (site, created_at) include (pageview_id, event_type, engaged_ms, scroll_pct);
+-- サーバー（service role）からの集計は30秒まで待つ（PostgRESTの既定8秒では大きい期間の集計が打ち切られる）
+alter role service_role set statement_timeout = '30s';
+notify pgrst, 'reload config';
+-- 索引作成後は vacuum (analyze) public.site_events; で可視性マップを更新すると index only scan が効く
