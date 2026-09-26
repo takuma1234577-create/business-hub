@@ -1,0 +1,175 @@
+{
+  "layout": "lp-landing",
+  "sections": {
+    "main": {
+      "type": "lp-fitpeak-pro",
+      "blocks": {
+        "benefit_gear10": {
+          "type": "benefit",
+          "settings": {
+            "icon": "tag",
+            "title": "ギアはいつでも10%OFF",
+            "text": "リストラップ・パワーグリップ・ベルトなど、FITPEAKのギアがいつでも10%OFF。購入画面で自動で割り引かれます。",
+            "available": true,
+            "compare_label": "ギアの割引",
+            "free_value": "初回のみ1,000円OFF",
+            "pro_value": "いつでも10%OFF"
+          }
+        },
+        "benefit_ship": {
+          "type": "benefit",
+          "settings": {
+            "icon": "truck",
+            "title": "送料はいつでも無料",
+            "text": "金額に関係なく、fitpeak.coのお買い物は送料無料。1点だけでも気軽に買えます。",
+            "available": true,
+            "compare_label": "送料",
+            "free_value": "通常どおり",
+            "pro_value": "いつでも無料"
+          }
+        },
+        "benefit_warranty": {
+          "type": "benefit",
+          "settings": {
+            "icon": "shield",
+            "title": "ギアの保証を2年に延長",
+            "text": "通常1年の保証が、PRO会員は購入から2年に。通常の使い方でのほつれ・破損は無償で交換します。",
+            "available": true,
+            "compare_label": "ギアの保証",
+            "free_value": "購入から1年",
+            "pro_value": "購入から2年"
+          }
+        },
+        "benefit_cheapest": {
+          "type": "benefit",
+          "settings": {
+            "icon": "bell",
+            "title": "LINEの「今日の最安」を5件表示",
+            "text": "公式LINEのメニューから、プロテインやサプリの今日の最安を多めに確認できます。",
+            "available": true,
+            "compare_label": "LINEの「今日の最安」",
+            "free_value": "安い順3件",
+            "pro_value": "5件"
+          }
+        },
+        "benefit_points": {
+          "type": "benefit",
+          "settings": {
+            "icon": "coin",
+            "title": "ポイント2倍＋毎月100ポイント",
+            "text": "お買い物のポイントが2倍に。さらに毎月100ポイント（100円分）をプレゼントします。",
+            "available": false,
+            "compare_label": "ポイント",
+            "free_value": "通常",
+            "pro_value": "2倍＋毎月100pt"
+          }
+        },
+        "benefit_coupon": {
+          "type": "benefit",
+          "settings": {
+            "icon": "ticket",
+            "title": "毎月の会員限定クーポン",
+            "text": "毎月1枚、PRO会員だけのクーポンが届きます。",
+            "available": false,
+            "compare_label": "会員限定クーポン",
+            "free_value": "―",
+            "pro_value": "毎月1枚"
+          }
+        },
+        "benefit_deals": {
+          "type": "benefit",
+          "settings": {
+            "icon": "bell",
+            "title": "「今買う／待つ」がわかるお得アラート",
+            "text": "最安値だけでなく、次のセール予定や過去の価格から「今買うべきか」を理由つきでお知らせします。",
+            "available": false,
+            "compare_label": "お得アラート",
+            "free_value": "1件・週1回",
+            "pro_value": "無制限・判定つき"
+          }
+        },
+        "benefit_referral": {
+          "type": "benefit",
+          "settings": {
+            "icon": "users",
+            "title": "紹介の特典が1.5倍",
+            "text": "友だちを紹介したときの特典が、通常の1.5倍（ポイント）になります。",
+            "available": false,
+            "compare_label": "紹介の特典",
+            "free_value": "通常",
+            "pro_value": "1.5倍"
+          }
+        },
+        "benefit_records": {
+          "type": "benefit",
+          "settings": {
+            "icon": "chart",
+            "title": "FITPEAK LABの記録と推移グラフ",
+            "text": "筋トレ偏差値や1RMの記録を無制限に保存して、伸びをグラフで確認できます。",
+            "available": false,
+            "compare_label": "LABの記録",
+            "free_value": "直近3回まで",
+            "pro_value": "無制限＋グラフ"
+          }
+        },
+        "benefit_program": {
+          "type": "benefit",
+          "settings": {
+            "icon": "calendar",
+            "title": "12週間のトレーニングプログラム",
+            "text": "今の1RMから、あなた専用の12週間プログラムを作ります。",
+            "available": false,
+            "compare_label": "",
+            "free_value": "",
+            "pro_value": ""
+          }
+        },
+        "benefit_articles": {
+          "type": "benefit",
+          "settings": {
+            "icon": "doc",
+            "title": "KINNIKU TIMES 会員限定記事",
+            "text": "論文解説や大会の深掘りなど、PRO会員だけが読める記事。",
+            "available": false,
+            "compare_label": "",
+            "free_value": "",
+            "pro_value": ""
+          }
+        },
+        "benefit_early": {
+          "type": "benefit",
+          "settings": {
+            "icon": "bolt",
+            "title": "セールの先行購入",
+            "text": "FITPEAKのセールを一般公開の24時間前から購入できます。",
+            "available": false,
+            "compare_label": "",
+            "free_value": "",
+            "pro_value": ""
+          }
+        }
+      },
+      "block_order": [
+        "benefit_gear10",
+        "benefit_ship",
+        "benefit_warranty",
+        "benefit_cheapest",
+        "benefit_points",
+        "benefit_coupon",
+        "benefit_deals",
+        "benefit_referral",
+        "benefit_records",
+        "benefit_program",
+        "benefit_articles",
+        "benefit_early"
+      ],
+      "settings": {
+        "trial_days": 14,
+        "button_text": "14日間無料で始める"
+      }
+    }
+  },
+  "order": [
+    "main"
+  ]
+}

@@ -1,0 +1,162 @@
+/* FITPEAK PRO 登録LP（sections/lp-fitpeak-pro.liquid）  2026-09-27
+   黒白・ゴシック。色は黒と白（グレー段階）だけ。 */
+.fpp{--fpp-k:#0a0a0a;--fpp-w:#fff;--fpp-g1:#f5f5f5;--fpp-g2:#e5e5e5;--fpp-g5:#737373;--fpp-g7:#404040;
+  font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;color:var(--fpp-k);background:var(--fpp-w);
+  -webkit-font-smoothing:antialiased;letter-spacing:.02em;line-height:1.7;font-size:15px;overflow-x:hidden}
+.fpp *{box-sizing:border-box}
+.fpp h1,.fpp h2,.fpp h3,.fpp p{margin:0}
+.fpp a{color:inherit}
+.fpp-sp{display:inline}
+@media (min-width:750px){.fpp-sp{display:none}}
+
+/* ヘッダー */
+.fpp-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 16px;background:rgba(10,10,10,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.fpp-top__logo{color:#fff!important;text-decoration:none;font-weight:900;font-style:italic;font-size:18px;letter-spacing:.02em}
+.fpp-top__cta{color:#0a0a0a!important;background:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:8px 14px;border-radius:999px;white-space:nowrap}
+
+/* ボタン */
+.fpp-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:420px;margin:0 auto;
+  min-height:56px;padding:14px 20px;border-radius:12px;font-weight:800;font-size:16px;text-decoration:none;border:0;cursor:pointer;
+  font-family:inherit;letter-spacing:.04em;transition:transform .15s,opacity .15s}
+.fpp-btn:active{transform:scale(.98)}
+.fpp-btn--light{background:#fff;color:#0a0a0a!important}
+.fpp-btn--dark{background:#0a0a0a;color:#fff!important}
+
+/* ヒーロー */
+.fpp-hero{background:#0a0a0a;color:#fff;text-align:center;padding:56px 20px 48px}
+.fpp-hero__eyebrow{font-size:12px;font-weight:700;letter-spacing:.3em;color:#a3a3a3;margin-bottom:14px!important}
+.fpp-hero__title{font-size:clamp(30px,8.4vw,54px);font-weight:900;line-height:1.25;letter-spacing:.01em;color:#fff}
+.fpp-hero__lead{max-width:560px;margin:18px auto 0!important;font-size:clamp(14px,3.8vw,16px);color:#d4d4d4;line-height:1.8}
+.fpp-hero__price{display:flex;flex-direction:column;align-items:center;gap:6px;margin:28px 0 22px}
+.fpp-hero__yen{font-size:clamp(26px,7vw,36px);font-weight:900;color:#fff}
+.fpp-hero__trial{display:inline-block;border:1px solid #fff;border-radius:999px;padding:4px 14px;font-size:13px;font-weight:700}
+.fpp-hero__note{margin-top:12px!important;font-size:12px;color:#a3a3a3}
+.fpp-hero__stats{list-style:none;padding:0;margin:36px auto 0;max-width:560px;display:grid;grid-template-columns:repeat(3,1fr);
+  border-top:1px solid #262626}
+.fpp-hero__stats li{padding:18px 4px 0;display:flex;flex-direction:column;gap:2px}
+.fpp-hero__stats li+li{border-left:1px solid #262626}
+.fpp-hero__stats strong{font-size:clamp(22px,6.4vw,30px);font-weight:900;line-height:1.2}
+.fpp-hero__stats span{font-size:11px;color:#a3a3a3;line-height:1.4}
+
+/* セクション共通 */
+.fpp-sec{padding:56px 20px;max-width:880px;margin:0 auto}
+.fpp-sec--gray{max-width:none;background:var(--fpp-g1)}
+.fpp-sec--gray>*{max-width:840px;margin-left:auto;margin-right:auto}
+.fpp-eyebrow{text-align:center;font-size:11px;font-weight:700;letter-spacing:.3em;color:var(--fpp-g5);margin-bottom:10px!important}
+.fpp-h2{text-align:center;font-size:clamp(21px,5.6vw,30px);font-weight:900;line-height:1.45;margin-bottom:24px!important}
+.fpp-h3{font-size:18px;font-weight:900;margin-bottom:18px!important}
+.fpp-lead{text-align:center;color:var(--fpp-g7);font-size:14px;max-width:560px;margin:-8px auto 28px!important}
+.fpp-small{font-size:11px;color:var(--fpp-g5);margin-top:14px!important;line-height:1.7}
+
+/* 元が取れる計算 */
+.fpp-calc{max-width:560px;margin:0 auto;border:1px solid var(--fpp-k);border-radius:14px;overflow:hidden}
+.fpp-calc__row,.fpp-calc__total{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 18px;font-size:14px}
+.fpp-calc__row+.fpp-calc__row{border-top:1px solid var(--fpp-g2)}
+.fpp-calc__row strong{font-weight:900;white-space:nowrap}
+.fpp-calc__total{background:#0a0a0a;color:#fff}
+.fpp-calc__total strong{font-size:18px;font-weight:900}
+
+/* 特典カード */
+.fpp-grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:640px){.fpp-grid{grid-template-columns:1fr 1fr}}
+.fpp-card{background:#fff;border-radius:14px;padding:20px;display:grid;grid-template-columns:44px 1fr;column-gap:14px;align-items:start}
+.fpp-card__icon{grid-row:span 2;width:44px;height:44px;border-radius:12px;background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center}
+.fpp-card__icon svg{width:24px;height:24px}
+.fpp-card__title{font-size:16px;font-weight:900;line-height:1.4}
+.fpp-card__text{font-size:13px;color:var(--fpp-g7);margin-top:4px!important;line-height:1.7}
+
+/* 順次追加 */
+.fpp-soon{list-style:none;padding:0;margin:0;border-top:1px solid var(--fpp-g2)}
+.fpp-soon li{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:14px 2px;border-bottom:1px solid var(--fpp-g2)}
+.fpp-soon__icon{width:36px;height:36px;border-radius:10px;border:1px solid var(--fpp-k);display:flex;align-items:center;justify-content:center}
+.fpp-soon__icon svg{width:20px;height:20px}
+.fpp-soon strong{display:block;font-size:14px;font-weight:800;line-height:1.4}
+.fpp-soon small{display:block;font-size:12px;color:var(--fpp-g5);line-height:1.6}
+.fpp-soon__tag{font-style:normal;font-size:10px;font-weight:700;border:1px solid var(--fpp-g5);color:var(--fpp-g7);border-radius:999px;padding:2px 8px;white-space:nowrap}
+
+/* 比較表 */
+.fpp-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fpp-table{width:100%;min-width:320px;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;font-size:13px}
+.fpp-table th,.fpp-table td{padding:13px 10px;text-align:center;border-bottom:1px solid var(--fpp-g2);line-height:1.5}
+.fpp-table tbody th{text-align:left;font-weight:700;white-space:nowrap}
+.fpp-table thead th{font-size:12px;color:var(--fpp-g5);font-weight:700}
+.fpp-table .is-pro{background:#0a0a0a;color:#fff;font-weight:800}
+.fpp-table thead .is-pro{color:#fff;letter-spacing:.1em}
+.fpp-table tr:last-child th,.fpp-table tr:last-child td{border-bottom:0}
+
+/* プラン＋フォーム */
+.fpp-plans{scroll-margin-top:60px}
+.fpp-form{max-width:520px;margin:0 auto}
+.fpp-step-label{display:flex;align-items:center;gap:10px;font-weight:900;font-size:15px;margin:26px 0 12px}
+.fpp-num{width:24px;height:24px;border-radius:50%;background:#0a0a0a;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.fpp-plan-cards{display:grid;gap:10px}
+.fpp-plan{position:relative;display:grid;grid-template-columns:24px 1fr auto;grid-template-areas:"r n p" "r u u";column-gap:12px;row-gap:2px;
+  align-items:center;padding:18px 16px;border:1.5px solid var(--fpp-g2);border-radius:14px;cursor:pointer;background:#fff;transition:border-color .15s}
+.fpp-plan input{position:absolute;opacity:0;pointer-events:none}
+.fpp-plan.is-selected{border-color:#0a0a0a;box-shadow:0 0 0 1px #0a0a0a}
+.fpp-plan__radio{grid-area:r;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--fpp-g5)}
+.fpp-plan.is-selected .fpp-plan__radio{border:6px solid #0a0a0a}
+.fpp-plan__name{grid-area:n;font-weight:900;font-size:16px}
+.fpp-plan__price{grid-area:p;text-align:right;white-space:nowrap}
+.fpp-plan__price strong{font-size:20px;font-weight:900}
+.fpp-plan__price small{font-size:11px;color:var(--fpp-g5)}
+.fpp-plan__unit{grid-area:u;font-size:12px;color:var(--fpp-g7)}
+.fpp-plan__badge{position:absolute;top:-10px;right:14px;background:#0a0a0a;color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px}
+.fpp-summary{margin-top:14px;padding:14px 16px;background:var(--fpp-g1);border-radius:12px;font-size:13px;line-height:1.8}
+.fpp-summary strong{font-weight:900}
+.fpp-field{margin-bottom:6px}
+.fpp-label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
+.fpp-req{margin-left:6px;font-size:10px;background:#0a0a0a;color:#fff;border-radius:4px;padding:1px 6px;vertical-align:1px}
+.fpp-input{width:100%;font-size:16px;padding:14px;border:1.5px solid var(--fpp-g2);border-radius:10px;background:#fff;color:#0a0a0a;font-family:inherit;outline:none;-webkit-appearance:none}
+.fpp-input:focus{border-color:#0a0a0a}
+.fpp-field.is-invalid .fpp-input{border-color:#b91c1c}
+.fpp-field.is-valid .fpp-input{border-color:#0a0a0a}
+.fpp-hint{font-size:11px;color:var(--fpp-g5);margin-top:6px!important;line-height:1.6}
+.fpp-err{font-size:12px;color:#b91c1c;margin-top:4px!important;min-height:0}
+.fpp-pay{font-size:13px;color:var(--fpp-g7);line-height:1.8}
+.fpp-pay strong{color:#0a0a0a;font-weight:900}
+.fpp-agree{display:flex;gap:10px;align-items:flex-start;margin:22px 0 16px;font-size:12px;line-height:1.7;color:var(--fpp-g7);cursor:pointer}
+.fpp-agree input{width:20px;height:20px;margin:1px 0 0;flex-shrink:0;accent-color:#0a0a0a}
+.fpp-agree.is-invalid span{color:#b91c1c}
+.fpp-submit{max-width:none}
+.fpp-submit__main{font-size:17px}
+.fpp-submit__sub{font-size:11px;font-weight:500;opacity:.8;margin-top:2px}
+.fpp-submit[disabled]{opacity:.5}
+.fpp-error{margin-top:10px!important;text-align:center;font-size:13px;color:#b91c1c}
+.fpp-checks{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:6px;font-size:12px;color:var(--fpp-g7)}
+.fpp-checks li::before{content:"✓";font-weight:900;margin-right:8px;color:#0a0a0a}
+.fpp-flow{list-style:none;padding:0;margin:40px auto 0;max-width:520px;display:grid;gap:0;border-top:1px solid var(--fpp-g2)}
+.fpp-flow li{display:grid;grid-template-columns:32px 1fr;gap:12px;padding:14px 0;border-bottom:1px solid var(--fpp-g2);align-items:center}
+.fpp-flow li>span{width:32px;height:32px;border-radius:50%;border:1.5px solid #0a0a0a;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px}
+.fpp-flow strong{display:block;font-size:14px;font-weight:900}
+.fpp-flow small{display:block;font-size:12px;color:var(--fpp-g7);line-height:1.6}
+
+/* 条件・FAQ */
+.fpp-terms{margin:0;display:grid;grid-template-columns:1fr;gap:0;font-size:13px;line-height:1.8;background:#fff;border-radius:14px;padding:6px 18px}
+.fpp-terms dt{font-weight:800;padding-top:14px}
+.fpp-terms dd{margin:2px 0 0;padding-bottom:14px;border-bottom:1px solid var(--fpp-g2);color:var(--fpp-g7)}
+.fpp-terms dd:last-child{border-bottom:0}
+@media (min-width:640px){.fpp-terms{grid-template-columns:9em 1fr}.fpp-terms dt,.fpp-terms dd{padding:14px 0;margin:0;border-bottom:1px solid var(--fpp-g2)}.fpp-terms dt:nth-last-of-type(1){border-bottom:0}}
+.fpp-faq details{border-bottom:1px solid var(--fpp-g2)}
+.fpp-faq summary{cursor:pointer;list-style:none;padding:16px 28px 16px 0;font-weight:800;font-size:14px;position:relative;line-height:1.6}
+.fpp-faq summary::-webkit-details-marker{display:none}
+.fpp-faq summary::after{content:"+";position:absolute;right:4px;top:13px;font-size:20px;font-weight:400}
+.fpp-faq details[open] summary::after{content:"−"}
+.fpp-faq p{font-size:13px;color:var(--fpp-g7);padding:0 0 16px;line-height:1.8}
+
+.fpp-foot{background:#0a0a0a;color:#a3a3a3;padding:32px 20px 110px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;font-size:12px}
+.fpp-foot a{color:#d4d4d4!important;text-decoration:none}
+.fpp-foot small{width:100%;text-align:center;margin-top:8px}
+
+/* 追従バー */
+.fpp-sticky{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  background:rgba(255,255,255,.96);border-top:1px solid var(--fpp-g2);transform:translateY(110%);transition:transform .25s}
+.fpp-sticky.is-on{transform:none}
+.fpp-sticky__btn{display:flex;flex-direction:column;align-items:center;max-width:480px;margin:0 auto;padding:11px;border-radius:12px;
+  background:#0a0a0a;color:#fff!important;text-decoration:none;font-weight:800;font-size:15px;line-height:1.3}
+.fpp-sticky__btn small{font-size:11px;font-weight:500;opacity:.8}
+
+/* テーマ既定のmain余白を消す（lp-landing） */
+.fpp-section{margin:0!important;padding:0!important}
+.fpp-table__soon{display:block;font-size:10px;font-weight:500;opacity:.7;margin-top:2px}

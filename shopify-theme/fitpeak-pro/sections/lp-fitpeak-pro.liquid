@@ -1,0 +1,285 @@
+{% comment %}
+  FITPEAK PRO（有料会員）説明・登録 一体型LP
+  - クレアショット（lp-creashot-plans）と同じ仕組み：
+    Liquid がバリエーションと Selling Plan を拾う → /cart/add.js（selling_plan付き）→ メールを引き継いで /checkout
+  - 価格・Selling Plan ID はテーマに直書きしない（管理画面で価格を変えればここも変わる）
+  - 特典は「特典」ブロックで管理。available をオフにすると「順次追加」として表示される
+    （まだ使えない特典を「今日から使える」と書かない：景品表示法）
+  - 設計：プロジェクト文書 claude/my-fitpeak-pro-sekkei.md
+  作成: 2026-09-27
+{% endcomment %}
+
+{%- assign p = product -%}
+{%- assign trial = section.settings.trial_days | default: 14 -%}
+{%- assign v_month = nil -%}{%- assign v_year = nil -%}
+{%- for v in p.variants -%}
+  {%- if v.sku == 'FP-PRO-1M' or v.title contains '月額' -%}{%- assign v_month = v -%}{%- endif -%}
+  {%- if v.sku == 'FP-PRO-12M' or v.title contains '年額' -%}{%- assign v_year = v -%}{%- endif -%}
+{%- endfor -%}
+{%- assign price_m = v_month.price | default: 48000 -%}
+{%- assign price_y = v_year.price | default: 480000 -%}
+{%- assign year_by_month = price_m | times: 12 -%}
+{%- assign year_save = year_by_month | minus: price_y -%}
+
+<div class="fpp" id="fitpeak-pro">
+
+  <!-- ヘッダー -->
+  <header class="fpp-top">
+    <a class="fpp-top__logo" href="/" aria-label="FITPEAK トップへ">//FITPEAK</a>
+    <a class="fpp-top__cta" href="#pro-plans" data-fpp-jump>{{ trial }}日間無料で始める</a>
+  </header>
+
+  <!-- 1. ヒーロー -->
+  <section class="fpp-hero">
+    <p class="fpp-hero__eyebrow">FITPEAK PRO</p>
+    <h1 class="fpp-hero__title">{{ section.settings.hero_title | default: '筋トレを、もっと得に。' }}</h1>
+    <p class="fpp-hero__lead">{{ section.settings.hero_lead | default: 'ギアはいつでも10%OFF・送料無料・保証2年。これからも機能が増えていく、FITPEAKの有料会員です。' }}</p>
+    <div class="fpp-hero__price">
+      <span class="fpp-hero__yen">月額 {{ price_m | money_without_trailing_zeros }}</span>
+      <span class="fpp-hero__trial">最初の{{ trial }}日間は無料</span>
+    </div>
+    <a class="fpp-btn fpp-btn--light" href="#pro-plans" data-fpp-jump>{{ trial }}日間無料で始める</a>
+    <p class="fpp-hero__note">無料期間中に解約すれば、料金は一切かかりません</p>
+    <ul class="fpp-hero__stats">
+      <li><strong>{{ section.settings.stat1_num | default: '10%' }}</strong><span>{{ section.settings.stat1_label | default: 'ギアいつでもOFF' }}</span></li>
+      <li><strong>{{ section.settings.stat2_num | default: '0円' }}</strong><span>{{ section.settings.stat2_label | default: '送料いつでも無料' }}</span></li>
+      <li><strong>{{ section.settings.stat3_num | default: '2年' }}</strong><span>{{ section.settings.stat3_label | default: 'ギアの保証' }}</span></li>
+    </ul>
+  </section>
+
+  <!-- 3. 特典（今日から） -->
+  <section class="fpp-sec fpp-sec--gray">
+    <p class="fpp-eyebrow">BENEFITS</p>
+    <h2 class="fpp-h2">入会した日から使える特典</h2>
+    <div class="fpp-grid">
+      {%- for block in section.blocks -%}
+        {%- if block.type == 'benefit' and block.settings.available -%}
+        <div class="fpp-card" {{ block.shopify_attributes }}>
+          <div class="fpp-card__icon">{% render 'fpp-icon', name: block.settings.icon %}</div>
+          <h3 class="fpp-card__title">{{ block.settings.title }}</h3>
+          <p class="fpp-card__text">{{ block.settings.text }}</p>
+        </div>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </section>
+
+  <!-- 4. 順次追加 -->
+  {%- assign has_soon = false -%}
+  {%- for block in section.blocks -%}{%- if block.type == 'benefit' and block.settings.available == false -%}{%- assign has_soon = true -%}{%- endif -%}{%- endfor -%}
+  {%- if has_soon -%}
+  <section class="fpp-sec">
+    <p class="fpp-eyebrow">COMING SOON</p>
+    <h2 class="fpp-h2">これから順番に追加します<br class="fpp-sp">（追加料金なし）</h2>
+    <p class="fpp-lead">PRO会員なら、新しい機能も追加料金なしで使えます。準備ができたものからLINEとメールでお知らせします。</p>
+    <ul class="fpp-soon">
+      {%- for block in section.blocks -%}
+        {%- if block.type == 'benefit' and block.settings.available == false -%}
+        <li {{ block.shopify_attributes }}>
+          <span class="fpp-soon__icon">{% render 'fpp-icon', name: block.settings.icon %}</span>
+          <div><strong>{{ block.settings.title }}</strong><small>{{ block.settings.text }}</small></div>
+          <em class="fpp-soon__tag">順次追加</em>
+        </li>
+        {%- endif -%}
+      {%- endfor -%}
+    </ul>
+  </section>
+  {%- endif -%}
+
+  <!-- 5. 無料と比べる -->
+  <section class="fpp-sec fpp-sec--gray">
+    <p class="fpp-eyebrow">COMPARE</p>
+    <h2 class="fpp-h2">無料会員とのちがい</h2>
+    <div class="fpp-table-wrap">
+      <table class="fpp-table">
+        <thead><tr><th></th><th>無料会員</th><th class="is-pro">PRO</th></tr></thead>
+        <tbody>
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'benefit' and block.settings.compare_label != blank -%}
+            <tr>
+              <th>{{ block.settings.compare_label }}</th>
+              <td>{{ block.settings.free_value | default: '―' }}</td>
+              <td class="is-pro">{{ block.settings.pro_value }}{% unless block.settings.available %}<small class="fpp-table__soon">順次追加</small>{% endunless %}</td>
+            </tr>
+            {%- endif -%}
+          {%- endfor -%}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6. プラン選択＋登録（一体型） -->
+  <section class="fpp-sec fpp-plans" id="pro-plans">
+    <p class="fpp-eyebrow">JOIN</p>
+    <h2 class="fpp-h2">プランを選んで、{{ trial }}日間無料で始める</h2>
+    <p class="fpp-lead">今日は0円。{{ trial }}日後から、選んだプランの料金がかかります。</p>
+
+    <form method="post" action="/cart/add" id="fpp-form" class="fpp-form" novalidate>
+      <input type="hidden" name="id" id="fpp-variant-id" value="">
+      <input type="hidden" name="selling_plan" id="fpp-selling-plan" value="">
+      <input type="hidden" name="quantity" value="1">
+      <input type="hidden" name="return_to" value="/checkout">
+
+      <div class="fpp-step-label"><span class="fpp-num">1</span>プランを選ぶ</div>
+      <div class="fpp-plan-cards" role="radiogroup" aria-label="プラン">
+        {%- if v_year -%}
+        <label class="fpp-plan is-selected" data-plan="year">
+          <input type="radio" name="fpp_plan" value="year" checked>
+          <span class="fpp-plan__badge">{% if year_save > 0 %}{{ year_save | money_without_trailing_zeros }}お得{% else %}おすすめ{% endif %}</span>
+          <span class="fpp-plan__radio"></span>
+          <span class="fpp-plan__name">年額プラン</span>
+          <span class="fpp-plan__price"><strong>{{ price_y | money_without_trailing_zeros }}</strong><small>／年（税込）</small></span>
+          <span class="fpp-plan__unit">月あたり {{ price_y | divided_by: 12 | money_without_trailing_zeros }}・2ヶ月分お得</span>
+        </label>
+        {%- endif -%}
+        {%- if v_month -%}
+        <label class="fpp-plan{% unless v_year %} is-selected{% endunless %}" data-plan="month">
+          <input type="radio" name="fpp_plan" value="month"{% unless v_year %} checked{% endunless %}>
+          <span class="fpp-plan__radio"></span>
+          <span class="fpp-plan__name">月額プラン</span>
+          <span class="fpp-plan__price"><strong>{{ price_m | money_without_trailing_zeros }}</strong><small>／月（税込）</small></span>
+          <span class="fpp-plan__unit">まずは1ヶ月ずつ試したい方に</span>
+        </label>
+        {%- endif -%}
+      </div>
+
+      <div class="fpp-summary" id="fpp-summary" aria-live="polite"></div>
+
+      <div class="fpp-step-label"><span class="fpp-num">2</span>メールアドレス</div>
+      <div class="fpp-field" id="fpp-email-field">
+        <label class="fpp-label" for="fpp-email">メールアドレス<span class="fpp-req">必須</span></label>
+        <input type="email" id="fpp-email" class="fpp-input" inputmode="email" autocomplete="email" placeholder="example@email.com" autocapitalize="off" spellcheck="false">
+        <p class="fpp-hint">My FITPEAK・公式LINEと同じメールアドレスにすると、特典がすぐに反映されます</p>
+        <p class="fpp-err" role="alert"></p>
+      </div>
+
+      <div class="fpp-step-label"><span class="fpp-num">3</span>お支払い方法</div>
+      <p class="fpp-pay">カード番号は次の画面（Shopifyの安全な決済画面）で入力します。<strong>今日の請求は0円</strong>です。{{ trial }}日後の決済のために、カードを登録します。</p>
+
+      <label class="fpp-agree">
+        <input type="checkbox" id="fpp-agree">
+        <span>下の「定期契約の条件」を確認し、{{ trial }}日間の無料期間が終わると自動で有料プランに切り替わることに同意します</span>
+      </label>
+
+      <button type="submit" class="fpp-btn fpp-btn--dark fpp-submit" id="fpp-submit">
+        <span class="fpp-submit__main">{{ section.settings.button_text | default: '14日間無料で始める' }}</span>
+        <span class="fpp-submit__sub" id="fpp-submit-sub"></span>
+      </button>
+      <p class="fpp-error" id="fpp-error" hidden></p>
+
+      <ul class="fpp-checks">
+        <li>今日の請求は0円</li>
+        <li>無料期間中の解約で料金なし</li>
+        <li>回数の縛りなし・My FITPEAKからいつでも解約</li>
+      </ul>
+    </form>
+
+    <!-- 流れ -->
+    <ol class="fpp-flow">
+      <li><span>1</span><div><strong>今日</strong><small>登録。0円で特典がすぐ使えます</small></div></li>
+      <li><span>2</span><div><strong>{{ trial }}日間</strong><small>無料で全部の特典を試せます</small></div></li>
+      <li><span>3</span><div><strong>{{ trial | plus: 1 }}日目</strong><small>選んだプランの初回決済。続けない方は前日までに解約</small></div></li>
+    </ol>
+  </section>
+
+  <!-- 7. 定期契約の条件（特定商取引法） -->
+  <section class="fpp-sec fpp-sec--gray">
+    <h2 class="fpp-h3">定期契約の条件</h2>
+    <dl class="fpp-terms">
+      <dt>サービス名</dt><dd>FITPEAK PRO（FITPEAKの有料会員サービス）</dd>
+      <dt>料金</dt><dd>月額プラン：{{ price_m | money_without_trailing_zeros }}／月、年額プラン：{{ price_y | money_without_trailing_zeros }}／年（いずれも税込）</dd>
+      <dt>無料期間</dt><dd>お申し込みから{{ trial }}日間。無料期間は1人1回までです。</dd>
+      <dt>お支払い時期</dt><dd>無料期間の最終日の翌日に初回の料金を、ご登録のクレジットカード等で決済します。以降は月額プランは毎月、年額プランは1年ごとに同額を自動で決済します。</dd>
+      <dt>契約期間</dt><dd>解約のお手続きをされるまで自動で更新されます。回数の縛りはありません。</dd>
+      <dt>解約方法</dt><dd>My FITPEAK（my.fitpeak.co）にログインし、会員プランの画面から「解約」を選んでください。次回決済日の前日までに解約すれば、次回以降の料金はかかりません。</dd>
+      <dt>解約後の扱い</dt><dd>お支払い済みの期間が終わるまでは特典をご利用いただけます。途中解約による日割りの返金はありません。</dd>
+      <dt>特典について</dt><dd>ギア10%OFF・送料無料は、fitpeak.coで同じメールアドレスのアカウントにログインしてご購入いただくと自動で適用されます。ほかの割引との併用はできず、一番大きい割引が適用されます（送料無料は併用できます）。</dd>
+      <dt>販売者</dt><dd>合同会社SVPコーポレーション（FITPEAK）／沖縄県沖縄市明道1-1-25／お問い合わせ：公式LINE</dd>
+    </dl>
+  </section>
+
+  <!-- 8. FAQ -->
+  <section class="fpp-sec">
+    <h2 class="fpp-h3">よくある質問</h2>
+    <div class="fpp-faq">
+      <details><summary>無料期間中に解約したら、本当に0円ですか？</summary><p>はい。無料期間中に解約すれば料金は一切かかりません。無料期間中に使った割引もそのままです。</p></details>
+      <details><summary>解約はどこからできますか？</summary><p>My FITPEAK（my.fitpeak.co）にログインし、会員プランの画面から手続きできます。公式LINEのメニュー「マイページ」→「My FITPEAK」からも開けます。</p></details>
+      <details><summary>月額と年額、どちらがお得ですか？</summary><p>年額プランは月額プラン12ヶ月分より{{ year_save | money_without_trailing_zeros }}安く、2ヶ月分お得です。まず試したい方は月額プランがおすすめです。</p></details>
+      <details><summary>10%OFFと送料無料はどうやって使いますか？</summary><p>fitpeak.coで、PROに登録したメールアドレスのアカウントにログインしてお買い物すると、購入画面で自動的に適用されます。クーポンコードの入力は不要です。</p></details>
+      <details><summary>Amazonや楽天でのお買い物にも使えますか？</summary><p>割引・送料無料は、FITPEAK公式サイト（fitpeak.co）でのお買い物が対象です。</p></details>
+      <details><summary>プランの変更はできますか？</summary><p>できます。月額から年額に切り替えたい場合は、公式LINEからご連絡ください。</p></details>
+    </div>
+  </section>
+
+  <footer class="fpp-foot">
+    <a href="/">FITPEAK 公式サイト</a>
+    <a href="/policies/legal-notice">特定商取引法に基づく表記</a>
+    <a href="/policies/terms-of-service">利用規約</a>
+    <a href="/policies/privacy-policy">プライバシーポリシー</a>
+    <small>© FITPEAK / 合同会社SVPコーポレーション</small>
+  </footer>
+</div>
+
+<div class="fpp-sticky" id="fpp-sticky" aria-hidden="true">
+  <a href="#pro-plans" class="fpp-sticky__btn" data-fpp-jump>
+    <span>{{ trial }}日間無料で始める</span><small>今日は0円・いつでも解約</small>
+  </a>
+</div>
+
+<script type="application/json" id="fpp-data">
+{
+  "trialDays": {{ trial }},
+  "variants": {
+    {%- if v_month -%}
+    "month": { "id": {{ v_month.id }}, "available": {{ v_month.available }}, "price": {{ v_month.price }}, "sellingPlanId": {%- assign spid = 0 -%}{%- for a in v_month.selling_plan_allocations -%}{%- if forloop.first -%}{%- assign spid = a.selling_plan.id -%}{%- endif -%}{%- endfor -%}{{ spid }}, "label": "月額プラン", "per": "月" }{% if v_year %},{% endif %}
+    {%- endif -%}
+    {%- if v_year -%}
+    "year": { "id": {{ v_year.id }}, "available": {{ v_year.available }}, "price": {{ v_year.price }}, "sellingPlanId": {%- assign spid = 0 -%}{%- for a in v_year.selling_plan_allocations -%}{%- if forloop.first -%}{%- assign spid = a.selling_plan.id -%}{%- endif -%}{%- endfor -%}{{ spid }}, "label": "年額プラン", "per": "年" }
+    {%- endif -%}
+  }
+}
+</script>
+{{ 'fitpeak-pro.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'fitpeak-pro.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "FITPEAK PRO 登録LP",
+  "tag": "section",
+  "class": "fpp-section",
+  "settings": [
+    { "type": "text", "id": "hero_title", "label": "ヒーローの見出し", "default": "筋トレを、もっと得に。" },
+    { "type": "textarea", "id": "hero_lead", "label": "ヒーローのリード文", "default": "ギアはいつでも10%OFF・送料無料・保証2年。これからも機能が増えていく、FITPEAKの有料会員です。" },
+    { "type": "number", "id": "trial_days", "label": "無料期間（日）", "default": 14, "info": "Selling Plan と subscription_plans.trial_days もあわせて変えること" },
+    { "type": "text", "id": "button_text", "label": "登録ボタンの文言", "default": "14日間無料で始める" },
+    { "type": "header", "content": "ヒーローの3つの数字（今日から使える特典だけを書く）" },
+    { "type": "text", "id": "stat1_num", "label": "数字1", "default": "10%" },
+    { "type": "text", "id": "stat1_label", "label": "説明1", "default": "ギアいつでもOFF" },
+    { "type": "text", "id": "stat2_num", "label": "数字2", "default": "0円" },
+    { "type": "text", "id": "stat2_label", "label": "説明2", "default": "送料いつでも無料" },
+    { "type": "text", "id": "stat3_num", "label": "数字3", "default": "2年" },
+    { "type": "text", "id": "stat3_label", "label": "説明3", "default": "ギアの保証" }
+  ],
+  "blocks": [
+    {
+      "type": "benefit",
+      "name": "特典",
+      "settings": [
+        { "type": "select", "id": "icon", "label": "アイコン", "default": "tag", "options": [
+          { "value": "tag", "label": "割引" }, { "value": "truck", "label": "送料" }, { "value": "coin", "label": "ポイント" },
+          { "value": "ticket", "label": "クーポン" }, { "value": "shield", "label": "保証" }, { "value": "users", "label": "紹介" },
+          { "value": "bell", "label": "アラート" }, { "value": "chart", "label": "記録" }, { "value": "calendar", "label": "カレンダー" },
+          { "value": "doc", "label": "記事" }, { "value": "bolt", "label": "先行" }, { "value": "cake", "label": "誕生月" } ] },
+        { "type": "text", "id": "title", "label": "見出し" },
+        { "type": "textarea", "id": "text", "label": "説明" },
+        { "type": "checkbox", "id": "available", "label": "今日から使える（オフ＝「順次追加」に表示）", "default": true },
+        { "type": "header", "content": "比較表（空欄なら表に出さない）" },
+        { "type": "text", "id": "compare_label", "label": "比較表の項目名" },
+        { "type": "text", "id": "free_value", "label": "無料会員" },
+        { "type": "text", "id": "pro_value", "label": "PRO" }
+      ]
+    }
+  ],
+  "presets": [ { "name": "FITPEAK PRO 登録LP", "category": "カスタム" } ]
+}
+{% endschema %}
