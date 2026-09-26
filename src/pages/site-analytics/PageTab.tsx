@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ExternalLink, Flame } from 'lucide-react'
 import type { Device, PageRow, Preset } from './api'
 import { useOverview, formatBucket } from './useOverview'
+import { useSignups, placeLabel } from './useSignups'
 import { Card, Kpi, BarList, LineChart, ScrollReach, Empty } from './ui'
 import { fmtNum, fmtPct, fmtDur, prettyPath, deviceLabel } from './format'
 
@@ -50,6 +51,7 @@ export default function PageTab({ preset, device, path, onChangePath, onOpenHeat
   preset: Preset; device: Device; path: string; onChangePath: (p: string) => void; onOpenHeatmap: () => void; pages: PageRow[]
 }) {
   const { data, loading, err } = useOverview(preset, device, path)
+  const { data: sg } = useSignups(preset, device, path)
 
   return (
     <div className={`space-y-4 ${loading ? 'opacity-60' : ''}`}>
@@ -81,6 +83,31 @@ export default function PageTab({ preset, device, path, onChangePath, onOpenHeat
               <Kpi label="離脱率" value={fmtPct(k.exit_rate, 1)} cur={k.exit_rate} prev={p.exit_rate} lowerIsBetter hint="このページが最後に見られたページだった割合" />
               <Kpi label="カート追加" value={fmtNum(k.cart_adds)} cur={k.cart_adds} prev={p.cart_adds} />
             </div>
+
+            {sg && (() => {
+              const sk = sg.kpis
+              const sp = sg.prev_kpis
+              return (
+                <Card title="このページからの登録（公式LINE・My FITPEAK）">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Kpi label="公式LINE 新規登録" value={`${fmtNum(sk.line_signups)}人`} cur={sk.line_signups} prev={sp?.line_signups} />
+                    <Kpi label="LINEボタンのクリック" value={fmtNum(sk.line_clicks)} cur={sk.line_clicks} prev={sp?.line_clicks} />
+                    <Kpi label="My FITPEAK 新規登録" value={`${fmtNum(sk.myfp_signups)}人`} cur={sk.myfp_signups} prev={sp?.myfp_signups} />
+                    <Kpi label="My FITPEAKリンクのクリック" value={fmtNum(sk.myfp_clicks)} cur={sk.myfp_clicks} prev={sp?.myfp_clicks} />
+                  </div>
+                  {sg.places.length > 0 && (
+                    <ul className="mt-3 space-y-1 text-xs">
+                      {sg.places.map((r, i) => (
+                        <li key={i} className="flex justify-between gap-3">
+                          <span className="truncate text-slate-600 dark:text-slate-300">{r.kind === 'line' ? '公式LINE' : 'My FITPEAK'}：{placeLabel(r.name, r.kind)}</span>
+                          <span className="tabular-nums shrink-0 text-slate-900 dark:text-white">クリック {fmtNum(r.clicks)}／登録 {fmtNum(r.signups)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+              )
+            })()}
 
             <Card title="ページビューの推移">
               <LineChart points={data.timeseries.map((t) => ({ x: t.t, y: t.pageviews }))} formatX={(x) => formatBucket(x, data.granularity)} unit=" PV" />

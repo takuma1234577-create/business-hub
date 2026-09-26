@@ -129,6 +129,9 @@ router.get('/go/:code', async (req, res) => {
       utm_content: str(q.utm_content, 200),
       utm_term: str(q.utm_term, 200),
       landing_url: str(q.lp || req.headers.referer, 1000),
+      // fitpeak.co のサイト分析（fa.js）の訪問ID。どの訪問で登録したかを結び付ける
+      fa_visitor_id: str(q.fa_vid, 40),
+      fa_session_id: str(q.fa_sid, 40),
     };
     // click_id が既に使われていれば（同じボタンを2回押した等）新しいIDで保存
     let { error: insErr } = await supabase.from('traffic_clicks').insert(row);
