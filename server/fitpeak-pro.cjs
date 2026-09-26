@@ -19,6 +19,7 @@ const express = require('express');
 const crypto = require('crypto');
 
 const adminRouter = express.Router();
+const portalRouter = express.Router();
 
 const PRO_TAG = 'fitpeak-pro';
 const MY_FITPEAK_URL = process.env.MY_FITPEAK_URL || 'https://my.fitpeak.co';
@@ -259,6 +260,23 @@ function expiryFor(nextBillingIso, graceDays) {
 // 3. エンジンから呼ばれるフック
 // ===========================================================================
 
+/** 同じ人（顧客ID・メール）に、今回以外のPRO契約が過去にあるか */
+async function hadMembershipBefore(sub) {
+  const plans = await listProPlans();
+  const planIds = plans.map((p) => p.id);
+  if (!planIds.length) return false;
+  const found = [];
+  if (sub.shopify_customer_id) {
+    const { data } = await db().from('subscriptions').select('id').in('plan_id', planIds).eq('shopify_customer_id', String(sub.shopify_customer_id)).neq('id', sub.id).limit(1);
+    found.push(...(data || []));
+  }
+  if (!found.length && sub.email) {
+    const { data } = await db().from('subscriptions').select('id').in('plan_id', planIds).ilike('email', sub.email).neq('id', sub.id).limit(1);
+    found.push(...(data || []));
+  }
+  return found.length > 0;
+}
+
 /** 契約作成直後（subscription.cjs の syncContract から）。会員プランでなければ何もしない */
 async function onContractCreated(sub, plan, contract) {
   if (!isMembershipPlan(plan)) return null;
@@ -266,8 +284,11 @@ async function onContractCreated(sub, plan, contract) {
   const settings = await getSettings();
   const ps = await getProSettings();
   const startedAt = contract?.createdAt || new Date().toISOString();
-  const firstDays = plan.trial_days > 0 ? plan.trial_days : plan.interval_days;
-  const nextBillingAt = atJstHour(addDays(startedAt, firstDays), settings?.billing?.billing_hour_jst ?? 9).toISOString();
+  // 無料期間は1人1回まで。過去にPROの契約があれば無料期間なし（次回のcronで初回を決済）
+  const trialEligible = plan.trial_days > 0 && !(await hadMembershipBefore(sub));
+  const nextBillingAt = trialEligible
+    ? atJstHour(addDays(startedAt, plan.trial_days), settings?.billing?.billing_hour_jst ?? 9).toISOString()
+    : new Date().toISOString();
 
   const patch = {
     status: 'active',
@@ -283,7 +304,7 @@ async function onContractCreated(sub, plan, contract) {
   }
   const fresh = { ...sub, ...patch };
   await grantPro(fresh, expiryFor(nextBillingAt, ps.grace_days));
-  await logEvent(sub.id, 'pro_trial_started', 'system', { trial_days: plan.trial_days, next_billing_at: nextBillingAt });
+  await logEvent(sub.id, trialEligible ? 'pro_trial_started' : 'pro_started_without_trial', 'system', { trial_days: trialEligible ? plan.trial_days : 0, next_billing_at: nextBillingAt });
 
   try { await sendWelcome(fresh, plan); } catch (err) { console.error('[fitpeak-pro] ウェルカム送信失敗:', err.message); }
   return fresh;
@@ -434,8 +455,88 @@ adminRouter.get('/cron/expiry', async (_req, res) => {
   try { res.json(await runProExpiryCron()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ===========================================================================
+// 顧客ポータル（My FITPEAK「会員プラン」画面 / Supabase JWT で本人確認）
+//   GET  /api/public/subscription/portal/pro/status
+//   POST /api/public/subscription/portal/pro/cancel   { note? }
+// LINEログインの人は内部用メールなので、メール一致ではなく members（auth_user_id）経由で本人の契約を探す
+// ===========================================================================
+
+async function resolvePortalMember(req) {
+  const { email, userId } = await core().requireCustomer(req);
+  let member = null;
+  if (userId) {
+    const { data } = await db().from('members').select('*').eq('auth_user_id', userId).is('merged_into', null).limit(1).maybeSingle();
+    member = data;
+  }
+  if (!member && email && !email.endsWith('@line.fitpeak.co')) {
+    const { data } = await db().from('members').select('*').ilike('email', email).is('merged_into', null).limit(1).maybeSingle();
+    member = data;
+  }
+  return { email, member };
+}
+
+async function findPortalSub(email, member) {
+  const plans = await listProPlans();
+  const planIds = plans.map((p) => p.id);
+  if (!planIds.length) return null;
+  if (member?.plan_subscription_id) {
+    const { data } = await db().from('subscriptions').select('*, subscription_plans(*)').eq('id', member.plan_subscription_id).maybeSingle();
+    if (data) return data;
+  }
+  const emails = [email, member?.email].filter((e) => e && !e.endsWith('@line.fitpeak.co'));
+  for (const e of emails) {
+    const { data } = await db().from('subscriptions').select('*, subscription_plans(*)').in('plan_id', planIds).ilike('email', e).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (data) return data;
+  }
+  return null;
+}
+
+function portalShape(member, sub) {
+  const { jstDate } = core();
+  const plan = sub?.subscription_plans || null;
+  const isPro = !!member && member.plan === 'pro' && (!member.plan_expires_at || new Date(member.plan_expires_at).getTime() > Date.now());
+  const inTrial = !!sub && sub.status === 'active' && (sub.cycle_count || 0) <= 1 && !!sub.next_billing_at;
+  return {
+    is_pro: isPro,
+    plan_expires_date: member?.plan_expires_at ? jstDate(member.plan_expires_at) : null,
+    subscription: sub ? {
+      id: sub.id,
+      status: sub.status,
+      plan_name: plan?.display_name || plan?.name || 'FITPEAK PRO',
+      price: Number(plan?.price || sub.amount || 0),
+      interval_days: plan?.interval_days || null,
+      next_billing_date: jstDate(sub.next_billing_at),
+      in_trial: inTrial,
+      cancelled: sub.status === 'cancelled',
+      cancelled_date: jstDate(sub.cancelled_at),
+      can_cancel: sub.status !== 'cancelled',
+    } : null,
+  };
+}
+
+portalRouter.get('/status', async (req, res) => {
+  try {
+    const { email, member } = await resolvePortalMember(req);
+    const sub = await findPortalSub(email, member);
+    res.json(portalShape(member, sub));
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+portalRouter.post('/cancel', async (req, res) => {
+  try {
+    const { email, member } = await resolvePortalMember(req);
+    const sub = await findPortalSub(email, member);
+    if (!sub) return res.status(404).json({ error: 'FITPEAK PROの契約が見つかりません' });
+    const note = String(req.body?.note || '').slice(0, 500) || null;
+    const updated = await core().cancelSubscription(sub, 'customer', null, note);
+    res.json(portalShape(member, { ...sub, ...updated }));
+  } catch (err) { res.status(err.status || 400).json({ error: err.message }); }
+});
+
 module.exports = {
   adminRouter,
+  portalRouter,
   isMembershipPlan,
   loadPlan,
   onContractCreated,

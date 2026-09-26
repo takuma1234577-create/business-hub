@@ -1,9 +1,9 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { Package, UserRound, Bell } from 'lucide-react'
+import { Package, UserRound, Bell, Crown } from 'lucide-react'
 
 export default function FitpeakLayout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
+    `flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
       isActive
         ? 'border-[#c8a960] text-white'
         : 'border-transparent text-white/40 hover:text-white/70'
@@ -25,6 +25,9 @@ export default function FitpeakLayout() {
             </NavLink>
             <NavLink to="/my-fitpeak/notifications" className={linkClass}>
               <Bell size={16} /> 通知
+            </NavLink>
+            <NavLink to="/my-fitpeak/pro" className={linkClass}>
+              <Crown size={16} /> PRO
             </NavLink>
             <NavLink to="/my-fitpeak/account" className={linkClass}>
               <UserRound size={16} /> アカウント

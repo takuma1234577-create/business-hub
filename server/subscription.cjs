@@ -1632,6 +1632,9 @@ function toPortalShape(sub, settings) {
   };
 }
 
+// FITPEAK PRO の会員プラン画面（'/portal/:id/cancel' に 'pro' が吸われないよう、ここで先に登録する）
+publicRouter.use('/portal/pro', require('./fitpeak-pro.cjs').portalRouter);
+
 publicRouter.get('/portal/settings', async (_req, res) => {
   try {
     const settings = await getSettings();
@@ -1766,6 +1769,7 @@ publicRouter.post('/portal/claim', async (req, res) => {
 {
   const pro = require('./fitpeak-pro.cjs');
   router.use('/pro', pro.adminRouter);
+  // 顧客ポータル（/portal/pro/*）は '/portal/:id/cancel' より先に登録する必要があるため、ポータルAPIの先頭で登録している
 }
 
 module.exports = router;
