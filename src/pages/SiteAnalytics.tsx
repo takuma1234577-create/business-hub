@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Activity, BarChart3, FileText, Flame, Code2, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Activity, BarChart3, FileText, Flame, Code2, ExternalLink, UserPlus } from 'lucide-react'
 import type { Device, Preset } from './site-analytics/api'
 import { Seg } from './site-analytics/ui'
 import { useOverview } from './site-analytics/useOverview'
@@ -8,12 +8,14 @@ import OverviewTab from './site-analytics/OverviewTab'
 import PageTab from './site-analytics/PageTab'
 import HeatmapTab from './site-analytics/HeatmapTab'
 import SetupTab from './site-analytics/SetupTab'
+import SignupsTab from './site-analytics/SignupsTab'
 
-type Tab = 'realtime' | 'overview' | 'page' | 'heatmap' | 'setup'
+type Tab = 'realtime' | 'overview' | 'signups' | 'page' | 'heatmap' | 'setup'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'realtime', label: 'リアルタイム', icon: <Activity size={15} /> },
   { id: 'overview', label: 'サイト全体', icon: <BarChart3 size={15} /> },
+  { id: 'signups', label: '登録（LINE・My FITPEAK）', icon: <UserPlus size={15} /> },
   { id: 'page', label: 'ページ別', icon: <FileText size={15} /> },
   { id: 'heatmap', label: 'ヒートマップ', icon: <Flame size={15} /> },
   { id: 'setup', label: '設置方法', icon: <Code2 size={15} /> },
@@ -50,7 +52,7 @@ export default function SiteAnalytics() {
   const { data: siteData } = useOverview(preset, 'all', null, needPages)
   const pages = siteData?.pages || []
 
-  const showFilters = tab === 'overview' || tab === 'page' || tab === 'heatmap'
+  const showFilters = tab === 'overview' || tab === 'signups' || tab === 'page' || tab === 'heatmap'
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900" style={{ fontFamily: '"Noto Sans JP", "Hiragino Sans", "Meiryo", sans-serif' }}>
@@ -97,6 +99,7 @@ export default function SiteAnalytics() {
 
         {tab === 'realtime' && <RealtimeTab onOpenPage={openPage} />}
         {tab === 'overview' && <OverviewTab preset={preset} device={device} onOpenPage={openPage} />}
+        {tab === 'signups' && <SignupsTab preset={preset} device={device} onOpenPage={openPage} />}
         {tab === 'page' && (
           <PageTab preset={preset} device={device} path={path} pages={pages}
             onChangePath={(p) => set({ path: p })} onOpenHeatmap={() => set({ tab: 'heatmap' })} />

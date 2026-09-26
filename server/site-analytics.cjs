@@ -8,6 +8,12 @@
  * - 保存先は Supabase の site_events。集計は DB 関数（site_overview / site_realtime / site_heatmap）。
  * - 個人を特定する情報は保存しない（IPは保存せず、国・都市のみ。visitor_id はブラウザ内のランダムID）。
  * - 自分のアクセスを除外したいときは、fitpeak.co を ?fa_optout=1 付きで一度開く（?fa_optout=0 で解除）。
+ * - 登録の分析（「登録」タブ）：
+ *   公式LINE … テーマの LINE ボタンが送る記録URL（/api/line-crm/go/<経路コード>?mode=log）に
+ *               fa.js が fa_vid / fa_sid を付ける → traffic_clicks に保存され、登録した訪問と結び付く。
+ *   My FITPEAK … fa.js が my.fitpeak.co へのリンクに fa_vid / fa_sid / fa_from / fa_place / fa_t を付ける。
+ *               my.fitpeak.co はそれを覚えておき、ログイン後に POST /signup-attr へ送る。
+ *               ログインユーザーが「サイトのリンクを押した後に作られた」ときだけ新規登録として site_signups に残す。
  */
 const express = require('express');
 const crypto = require('crypto');
@@ -77,6 +83,8 @@ try{
     else if(el!==document.body&&el!==document.documentElement){for(var ci=0;ci<(el.childNodes||[]).length;ci++){var cn=el.childNodes[ci];if(cn.nodeType===3)txt+=cn.nodeValue;}}
     txt=txt.replace(/\\s+/g,' ').trim().slice(0,80);
     var href='';try{href=(a&&a.href)?a.href:'';}catch(e){}
+    // My FITPEAK へのリンク：どのページ・どのリンクから来たかを my.fitpeak.co に渡す（登録の分析用）
+    try{if(a&&a.tagName==='A'&&/^https?:\\/\\/my\\.fitpeak\\.co(\\/|$|\\?)/i.test(href)&&!/[?&]fa_sid=/.test(href)){var mu=new URL(href);mu.searchParams.set('fa_vid',vid);mu.searchParams.set('fa_sid',ses.id);mu.searchParams.set('fa_from',location.pathname.slice(0,300));mu.searchParams.set('fa_place',(txt||'').slice(0,60));mu.searchParams.set('fa_t',String(Date.now()));a.href=mu.toString();}}catch(e){}
     var n=Date.now();recent.push({x:ev.clientX,y:ev.clientY,t:n});recent=recent.filter(function(c){return n-c.t<1000;});
     var rage=recent.filter(function(c){return Math.abs(c.x-ev.clientX)<30&&Math.abs(c.y-ev.clientY)<30;}).length>=3;
     var e=base(rage?'rageclick':'click');e.x=(ev.pageX||0)/docW();e.y=(ev.pageY||0)/docH();e.txt=txt;e.sel=cssPath(t);e.href=(href+'').slice(0,300);e.sp=sp();
@@ -88,7 +96,9 @@ try{
   // カート追加（フォーム送信 / fetch / XHR いずれも拾う）
   var lastCart=0;function cart(){var n=Date.now();if(n-lastCart<1500)return;lastCart=n;push(base('cart_add'));flush(false);}
   document.addEventListener('submit',function(ev){try{var f=ev.target;if(f&&f.action&&/\\/cart\\/add/.test(f.action))cart();}catch(e){}},true);
-  try{var of=window.fetch;if(of){window.fetch=function(i,o){try{var u=typeof i==='string'?i:(i&&i.url)||'';if(/\\/cart\\/add/.test(u))cart();}catch(e){}return of.apply(this,arguments);};}}catch(e){}
+  // 公式LINEボタンの記録URL（/api/line-crm/go/…）には訪問IDを付けて、登録した訪問と結び付ける
+  function faDec(u){try{if(typeof u==='string'&&/\\/api\\/line-crm\\/go\\//.test(u)&&!/[?&]fa_sid=/.test(u)){u+=(u.indexOf('?')<0?'?':'&')+'fa_vid='+encodeURIComponent(vid)+'&fa_sid='+encodeURIComponent(ses.id)+'&fa_pv='+encodeURIComponent(pvid);}}catch(e){}return u;}
+  try{var of=window.fetch;if(of){window.fetch=function(i,o){var args=Array.prototype.slice.call(arguments);try{var u=typeof i==='string'?i:(i&&i.url)||'';if(/\\/cart\\/add/.test(u))cart();if(typeof i==='string')args[0]=faDec(i);}catch(e){}return of.apply(this,args);};}}catch(e){}
   try{var oo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){try{if(/\\/cart\\/add/.test(u||''))cart();}catch(e){}return oo.apply(this,arguments);};}catch(e){}
   // 15秒ごとの生存通知（リアルタイム表示と滞在時間用）
   setInterval(function(){if(document.visibilityState!=='visible')return;upd();var e=base('ping');e.pct=maxSp;e.eng=engaged();push(e);flush(false);},15000);
@@ -293,6 +303,91 @@ router.get('/overview', async (req, res) => {
     return res.json({ from, to, ...data });
   } catch (err) {
     console.error('[site-analytics/overview]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 公式サイト経由の登録（公式LINE・My FITPEAK）
+router.get('/signups', async (req, res) => {
+  try {
+    const { from, to } = range(req.query);
+    const site = siteOf(req.query);
+    const args = {
+      p_site: site, p_device: deviceOf(req.query.device),
+      p_path: req.query.path ? String(req.query.path) : null,
+      p_include_ads: req.query.ads === '1',
+    };
+    const span = new Date(to).getTime() - new Date(from).getTime();
+    const prevFrom = new Date(new Date(from).getTime() - span).toISOString();
+    const [cur, prev] = await Promise.all([
+      supabase.rpc('site_signups_report', { ...args, p_from: from, p_to: to }),
+      supabase.rpc('site_signups_report', { ...args, p_from: prevFrom, p_to: from }),
+    ]);
+    if (cur.error) throw new Error(cur.error.message);
+    return res.json({ from, to, ...cur.data, prev_kpis: prev.data?.kpis || null });
+  } catch (err) {
+    console.error('[site-analytics/signups]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 1回の訪問の足どり（登録した人がどのページを見てきたか）
+router.get('/journey', async (req, res) => {
+  try {
+    const sid = String(req.query.session || '').slice(0, 40);
+    if (!sid) return res.status(400).json({ error: 'session が必要です' });
+    const { data, error } = await supabase.rpc('site_session_journey', { p_session: sid });
+    if (error) throw new Error(error.message);
+    return res.json({ session_id: sid, events: data || [] });
+  } catch (err) {
+    console.error('[site-analytics/journey]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// my.fitpeak.co から：サイトのリンク経由で来た人がログインしたら送られてくる。
+// ログインユーザーが「リンクを押した後（2分の余裕）に作られた」なら新規登録として記録する。
+const ATTR_MAX_AGE_MS = 3 * 86400000;
+publicRouter.post('/signup-attr', express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) return res.status(401).json({ error: 'ログインが必要です' });
+    const { data: got, error: uErr } = await getSupabase().auth.getUser(token);
+    const user = got?.user;
+    if (uErr || !user) return res.status(401).json({ error: 'ログインを確認できませんでした' });
+
+    const a = req.body || {};
+    const clickedMs = Number(a.t) || 0;
+    const now = Date.now();
+    if (!clickedMs || clickedMs > now + 300000 || now - clickedMs > ATTR_MAX_AGE_MS) {
+      return res.json({ recorded: false, reason: 'expired' });
+    }
+    const createdMs = new Date(user.created_at).getTime();
+    if (!(createdMs >= clickedMs - 120000)) return res.json({ recorded: false, reason: 'existing_user' });
+
+    const { data: member } = await supabase.from('members').select('id').eq('auth_user_id', user.id).maybeSingle();
+    const isLine = user.user_metadata?.provider === 'line' || /@line\.fitpeak\.co$/i.test(user.email || '');
+    const s = (v, n) => (v == null || v === '' ? null : String(v).slice(0, n));
+    const fromPath = s(a.from, 300);
+    const row = {
+      site: DEFAULT_SITE,
+      kind: 'myfitpeak',
+      created_at: new Date(createdMs).toISOString(),
+      auth_user_id: user.id,
+      member_id: member?.id || null,
+      method: isLine ? 'line' : 'email',
+      visitor_id: s(a.vid, 40),
+      session_id: s(a.sid, 40),
+      from_path: fromPath && fromPath.startsWith('/') ? fromPath : null,
+      from_url: fromPath && fromPath.startsWith('/') ? SITE_ORIGIN + fromPath : null,
+      place: s(a.place, 120),
+      clicked_at: new Date(clickedMs).toISOString(),
+    };
+    const { error } = await supabase.from('site_signups').upsert(row, { onConflict: 'auth_user_id', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+    return res.json({ recorded: true });
+  } catch (err) {
+    console.error('[site-analytics/signup-attr]', err.message);
     return res.status(500).json({ error: err.message });
   }
 });

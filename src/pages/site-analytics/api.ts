@@ -107,3 +107,75 @@ export interface Heatmap {
 export function rangeParams(preset: Preset) {
   return { preset }
 }
+
+// ---------------------------------------------------------------------------
+// 登録（公式LINE・My FITPEAK）
+// ---------------------------------------------------------------------------
+export interface SignupKpis {
+  sessions: number
+  line_clicks: number
+  line_signups: number
+  line_existing: number
+  myfp_clicks: number
+  myfp_signups: number
+  ad_line_clicks: number
+  ad_line_signups: number
+  include_ads: boolean
+}
+
+export interface SignupPageRow {
+  path: string
+  title: string | null
+  pageviews: number
+  sessions: number
+  line_clicks: number
+  line_signups: number
+  line_existing: number
+  myfp_clicks: number
+  myfp_signups: number
+}
+
+export interface SignupRecent {
+  at: string
+  kind: 'line' | 'myfitpeak'
+  is_new: boolean
+  name: string | null
+  method: 'email' | 'line' | null
+  path: string
+  title: string | null
+  place: string | null
+  source: string | null
+  entry_path: string | null
+  channel: string | null
+  device: string | null
+  session_id: string | null
+  pages_before: number
+  sec_to_signup: number | null
+}
+
+export interface Signups {
+  from: string
+  to: string
+  granularity: 'hour' | 'day'
+  kpis: SignupKpis
+  prev_kpis: SignupKpis | null
+  timeseries: { t: string; line: number; myfp: number }[]
+  pages: SignupPageRow[]
+  places: { kind: 'line' | 'myfitpeak'; name: string; clicks: number; signups: number }[]
+  channels: { name: string; line: number; myfp: number; count: number }[]
+  entry_pages: { name: string; count: number }[]
+  devices: { name: string; count: number }[]
+  sources: { name: string; clicks: number; signups: number }[]
+  recent: SignupRecent[]
+}
+
+export interface JourneyEvent {
+  at: string
+  type: string
+  path: string
+  title: string | null
+  label: string | null
+  href: string | null
+  channel: string | null
+  ref_host: string | null
+}
