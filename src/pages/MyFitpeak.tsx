@@ -6,6 +6,7 @@ import FitpeakLogin from './my-fitpeak/FitpeakLogin'
 import FitpeakHome from './my-fitpeak/FitpeakHome'
 import FitpeakOrderDetail from './my-fitpeak/FitpeakOrderDetail'
 import FitpeakAccount from './my-fitpeak/FitpeakAccount'
+import FitpeakNotifications from './my-fitpeak/FitpeakNotifications'
 import { type ReactNode, useEffect, useState } from 'react'
 
 function AutoLoginHandler({ children }: { children: ReactNode }) {
@@ -76,6 +77,7 @@ export default function MyFitpeak() {
             <Route path="orders" element={<Navigate to="/my-fitpeak" replace />} />
             <Route path="orders/:id" element={<FitpeakOrderDetail />} />
             <Route path="account" element={<FitpeakAccount />} />
+            <Route path="notifications" element={<FitpeakNotifications />} />
             {/* 旧URL（メールやLINEのリンクから来る人のため） */}
             <Route path="line" element={<Navigate to="/my-fitpeak/account" replace />} />
           </Route>

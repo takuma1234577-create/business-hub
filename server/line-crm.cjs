@@ -3326,6 +3326,83 @@ function verifyLineSignature(rawBody, signature, secret) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// ── リッチメニューの返信（2026-09-26）──────────────────────
+// k=kt       … KINNIKU TIMESの最新記事3本（公式サイトのフィードから）
+// k=cheapest … 筋トレ最安ナビの今日の最安（fp_home_ticker）
+// k=record   … 私の記録（準備中の案内）
+// k=weekly   … 今週のメニュー（準備中の案内）
+const MENU_UTM = 'utm_source=line&utm_medium=richmenu';
+const MY_FITPEAK_NOTIFY_URL = 'https://my.fitpeak.co/api/my-fitpeak/auth/line/start?redirect=/my-fitpeak/notifications';
+
+function decodeXmlText(s) {
+  return String(s || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .trim();
+}
+
+async function buildMenuReply(kind) {
+  if (kind === 'kt') {
+    const lines = ['📰 今日のKINNIKU TIMES', ''];
+    try {
+      const r = await fetch('https://fitpeak.co/blogs/kinniku-times.atom', { headers: { 'User-Agent': 'FITPEAK-LINE-bot' } });
+      const xml = await r.text();
+      const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].slice(0, 3);
+      for (const [, e] of entries) {
+        const title = decodeXmlText((e.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1]);
+        const href = (e.match(/<link[^>]*rel="alternate"[^>]*href="([^"]+)"/) || e.match(/<link[^>]*href="([^"]+)"/) || [])[1];
+        if (title && href) lines.push(`▼${title}`, `${href}${href.includes('?') ? '&' : '?'}${MENU_UTM}`, '');
+      }
+    } catch (err) {
+      console.error('[menu kt] feed error:', err.message);
+    }
+    if (lines.length <= 2) lines.push('最新の記事はこちらから読めます。', '');
+    lines.push('▼すべての記事', `https://fitpeak.co/blogs/kinniku-times?${MENU_UTM}`);
+    return lines.join('\n');
+  }
+
+  if (kind === 'cheapest') {
+    const { data, error } = await supabase.rpc('fp_home_ticker', { p_limit: 20 });
+    if (error) throw error;
+    const rows = (data || []).filter((r) => r.kind === 'price' && r.price).slice(0, 5);
+    const lines = ['💰 今日の最安（筋トレ最安ナビ）', ''];
+    if (rows.length === 0) {
+      lines.push('いま表示できる価格がありません。最安ナビで確認してください。');
+    } else {
+      for (const r of rows) lines.push(`・${r.label}`, `　¥${Number(r.price).toLocaleString('ja-JP')}`);
+      lines.push('', '※価格は取得した時点のものです。');
+    }
+    lines.push('', '▼最安ナビで比べる', `https://fitpeak.co/pages/compare?${MENU_UTM}`,
+      '', '🔔値下がりをメールで受け取る', MY_FITPEAK_NOTIFY_URL);
+    return lines.join('\n');
+  }
+
+  if (kind === 'record') {
+    return [
+      '📈 私の記録',
+      '',
+      'FITPEAK LABで測った記録を保存して、1か月ごとの伸びを見られる機能を準備中です。',
+      '',
+      'いまは筋トレ偏差値で、今の実力を測れます。',
+      `https://fitpeak.co/pages/strength-score?${MENU_UTM}`,
+    ].join('\n');
+  }
+
+  if (kind === 'weekly') {
+    return [
+      '🏋️ 今週のメニュー',
+      '',
+      'あなたの1RMから、12週間のトレーニングプログラムを作る機能を準備中です。できあがったら、ここに今週のメニューが届きます。',
+      '',
+      'いまは1RM計算で、今の最大重量を確認できます。',
+      `https://fitpeak.co/pages/tools?${MENU_UTM}`,
+    ].join('\n');
+  }
+
+  return '';
+}
+
 async function replyToLine(channelId, replyToken, textOrMessages) {
   const { accessToken: token } = await getLineCredentials(channelId);
   if (!token) throw new Error('LINEアカウントの認証情報が未設定です');
@@ -3823,6 +3900,19 @@ async function processWebhookEvents(channelId, events) {
           } catch {}
         }
         logWebhookMessage(channelId, event, '[postback:check_orders]', replyText);
+        continue;
+      }
+
+      if (action === 'menu') {
+        // リッチメニューの「押したら返す」ボタン（応答なので配信通数を使わない）
+        let replyText = '';
+        try {
+          replyText = await buildMenuReply(params.get('k') || '');
+          if (replyText && event.replyToken) await replyToLine(channelId, event.replyToken, replyText);
+        } catch (err) {
+          console.error('[line-webhook] menu reply error:', err.message);
+        }
+        logWebhookMessage(channelId, event, `[メニュー] ${event.postback?.params?.displayText || params.get('k') || ''}`, replyText);
         continue;
       }
 

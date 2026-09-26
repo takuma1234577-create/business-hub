@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { Package, UserRound } from 'lucide-react'
+import { Package, UserRound, Bell } from 'lucide-react'
 
 export default function FitpeakLayout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -22,6 +22,9 @@ export default function FitpeakLayout() {
           <nav className="flex gap-1 -mb-px">
             <NavLink to="/my-fitpeak" end className={linkClass}>
               <Package size={16} /> ご注文
+            </NavLink>
+            <NavLink to="/my-fitpeak/notifications" className={linkClass}>
+              <Bell size={16} /> 通知
             </NavLink>
             <NavLink to="/my-fitpeak/account" className={linkClass}>
               <UserRound size={16} /> アカウント
