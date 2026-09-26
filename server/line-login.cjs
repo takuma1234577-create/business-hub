@@ -309,7 +309,7 @@ async function confirmFollowByRecentDirectClick({ lineUserId, channelId, prof, w
   const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
   const { data: click } = await supabase
     .from('traffic_clicks').select('id, click_id, source_id, converted_at, line_user_id')
-    .eq('entry', 'direct').is('converted_at', null).is('line_user_id', null)
+    .in('entry', ['direct', 'login']).is('converted_at', null).is('line_user_id', null)
     .gte('created_at', since)
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (!click) return null;

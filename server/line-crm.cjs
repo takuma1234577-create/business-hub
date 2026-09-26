@@ -3588,11 +3588,15 @@ async function processWebhookEvents(channelId, events) {
         if (!preAttributed) try {
           // traffic_clicks の列は created_at（clicked_at は存在しないため照合が毎回失敗していた）。
           // クリック後すぐに追加しない人が多いため、照合ウィンドウを30分に拡大。
+          // login（LIFF）クリックも対象にする: iPhone Safari では LIFF の確定通知（/liff/confirm）が届かないまま
+          // 追加が完了するケースが大半（2026-09-26 実測: 追加14件中、確定できたのは3件）。
+          // 未確定（converted_at null・line_user_id null）のクリックだけを見るので、確定済みの人と取り合いにはならない。
           const windowStart = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           const { data: recentClick } = await supabase
             .from('traffic_clicks')
             .select('source_id')
-            .not('entry', 'in', '("login","bot")')
+            .neq('entry', 'bot')
+            .is('converted_at', null).is('line_user_id', null)
             .gte('created_at', windowStart)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -3650,7 +3654,7 @@ async function processWebhookEvents(channelId, events) {
         console.log(`[follow] ${displayName} added. Source: ${trafficSourceId || 'direct'}`);
 
         // LIFF（LP）から来て「未友だち」だった人が追加を完了した場合: Loginクリックを確定（経路・CAPI）
-        // 従来リンク（direct）で来た人は、直近30分の未確定クリックに紐づけて確定（広告ID・CAPI）
+        // 従来リンク（direct）や、確定通知が届かなかった LIFF（login）で来た人は、直近30分の未確定クリックに紐づけて確定（広告ID・CAPI）
         try {
           const lineLogin = require('./line-login.cjs');
           if (preAttributed && typeof lineLogin.confirmFollowByUser === 'function') {
