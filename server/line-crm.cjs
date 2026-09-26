@@ -3327,12 +3327,102 @@ function verifyLineSignature(rawBody, signature, secret) {
 }
 
 // ── リッチメニューの返信（2026-09-26）──────────────────────
+// 仕様：プロジェクト文書 claude/line-richmenu-shiyou.md 第2・3項
 // k=kt       … KINNIKU TIMESの最新記事3本（公式サイトのフィードから）
-// k=cheapest … 筋トレ最安ナビの今日の最安（fp_home_ticker）
-// k=record   … 私の記録（準備中の案内）
-// k=weekly   … 今週のメニュー（準備中の案内）
+// k=cheapest … 筋トレ最安ナビの今日の最安（fp_home_ticker）。PRO公開後は無料3件／PRO5件
+// k=coupon   … クーポン（無料：FPLINE1000／PRO：今月の会員限定クーポン）
+// k=pro      … FITPEAK PROの案内（PRO会員には今月の特典）
+// k=points   … ポイント残高と使えるクーポン
+// k=record   … 私の記録（準備中の案内。FITPEAK LABへ）
+// k=weekly   … 今週のメニュー（準備中の案内。ボタンからは外したがキーは残す）
+// すべて応答メッセージ（reply）なので、月の配信通数を使わない
 const MENU_UTM = 'utm_source=line&utm_medium=richmenu';
-const MY_FITPEAK_NOTIFY_URL = 'https://my.fitpeak.co/api/my-fitpeak/auth/line/start?redirect=/my-fitpeak/notifications';
+const MY_FITPEAK_LOGIN = 'https://my.fitpeak.co/api/my-fitpeak/auth/line/start?redirect=';
+const MY_FITPEAK_URL = `${MY_FITPEAK_LOGIN}/my-fitpeak`;
+const MY_FITPEAK_NOTIFY_URL = `${MY_FITPEAK_LOGIN}/my-fitpeak/notifications`;
+const GEAR_URL = `https://fitpeak.co/collections/fitpeak%E7%AD%8B%E3%83%88%E3%83%AC%E3%82%AE%E3%82%A2%E4%B8%80%E8%A6%A7?${MENU_UTM}`;
+const PRO_URL = `https://fitpeak.co/pages/pro?${MENU_UTM}`;
+// 「クーポン」ボタンを押した人に付けるタグ（旧ボタンの action=ans と同じタグ）
+const COUPON_TAG_ID = '12041fe1-4c45-44b5-aded-0cb5df5862f5';
+
+// FITPEAK PROを公開したら環境変数 FITPEAK_PRO_LIVE=1 にする。
+// それまではPRO関連の返信は「近日公開」、今日の最安は全員に5件を返す（今までどおり）
+function isProLive() {
+  return String(process.env.FITPEAK_PRO_LIVE || '').trim() === '1';
+}
+
+// LINEユーザーIDから My FITPEAK 会員とPRO判定を返す。
+// members.plan / plan_expires_at はPRO実装時に追加する列。まだ無い間は全員「無料」扱い
+async function getMenuMember(lineUserId) {
+  if (!lineUserId) return { member: null, isPro: false };
+  try {
+    const { data } = await supabase
+      .from('members')
+      .select('*')
+      .eq('line_user_id', lineUserId)
+      .is('merged_into', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return { member: null, isPro: false };
+    const exp = data.plan_expires_at ? new Date(data.plan_expires_at).getTime() : 0;
+    const isPro = isProLive() && data.plan === 'pro' && exp > Date.now();
+    return { member: data, isPro };
+  } catch (err) {
+    console.error('[menu] member lookup error:', err.message);
+    return { member: null, isPro: false };
+  }
+}
+
+function yen(n) {
+  return `¥${Number(n).toLocaleString('ja-JP')}`;
+}
+
+function formatDateJst(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
+}
+
+// 会員の使えるクーポン（未使用・期限内）
+async function getActiveMemberCoupons(memberId, { source } = {}) {
+  if (!memberId) return [];
+  let q = supabase
+    .from('coupons')
+    .select('code, coupon_code, discount_type, discount_value, discount_amount, expires_at, source, used_at, is_active, status')
+    .eq('member_id', memberId)
+    .is('used_at', null)
+    .order('expires_at', { ascending: true, nullsFirst: false })
+    .limit(5);
+  if (source) q = q.eq('source', source);
+  const { data, error } = await q;
+  if (error) {
+    console.error('[menu] coupons error:', error.message);
+    return [];
+  }
+  const now = Date.now();
+  return (data || []).filter((c) =>
+    c.is_active !== false &&
+    (!c.status || !['used', 'expired', 'inactive'].includes(c.status)) &&
+    (!c.expires_at || new Date(c.expires_at).getTime() > now)
+  );
+}
+
+function describeCoupon(c) {
+  const code = c.coupon_code || c.code || '';
+  let what = '';
+  if (c.discount_type === 'percentage' || c.discount_type === 'percent') what = `${Number(c.discount_value)}%OFF`;
+  else if (c.discount_amount || c.discount_value) what = `${yen(c.discount_amount || c.discount_value)}OFF`;
+  const until = c.expires_at ? `（${formatDateJst(c.expires_at)}まで）` : '';
+  return `・${code}${what ? `　${what}` : ''}${until}`;
+}
+
+const PRO_SUMMARY_LINES = [
+  '・ギアはいつでも10%OFF・送料無料',
+  '・ポイント2倍＋毎月100ポイント',
+  '・毎月の会員限定クーポン',
+  '・「今買う／待つ」がわかるお得アラート（無制限）',
+  '・ギア保証の延長',
+];
 
 function decodeXmlText(s) {
   return String(s || '')
@@ -3342,7 +3432,7 @@ function decodeXmlText(s) {
     .trim();
 }
 
-async function buildMenuReply(kind) {
+async function buildMenuReply(kind, ctx = {}) {
   if (kind === 'kt') {
     const lines = ['📰 今日のKINNIKU TIMES', ''];
     try {
@@ -3365,16 +3455,114 @@ async function buildMenuReply(kind) {
   if (kind === 'cheapest') {
     const { data, error } = await supabase.rpc('fp_home_ticker', { p_limit: 20 });
     if (error) throw error;
-    const rows = (data || []).filter((r) => r.kind === 'price' && r.price).slice(0, 5);
+    const { isPro } = await getMenuMember(ctx.lineUserId);
+    // PRO公開前は全員5件。公開後は無料3件／PRO5件（判定の表示は deal_verdicts の実装後に追加）
+    const limit = !isProLive() || isPro ? 5 : 3;
+    const rows = (data || []).filter((r) => r.kind === 'price' && r.price).slice(0, limit);
     const lines = ['💰 今日の最安（筋トレ最安ナビ）', ''];
     if (rows.length === 0) {
       lines.push('いま表示できる価格がありません。最安ナビで確認してください。');
     } else {
-      for (const r of rows) lines.push(`・${r.label}`, `　¥${Number(r.price).toLocaleString('ja-JP')}`);
+      for (const r of rows) lines.push(`・${r.label}`, `　${yen(r.price)}`);
       lines.push('', '※価格は取得した時点のものです。');
     }
     lines.push('', '▼最安ナビで比べる', `https://fitpeak.co/pages/compare?${MENU_UTM}`,
       '', '🔔値下がりをメールで受け取る', MY_FITPEAK_NOTIFY_URL);
+    if (isProLive() && !isPro) {
+      lines.push('', '👑 FITPEAK PROなら、5件＋「今買う／待つ」の判定とその理由まで見られます（14日間無料）', PRO_URL);
+    }
+    return lines.join('\n');
+  }
+
+  if (kind === 'coupon') {
+    const { member, isPro } = await getMenuMember(ctx.lineUserId);
+    if (isPro) {
+      const monthly = await getActiveMemberCoupons(member.id, { source: 'pro_monthly' });
+      const lines = ['🎁 今月のPRO会員限定クーポン', ''];
+      if (monthly.length) {
+        for (const c of monthly) lines.push(describeCoupon(c));
+      } else {
+        lines.push('今月のクーポンは準備中です。毎月1日に届きます。');
+      }
+      lines.push(
+        '',
+        '・ギア10%OFFと送料無料は、My FITPEAKと同じメールアドレスで購入すると自動で適用されます',
+        '・割引は1回の注文につき1つ。一番大きい割引が適用されます',
+        '',
+        '▼公式サイトで使う',
+        GEAR_URL,
+      );
+      return lines.join('\n');
+    }
+    const lines = [
+      '🎁LINE友だち限定クーポン',
+      'FPLINE1000',
+      '',
+      '公式サイトで3,000円以上のお買い物で1,000円OFF（お一人様1回）',
+      '',
+      '▼公式サイトで使う',
+      GEAR_URL,
+      '',
+    ];
+    if (isProLive()) {
+      lines.push('👑 FITPEAK PRO会員は、ギアいつでも10%OFF＋送料無料＋毎月の限定クーポン（14日間無料）', PRO_URL);
+    } else {
+      lines.push('👑 有料会員「FITPEAK PRO」を近日公開予定です。毎月の限定クーポンや送料無料など、お得な特典を準備しています。');
+    }
+    return lines.join('\n');
+  }
+
+  if (kind === 'pro') {
+    const { member, isPro } = await getMenuMember(ctx.lineUserId);
+    if (isPro) {
+      const lines = ['👑 FITPEAK PRO 今月の特典', ''];
+      try {
+        const { data: pts } = await supabase
+          .from('user_points').select('available_points').eq('member_id', member.id).maybeSingle();
+        if (pts) lines.push(`・ポイント残高：${Number(pts.available_points || 0).toLocaleString('ja-JP')}pt（毎月1日に100pt付与）`);
+      } catch {}
+      const monthly = await getActiveMemberCoupons(member.id, { source: 'pro_monthly' });
+      if (monthly.length) lines.push('・今月の限定クーポン', ...monthly.map(describeCoupon));
+      if (member.plan_expires_at) lines.push(`・次回の更新日：${formatDateJst(member.plan_expires_at)}`);
+      lines.push('', '今月PROで浮いた金額は、My FITPEAKで確認できます。', MY_FITPEAK_URL);
+      return lines.join('\n');
+    }
+    const lines = ['👑 FITPEAK PRO（有料会員）', '', ...PRO_SUMMARY_LINES, ''];
+    if (isProLive()) {
+      lines.push('月額480円／年額4,800円。最初の14日間は無料です。', '', '▼くわしく見る・始める', PRO_URL);
+    } else {
+      lines.push('近日公開予定です。公開したら、このボタンから申し込めるようになります。');
+    }
+    return lines.join('\n');
+  }
+
+  if (kind === 'points') {
+    const { member } = await getMenuMember(ctx.lineUserId);
+    if (!member) {
+      return [
+        '💎 ポイント・クーポン',
+        '',
+        'ポイントとクーポンは、My FITPEAK（無料）に登録すると確認できます。LINEでログインするだけで登録できます。',
+        '',
+        MY_FITPEAK_URL,
+      ].join('\n');
+    }
+    const lines = ['💎 ポイント・クーポン', ''];
+    try {
+      const { data: pts } = await supabase
+        .from('user_points').select('available_points').eq('member_id', member.id).maybeSingle();
+      lines.push(`ポイント残高：${Number(pts?.available_points || 0).toLocaleString('ja-JP')}pt`);
+    } catch {
+      lines.push('ポイント残高：My FITPEAKで確認できます');
+    }
+    const coupons = await getActiveMemberCoupons(member.id);
+    lines.push('');
+    if (coupons.length) {
+      lines.push('使えるクーポン', ...coupons.map(describeCoupon));
+    } else {
+      lines.push('いま使えるクーポンはありません。');
+    }
+    lines.push('', '▼くわしくはMy FITPEAKで', MY_FITPEAK_URL);
     return lines.join('\n');
   }
 
@@ -3382,10 +3570,10 @@ async function buildMenuReply(kind) {
     return [
       '📈 私の記録',
       '',
-      'FITPEAK LABで測った記録を保存して、1か月ごとの伸びを見られる機能を準備中です。',
+      'FITPEAK LABで測った記録をMy FITPEAKに保存して、伸びをグラフで見られる機能を準備中です。',
       '',
-      'いまは筋トレ偏差値で、今の実力を測れます。',
-      `https://fitpeak.co/pages/strength-score?${MENU_UTM}`,
+      'いまはFITPEAK LABで、今の実力を測れます。',
+      `https://fitpeak.co/pages/tools?${MENU_UTM}`,
     ].join('\n');
   }
 
@@ -3906,11 +4094,29 @@ async function processWebhookEvents(channelId, events) {
       if (action === 'menu') {
         // リッチメニューの「押したら返す」ボタン（応答なので配信通数を使わない）
         let replyText = '';
+        const menuKind = params.get('k') || '';
         try {
-          replyText = await buildMenuReply(params.get('k') || '');
+          replyText = await buildMenuReply(menuKind, { lineUserId, channelId });
           if (replyText && event.replyToken) await replyToLine(channelId, event.replyToken, replyText);
         } catch (err) {
           console.error('[line-webhook] menu reply error:', err.message);
+        }
+        if (menuKind === 'coupon') {
+          // 旧「クーポン」ボタン（action=ans）と同じタグを付けて、受け取った人を追えるようにする
+          try {
+            const { data: friend } = await supabase
+              .from('friends').select('id').eq('line_user_id', lineUserId).eq('channel_id', channelId).maybeSingle();
+            if (friend) {
+              const { data: existing } = await supabase
+                .from('friend_tags').select('tag_id').eq('friend_id', friend.id).eq('tag_id', COUPON_TAG_ID).maybeSingle();
+              if (!existing) {
+                await supabase.from('friend_tags').insert({ friend_id: friend.id, tag_id: COUPON_TAG_ID });
+                enqueueTagDelivery(friend.id, COUPON_TAG_ID).catch(() => {});
+              }
+            }
+          } catch (e) {
+            console.error('[menu coupon] tag error:', e.message);
+          }
         }
         logWebhookMessage(channelId, event, `[メニュー] ${event.postback?.params?.displayText || params.get('k') || ''}`, replyText);
         continue;
