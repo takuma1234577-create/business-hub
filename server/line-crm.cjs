@@ -3344,6 +3344,8 @@ const GEAR_URL = `https://fitpeak.co/collections/fitpeak%E7%AD%8B%E3%83%88%E3%83
 const PRO_URL = `https://fitpeak.co/pages/pro?${MENU_UTM}`;
 // 「クーポン」ボタンを押した人に付けるタグ（旧ボタンの action=ans と同じタグ）
 const COUPON_TAG_ID = '12041fe1-4c45-44b5-aded-0cb5df5862f5';
+// FITPEAK公式LINEのチャンネルID（複数アカウント対応のため、FITPEAK専用のテキストコマンドはこのIDに限定する）
+const FITPEAK_CHANNEL_ID = '00000000-0000-0000-0000-000000000010';
 
 // FITPEAK PROを公開したら環境変数 FITPEAK_PRO_LIVE=1 にする。
 // それまではPRO関連の返信は「近日公開」、今日の最安は全員に5件を返す（今までどおり）
@@ -4347,6 +4349,20 @@ async function processWebhookEvents(channelId, events) {
         await replyToLine(channelId, event.replyToken, replyText);
       } catch (err) {
         console.error('[line-webhook] orders text command error:', err.message);
+      }
+      logWebhookMessage(channelId, event, userMessage, replyText || null);
+      continue;
+    }
+
+    // テキストコマンド: 「最安」→ リッチメニューの「今日の最安」と同じ内容を返す
+    // （筋トレ最安ナビのThreads投稿・ショート動画のCTA「LINEで『最安』と送ると今日の最安が届きます」の受け皿。2026-09-27追加）
+    if (channelId === FITPEAK_CHANNEL_ID && userMessage.trim().includes('最安')) {
+      let replyText = '';
+      try {
+        replyText = await buildMenuReply('cheapest', { lineUserId, channelId });
+        if (replyText) await replyToLine(channelId, event.replyToken, replyText);
+      } catch (err) {
+        console.error('[line-webhook] cheapest text command error:', err.message);
       }
       logWebhookMessage(channelId, event, userMessage, replyText || null);
       continue;
