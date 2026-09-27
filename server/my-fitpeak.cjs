@@ -471,14 +471,116 @@ const INTERNAL_EMAIL = /@line\.fitpeak\.co$/i;
 async function resolveMember(supabase, req) {
   const user = req.fitpeakUser;
   if (!user) return null;
-  const byAuth = await supabase.from('members').select('id, email').eq('auth_user_id', user.id).maybeSingle();
+  const byAuth = await supabase.from('members').select('id, email, plan').eq('auth_user_id', user.id).maybeSingle();
   if (byAuth.data) return byAuth.data;
   if (user.email) {
-    const byEmail = await supabase.from('members').select('id, email').eq('email', user.email).limit(1).maybeSingle();
+    const byEmail = await supabase.from('members').select('id, email, plan').eq('email', user.email).limit(1).maybeSingle();
     if (byEmail.data) return byEmail.data;
   }
   return null;
 }
+
+// ── 保証登録（施策⑪ 同梱カードQR→保証登録。claude/hoshou-qr-ugc-kuchikomi-sekkei.md 準拠）───
+// 移行期は「注文番号方式」のみ対応（暫定・第3項）。シリアル番号方式は次回ロット以降。
+//
+// 【要確認・暫定値】Shopify側の商品バリアントにSKUが未設定（`sku`フィールドが空）のため、
+// 「sku」はShopifyの商品ハンドル（Admin GraphQL productのhandle）を代用値として使う。
+// 下記3件はShopifyで確認できた商品のみ。ニースリーブ／エルボースリーブ／リストストラップは
+// 2026-09-27時点でShopifyストアに商品ページが見つからず未確定（Amazon専売の可能性）。
+// 対象を追加する場合は、実際の商品ハンドル or 正式なSKU運用（第6項）を確認してから追加すること。
+const WARRANTY_MONTHS = { free: 18, pro: 24 }; // 通常1.5年／PRO2年（第5項）
+const WARRANTY_SKUS = new Set([
+  'fitpeak-リストラップ',
+  'fitpeak-本革トレーニングベルト',
+  'fitpeak-パワーグリップ',
+]);
+const AMAZON_ORDER_ID_RE = /^\d{3}-\d{7}-\d{7}$/;
+
+// GET /warranty-register/status?sku=... - 対象商品の登録済み状況（フォーム側の事前チェック用）
+router.get('/warranty-register/status', async (req, res) => {
+  try {
+    if (!req.fitpeakUser) return res.status(401).json({ error: 'ログインが必要です' });
+    const supabase = getSupabase();
+    const member = await resolveMember(supabase, req);
+    if (!member) return res.status(404).json({ error: '会員情報が見つかりません' });
+
+    const { data } = await supabase
+      .from('warranty_registrations')
+      .select('sku, warranty_months, warranty_expires_at, status, registered_at')
+      .eq('member_id', member.id)
+      .eq('status', 'active');
+
+    res.json({ registrations: data || [] });
+  } catch (err) {
+    console.error('GET /api/my-fitpeak/warranty-register/status error:', err.message);
+    res.status(500).json({ error: '保証登録状況の取得に失敗しました' });
+  }
+});
+
+// POST /warranty-register - 保証登録の確定
+router.post('/warranty-register', async (req, res) => {
+  try {
+    if (!req.fitpeakUser) return res.status(401).json({ error: 'ログインが必要です' });
+    const supabase = getSupabase();
+    const member = await resolveMember(supabase, req);
+    if (!member) return res.status(404).json({ error: '会員情報が見つかりません' });
+
+    const body = req.body || {};
+    const sku = String(body.sku || '').trim();
+    const orderNumber = String(body.orderNumber || '').trim();
+    const purchaseDate = String(body.purchaseDate || '').trim();
+
+    if (!WARRANTY_SKUS.has(sku)) {
+      return res.status(400).json({ error: '商品を選択してください' });
+    }
+    if (!AMAZON_ORDER_ID_RE.test(orderNumber)) {
+      return res.status(400).json({ error: '注文番号の形式が正しくありません。例: 250-1234567-1234567（Amazonの注文履歴でご確認いただけます）' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) || Number.isNaN(Date.parse(purchaseDate))) {
+      return res.status(400).json({ error: '購入日を選択してください' });
+    }
+
+    const plan = member.plan === 'pro' ? 'pro' : 'free';
+    const months = WARRANTY_MONTHS[plan];
+    const expires = new Date(purchaseDate);
+    expires.setMonth(expires.getMonth() + months);
+    const warrantyExpiresAt = expires.toISOString().slice(0, 10);
+
+    const { data: inserted, error } = await supabase
+      .from('warranty_registrations')
+      .insert({
+        member_id: member.id,
+        sku,
+        verification_method: 'order_number',
+        verification_key: orderNumber,
+        purchase_date: purchaseDate,
+        plan_at_registration: plan,
+        warranty_months: months,
+        warranty_expires_at: warrantyExpiresAt,
+      })
+      .select('id, sku, warranty_months, warranty_expires_at')
+      .single();
+
+    if (error) {
+      // (sku, verification_key) の一意制約違反 = 登録済み
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'この商品・注文番号はすでに保証登録されています' });
+      }
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      warrantyMonths: inserted.warranty_months,
+      warrantyExpiresAt: inserted.warranty_expires_at,
+      plan,
+      upsell: plan === 'free', // free会員には「PROなら2年」の案内を1回表示（第5項）
+    });
+  } catch (err) {
+    console.error('POST /api/my-fitpeak/warranty-register error:', err.message);
+    res.status(500).json({ error: '保証登録に失敗しました。時間をおいて再度お試しください。' });
+  }
+});
 
 // GET /notification-prefs - 本人の通知設定
 router.get('/notification-prefs', async (req, res) => {
