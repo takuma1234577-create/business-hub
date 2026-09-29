@@ -160,3 +160,7 @@
 /* テーマ既定のmain余白を消す（lp-landing） */
 .fpp-section{margin:0!important;padding:0!important}
 .fpp-table__soon{display:block;font-size:10px;font-weight:500;opacity:.7;margin-top:2px}
+
+/* 改行の整え（見出しは行の長さを揃え、本文は文節で折り返す。1〜2文字だけの行を作らない） */
+.fpp-hero__title,.fpp-h2,.fpp-h3,.fpp-card__title,.fpp-soon strong,.fpp-plan__name,.fpp-flow strong,.fpp-faq summary{text-wrap:balance;word-break:auto-phrase}
+.fpp p,.fpp small,.fpp dd,.fpp li,.fpp-card__text{text-wrap:pretty;word-break:auto-phrase}

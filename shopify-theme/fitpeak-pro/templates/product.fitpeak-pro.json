@@ -84,7 +84,7 @@
             "text": "最安値だけでなく、次のセール予定や過去の価格から「今買うべきか」を理由つきでお知らせします。",
             "available": false,
             "compare_label": "お得アラート",
-            "free_value": "1件・週1回",
+            "free_value": "―",
             "pro_value": "無制限・判定つき"
           }
         },

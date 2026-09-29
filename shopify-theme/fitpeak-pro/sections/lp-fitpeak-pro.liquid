@@ -32,8 +32,8 @@
   <!-- 1. ヒーロー -->
   <section class="fpp-hero">
     <p class="fpp-hero__eyebrow">FITPEAK PRO</p>
-    <h1 class="fpp-hero__title">{{ section.settings.hero_title | default: '筋トレを、もっと得に。' }}</h1>
-    <p class="fpp-hero__lead">{{ section.settings.hero_lead | default: 'ギアはいつでも10%OFF・送料無料・保証2年。これからも機能が増えていく、FITPEAKの有料会員です。' }}</p>
+    <h1 class="fpp-hero__title">{{ section.settings.hero_title | default: '筋トレを、<br>もっと得に。' }}</h1>
+    <p class="fpp-hero__lead">{{ section.settings.hero_lead | default: 'ギアはいつでも10%OFF・送料無料・保証2年。<br>これからも機能が増えていく、FITPEAKの有料会員です。' }}</p>
     <div class="fpp-hero__price">
       <span class="fpp-hero__yen">月額 {{ price_m | money_without_trailing_zeros }}</span>
       <span class="fpp-hero__trial">最初の{{ trial }}日間は無料</span>
@@ -248,8 +248,8 @@
   "tag": "section",
   "class": "fpp-section",
   "settings": [
-    { "type": "text", "id": "hero_title", "label": "ヒーローの見出し", "default": "筋トレを、もっと得に。" },
-    { "type": "textarea", "id": "hero_lead", "label": "ヒーローのリード文", "default": "ギアはいつでも10%OFF・送料無料・保証2年。これからも機能が増えていく、FITPEAKの有料会員です。" },
+    { "type": "text", "id": "hero_title", "label": "ヒーローの見出し", "default": "筋トレを、<br>もっと得に。" },
+    { "type": "textarea", "id": "hero_lead", "label": "ヒーローのリード文", "default": "ギアはいつでも10%OFF・送料無料・保証2年。<br>これからも機能が増えていく、FITPEAKの有料会員です。" },
     { "type": "number", "id": "trial_days", "label": "無料期間（日）", "default": 14, "info": "Selling Plan と subscription_plans.trial_days もあわせて変えること" },
     { "type": "text", "id": "button_text", "label": "登録ボタンの文言", "default": "14日間無料で始める" },
     { "type": "header", "content": "ヒーローの3つの数字（今日から使える特典だけを書く）" },
