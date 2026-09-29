@@ -1,10 +1,9 @@
 /**
  * 公式LINE登録 → My FITPEAK への自動連携と、登録特典クーポンの自動登録（2026-09-29）
  *
- * - 公式サイト経由（流入経路コード j8drobax / zufpwj02 / ldwmkwyi）で友だち追加した人について、
- *   LINEのID（members.line_user_id）で My FITPEAK の会員（FITPEAK ID）を用意する。
+ * - 公式LINEを友だち追加した人は全員、LINEのID（members.line_user_id）で My FITPEAK の会員（FITPEAK ID）を自動で用意する。
  *   後からその人が「LINEでログイン」すると、同じ会員につながる。
- * - その会員に、登録特典クーポン FPLINE1000（1,000円OFF・3,000円以上・1人1回）を coupons に登録する。
+ * - 公式サイト経由（流入経路コード j8drobax / zufpwj02 / ldwmkwyi）の人には、登録特典クーポン FPLINE1000（1,000円OFF・3,000円以上・1人1回）を coupons に登録する。
  *   実際の値引きはShopify側のコードが行い、使用回数（1人1回）もShopifyが管理する。ここは「My FITPEAKに表示する」ための記録。
  */
 const { getSupabase } = require('./shared.cjs');
@@ -52,14 +51,15 @@ async function ensureMemberForLine({ lineUserId, displayName }) {
   return member;
 }
 
-// follow webhook から呼ぶ：公式サイト経由の新しい友だちだけが対象
+// follow webhook から呼ぶ：友だち追加した人は全員 My FITPEAK の会員（FITPEAK ID）を自動で用意する。
+// 特典クーポンは公式サイト経由（流入経路コードが SITE_CODES）の人にだけ登録する。
 async function onSiteFollow({ lineUserId, displayName, trafficSourceId }) {
   try {
-    if (!lineUserId || !trafficSourceId) return;
-    const { data: src } = await getSupabase().from('traffic_sources').select('code').eq('id', trafficSourceId).maybeSingle();
-    if (!src || !SITE_CODES.includes(src.code)) return;
+    if (!lineUserId) return;
     const member = await ensureMemberForLine({ lineUserId, displayName });
-    if (member) await ensureWelcomeCoupon(member.id);
+    if (!member || !trafficSourceId) return;
+    const { data: src } = await getSupabase().from('traffic_sources').select('code').eq('id', trafficSourceId).maybeSingle();
+    if (src && SITE_CODES.includes(src.code)) await ensureWelcomeCoupon(member.id);
   } catch (e) {
     console.error('[welcome-coupon] onSiteFollow error:', e.message);
   }
