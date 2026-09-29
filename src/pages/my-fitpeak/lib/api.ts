@@ -27,3 +27,13 @@ export function displayName(user: { email?: string | null; user_metadata?: Recor
   }
   return email
 }
+
+/**
+ * LINEログインで作られたアカウントか。
+ * この場合はLINEと連携済みなので、「LINE未連携」や「LINEと連携」ボタンは出さない。
+ */
+export function isLineAccount(user: { email?: string | null; user_metadata?: Record<string, unknown> } | null): boolean {
+  if (!user) return false
+  const meta = user.user_metadata || {}
+  return meta.provider === 'line' || !!meta.line_user_id || (user.email || '').endsWith('@line.fitpeak.co')
+}

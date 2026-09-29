@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Package, ChevronRight, Truck, Search, Plus, X, MessageCircle, CheckCircle } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
-import { apiFetch, displayName } from './lib/api'
+import { apiFetch, displayName, isLineAccount } from './lib/api'
 
 interface Order {
   id: number | string
@@ -23,7 +23,9 @@ export default function FitpeakHome() {
   const { user } = useFitpeakAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [amazonOrders, setAmazonOrders] = useState<Order[]>([])
-  const [lineLinked, setLineLinked] = useState(false)
+  const [linkedRow, setLinkedRow] = useState(false)
+  // LINEログインで入った人は、その時点でLINE連携済み
+  const lineLinked = isLineAccount(user) || linkedRow
   const [loading, setLoading] = useState(true)
 
   const [amazonOpen, setAmazonOpen] = useState(false)
@@ -59,7 +61,7 @@ export default function FitpeakHome() {
           .select('id')
           .eq('shopify_email', email)
           .maybeSingle()
-        if (!cancelled) setLineLinked(!!data)
+        if (!cancelled) setLinkedRow(!!data)
       } catch { /* 同上 */ }
     })()
 
