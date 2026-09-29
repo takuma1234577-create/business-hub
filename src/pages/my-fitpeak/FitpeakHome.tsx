@@ -17,6 +17,7 @@ interface Order {
   trackingUrl?: string
   trackingCompany?: string
   source?: 'shopify' | 'amazon'
+  returnBadge?: { requestType: 'return' | 'exchange'; result: 'approved' | 'denied' } | null
 }
 
 export default function FitpeakHome() {
@@ -34,25 +35,37 @@ export default function FitpeakHome() {
   const [amazonError, setAmazonError] = useState('')
 
   const [ordersLoading, setOrdersLoading] = useState(true)
+
+  // 別のメールアドレス・ゲスト購入の公式サイト注文を追加する
+  const [amazonReturnFor, setAmazonReturnFor] = useState<string | null>(null)
+  const [claimOpen, setClaimOpen] = useState(false)
+  const [claimNumber, setClaimNumber] = useState('')
+  const [claimProof, setClaimProof] = useState('')
+  const [claimBusy, setClaimBusy] = useState(false)
+  const [claimError, setClaimError] = useState('')
   const email = user?.email
 
   // 注文（Shopify取得は遅い）とLINE連携の確認を並行して走らせ、画面の骨組みは待たずに出す。
   // 依存を user オブジェクトではなく email にして、同じ取得が2回走らないようにする。
+  const loadOrders = async (isCancelled: () => boolean = () => false) => {
+    if (!email) return
+    try {
+      const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(email)}&limit=20`)
+      if (res.ok && !isCancelled()) {
+        const data = await res.json()
+        setOrders((data.orders || []).map((o: Order) => ({ ...o, source: 'shopify' as const })))
+        setAmazonOrders((data.amazonOrders || []).map((o: Order) => ({ ...o, source: 'amazon' as const })))
+      }
+    } catch { /* 取得できなくても画面は出す */ }
+    if (!isCancelled()) setOrdersLoading(false)
+  }
+
   useEffect(() => {
     if (!email) { setLoading(false); setOrdersLoading(false); return }
     let cancelled = false
     setLoading(false)
 
-    ;(async () => {
-      try {
-        const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(email)}&limit=20`)
-        if (res.ok && !cancelled) {
-          const data = await res.json()
-          setOrders((data.orders || []).map((o: Order) => ({ ...o, source: 'shopify' as const })))
-        }
-      } catch { /* 取得できなくても画面は出す */ }
-      if (!cancelled) setOrdersLoading(false)
-    })()
+    loadOrders(() => cancelled)
 
     ;(async () => {
       try {
@@ -87,11 +100,40 @@ export default function FitpeakHome() {
           setAmazonOrders((prev) => [{ ...data, source: 'amazon' as const }, ...prev])
         }
         setAmazonInput('')
+        setAmazonOpen(false)
       }
     } catch {
       setAmazonError('検索に失敗しました。時間をおいて試してください')
     }
     setAmazonSearching(false)
+  }
+
+  const handleClaim = async () => {
+    setClaimError('')
+    setClaimBusy(true)
+    try {
+      const res = await apiFetch('/api/my-fitpeak/order-claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'shopify', orderNumber: claimNumber, verify: claimProof }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setClaimError(data.error || '注文を追加できませんでした')
+      } else {
+        setClaimNumber(''); setClaimProof(''); setClaimOpen(false)
+        setOrdersLoading(true)
+        await loadOrders()
+      }
+    } catch {
+      setClaimError('通信に失敗しました。時間をおいて試してください')
+    }
+    setClaimBusy(false)
+  }
+
+  const removeAmazon = async (orderName: string) => {
+    setAmazonOrders((prev) => prev.filter((o) => o.name !== orderName))
+    try { await apiFetch(`/api/my-fitpeak/order-claims/amazon/${encodeURIComponent(orderName)}`, { method: 'DELETE' }) } catch { /* 次回表示で戻るだけ */ }
   }
 
   const allOrders = [...amazonOrders, ...orders].sort(
@@ -152,19 +194,64 @@ export default function FitpeakHome() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-base font-bold text-white">ご注文</h1>
-          <button
-            type="button"
-            onClick={() => setAmazonOpen((v) => !v)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/5 transition"
-          >
-            <Plus size={14} />
-            Amazonの注文を追加
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { setClaimOpen((v) => !v); setAmazonOpen(false) }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/5 transition"
+            >
+              <Plus size={14} />
+              別のメール・ゲスト購入
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAmazonOpen((v) => !v); setClaimOpen(false) }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/5 transition"
+            >
+              <Plus size={14} />
+              Amazon
+            </button>
+          </div>
         </div>
+
+        {claimOpen && (
+          <div className="rounded-xl bg-[#151515] border border-white/10 p-4 mb-4">
+            <p className="text-xs text-white/40 mb-3">
+              別のメールアドレスやゲスト購入で注文した公式サイトのご注文を、このアカウントに追加できます。
+              注文番号と、ご注文時のメールアドレス・郵便番号・電話番号のいずれかを入力してください。
+            </p>
+            <div className="space-y-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={claimNumber}
+                onChange={(e) => { setClaimNumber(e.target.value); setClaimError('') }}
+                placeholder="注文番号（例: #1234）"
+                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+              />
+              <input
+                type="text"
+                value={claimProof}
+                onChange={(e) => { setClaimProof(e.target.value); setClaimError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleClaim()}
+                placeholder="注文時のメール／郵便番号／電話番号"
+                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+              />
+              <button
+                onClick={handleClaim}
+                disabled={claimBusy || !claimNumber.trim() || !claimProof.trim()}
+                className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-semibold transition disabled:opacity-40"
+              >
+                {claimBusy ? '確認中' : 'この注文を追加'}
+              </button>
+            </div>
+            {claimError && <p className="text-red-400 text-xs mt-2">{claimError}</p>}
+          </div>
+        )}
 
         {amazonOpen && (
           <div className="rounded-xl bg-[#151515] border border-white/10 p-4 mb-4">
-            <p className="text-xs text-white/40 mb-2">Amazonの注文番号を入力すると、ここに並べて追跡できます</p>
+            <p className="text-xs text-white/40 mb-2">Amazonの注文番号を入力すると、ここに保存され、発送状況が自動で更新されます</p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -256,13 +343,28 @@ export default function FitpeakHome() {
                   <div key={`amazon-${order.id}`} className="relative p-4 sm:p-5 rounded-xl bg-[#151515] border border-white/10">
                     <button
                       type="button"
-                      onClick={() => setAmazonOrders((prev) => prev.filter((o) => o.name !== order.name))}
+                      onClick={() => removeAmazon(order.name)}
                       className="absolute top-3 right-3 p-2 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/5 transition"
                       aria-label="このAmazon注文を一覧から外す"
                     >
                       <X size={14} />
                     </button>
                     {body}
+                    <button
+                      type="button"
+                      onClick={() => setAmazonReturnFor(amazonReturnFor === order.name ? null : order.name)}
+                      className="inline-block text-xs text-white/50 hover:text-white mr-4 mt-3"
+                    >
+                      返品する
+                    </button>
+                    {amazonReturnFor === order.name && (
+                      <div className="mt-3 rounded-lg bg-[#FF9900]/10 border border-[#FF9900]/30 p-3 text-xs text-white/70">
+                        Amazonでご購入の商品は、Amazonで返品のお手続きをお願いします。下のリンクからAmazonのご注文履歴を開き、該当の注文の「商品の返品」を選んでください。
+                        <a href="https://www.amazon.co.jp/gp/css/order-history" target="_blank" rel="noopener noreferrer" className="block text-[#FF9900] hover:underline mt-2">
+                          Amazonの注文履歴を開く
+                        </a>
+                      </div>
+                    )}
                     <a
                       href={`https://www.amazon.co.jp/gp/your-account/order-details?orderID=${order.name}`}
                       target="_blank"
@@ -282,8 +384,17 @@ export default function FitpeakHome() {
                   className="block p-4 sm:p-5 rounded-xl bg-[#151515] border border-white/10 hover:border-white/25 transition"
                 >
                   {body}
-                  <div className="flex items-center justify-end gap-1 mt-3 text-xs text-white/40">
-                    詳細を見る <ChevronRight size={14} />
+                  <div className="flex items-center justify-between gap-1 mt-3 text-xs text-white/40">
+                    <span>
+                      {order.returnBadge ? (
+                        <span className={order.returnBadge.result === 'approved' ? 'text-green-400' : 'text-red-400'}>
+                          {order.returnBadge.requestType === 'return' ? '返品' : '交換'}・{order.returnBadge.result === 'approved' ? '承認済み' : '不承認'}
+                        </span>
+                      ) : (
+                        '返品・交換は詳細から'
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1">詳細を見る <ChevronRight size={14} /></span>
                   </div>
                 </Link>
               )

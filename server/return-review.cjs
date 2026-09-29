@@ -620,4 +620,17 @@ router.put('/settings', async (req, res) => {
   }
 });
 
+// My FITPEAK（会員向け）から同じ審査ロジックを使うための部品
+router.helpers = {
+  loadSettings,
+  REASON_MAP,
+  getConfidenceThreshold,
+  fetchShopifyOrder,
+  checkReturnExtension,
+  reviewWithAI,
+  processShopifyRefund,
+  processShopifyExchange,
+  sendLineNotification,
+};
+
 module.exports = router;

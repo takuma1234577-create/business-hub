@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+const returns = require('./my-fitpeak-returns.cjs');
 
 // Supabase
 function getSupabase() {
@@ -47,26 +48,125 @@ async function resolveOrderEmail(email) {
 }
 
 // 注文一覧の短期キャッシュ（同じ人の再表示・二重リクエストを速くする。60秒）
-const ordersCache = new Map(); // key: email|limit -> { at, promise }
+const ordersCache = new Map(); // key -> { at, promise }
 const ORDERS_TTL_MS = 60 * 1000;
 
-// GET /orders - メールアドレスでShopify注文を取得
+const SHOPIFY_API = '2024-01';
+const shopifyHeaders = (store) => ({ 'X-Shopify-Access-Token': store.access_token });
+
+function mapShopifyOrder(o) {
+  const fulfillment = o.fulfillments?.[0];
+  return {
+    id: o.id,
+    name: o.name,
+    date: o.created_at,
+    total: o.total_price,
+    status: o.financial_status,
+    fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
+    items: (o.line_items || []).map((i) => ({
+      title: i.title,
+      quantity: i.quantity,
+      price: i.price,
+      variant: i.variant_title,
+    })),
+    trackingNumber: fulfillment?.tracking_number || null,
+    trackingUrl: fulfillment?.tracking_url || null,
+    trackingCompany: fulfillment?.tracking_company || null,
+    source: 'shopify',
+  };
+}
+
+async function shopifyGraphql(store, query, variables) {
+  const r = await axios.post(
+    `https://${store.shop_domain}/admin/api/${SHOPIFY_API}/graphql.json`,
+    { query, variables },
+    { headers: shopifyHeaders(store), timeout: 15000 }
+  );
+  if (r.data.errors) throw new Error(JSON.stringify(r.data.errors));
+  return r.data.data;
+}
+
+// 注文メールが一致する注文のID（ゲスト購入・顧客レコードに紐づかない注文も拾う）
+async function orderIdsByEmail(store, email, limit) {
+  const data = await shopifyGraphql(
+    store,
+    `query($q:String!,$n:Int!){ orders(first:$n, query:$q, sortKey:CREATED_AT, reverse:true){ nodes{ legacyResourceId } } }`,
+    { q: `email:${JSON.stringify(String(email))}`, n: Math.min(Number(limit) || 10, 50) }
+  );
+  return (data.orders?.nodes || []).map((n) => String(n.legacyResourceId));
+}
+
+async function fetchShopifyOrderById(store, id) {
+  try {
+    const r = await axios.get(
+      `https://${store.shop_domain}/admin/api/${SHOPIFY_API}/orders/${id}.json`,
+      { headers: shopifyHeaders(store), timeout: 15000 }
+    );
+    return r.data.order ? mapShopifyOrder(r.data.order) : null;
+  } catch { return null; }
+}
+
+// 会員に紐づくメール（ログインメール／LINE連携先のメール）
+async function memberEmails(email) {
+  const set = new Set([String(email).toLowerCase()]);
+  const resolved = await resolveOrderEmail(email);
+  if (resolved) set.add(String(resolved).toLowerCase());
+  return [...set].filter((e) => !e.endsWith('@line.fitpeak.co'));
+}
+
+async function getClaims(authUserId) {
+  if (!authUserId) return [];
+  try {
+    const { data } = await getSupabase().from('member_order_claims').select('channel, order_ref, order_label').eq('auth_user_id', authUserId);
+    return data || [];
+  } catch { return []; }
+}
+
+// Amazon注文の最新状況（注文ごとに60秒キャッシュ）
+const amazonCache = new Map();
+async function fetchAmazonOrder(orderId) {
+  const hit = amazonCache.get(orderId);
+  if (hit && Date.now() - hit.at < ORDERS_TTL_MS) return hit.value;
+  const { token, endpoint } = await getAmazonAccessToken();
+  const headers = { 'x-amz-access-token': token };
+  const orderRes = await axios.get(`${endpoint}/orders/v0/orders/${orderId}`, { headers, timeout: 15000 });
+  const order = orderRes.data.payload;
+  if (!order) return null;
+  let items = [];
+  try {
+    const itemsRes = await axios.get(`${endpoint}/orders/v0/orders/${orderId}/orderItems`, { headers, timeout: 15000 });
+    items = (itemsRes.data.payload?.OrderItems || []).map((i) => ({
+      title: i.Title, sku: i.SellerSKU, quantity: i.QuantityOrdered, price: i.ItemPrice?.Amount || '0', variant: '',
+    }));
+  } catch { /* 商品明細が取れなくても注文は返す */ }
+  const value = {
+    source: 'amazon',
+    id: order.AmazonOrderId,
+    name: order.AmazonOrderId,
+    date: order.PurchaseDate,
+    total: order.OrderTotal?.Amount || '0',
+    status: order.OrderStatus,
+    fulfillmentStatus: order.OrderStatus === 'Shipped' ? 'fulfilled' : order.OrderStatus === 'Unshipped' ? 'unfulfilled' : order.OrderStatus,
+    items,
+    fulfillmentChannel: order.FulfillmentChannel,
+  };
+  amazonCache.set(orderId, { at: Date.now(), value });
+  return value;
+}
+
+// GET /orders - ご注文一覧（Shopify: メール一致＋ゲスト購入＋引き当て済み / Amazon: 引き当て済み）
 router.get('/orders', async (req, res) => {
   try {
-    const { limit = '10' } = req.query;
+    const { limit = '20' } = req.query;
     const email = req.fitpeakEmail || req.query.email;
     if (!email) return res.status(400).json({ error: 'email required' });
+    const authUserId = req.fitpeakUser?.id || null;
 
-    const store = await getShopifyStore();
-    if (!store) return res.status(500).json({ error: 'Shopify not connected' });
-
-    // 同じ人の同時リクエストは1本にまとめ、60秒は結果を使い回す
-    const key = `${String(email).toLowerCase()}|${limit}`;
+    const key = `${authUserId || String(email).toLowerCase()}|${limit}`;
     const hit = ordersCache.get(key);
-    if (hit && Date.now() - hit.at < ORDERS_TTL_MS) {
-      return res.json(await hit.promise);
-    }
-    const promise = fetchOrders(store, await resolveOrderEmail(email), limit);
+    if (hit && Date.now() - hit.at < ORDERS_TTL_MS) return res.json(await hit.promise);
+
+    const promise = buildOrders(email, authUserId, limit);
     ordersCache.set(key, { at: Date.now(), promise });
     promise.catch(() => ordersCache.delete(key));
     if (ordersCache.size > 500) {
@@ -79,45 +179,147 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-async function fetchOrders(store, email, limit) {
-  {
-    // 顧客を検索
-    const custResp = await axios.get(
-      `https://${store.shop_domain}/admin/api/2024-01/customers/search.json?query=email:${encodeURIComponent(email)}`,
-      { headers: { 'X-Shopify-Access-Token': store.access_token }, timeout: 15000 }
-    );
-    const customers = custResp.data.customers || [];
-    if (customers.length === 0) return { orders: [] };
+async function buildOrders(email, authUserId, limit) {
+  const store = await getShopifyStore();
+  const [emails, claims] = await Promise.all([memberEmails(email), getClaims(authUserId)]);
+  const byId = new Map();
 
-    const customerId = customers[0].id;
-    const orderResp = await axios.get(
-      `https://${store.shop_domain}/admin/api/2024-01/customers/${customerId}/orders.json?status=any&limit=${limit}`,
-      { headers: { 'X-Shopify-Access-Token': store.access_token }, timeout: 15000 }
-    );
+  // ① メール一致（顧客レコード経由）＋ ② 注文メール一致（ゲスト購入含む）
+  if (store) {
+    await Promise.all(emails.map(async (em) => {
+      const [viaCustomer, ids] = await Promise.all([
+        (async () => {
+          try {
+            const c = await axios.get(
+              `https://${store.shop_domain}/admin/api/${SHOPIFY_API}/customers/search.json?query=email:${encodeURIComponent(em)}`,
+              { headers: shopifyHeaders(store), timeout: 15000 }
+            );
+            const cust = (c.data.customers || [])[0];
+            if (!cust) return [];
+            const r = await axios.get(
+              `https://${store.shop_domain}/admin/api/${SHOPIFY_API}/customers/${cust.id}/orders.json?status=any&limit=${limit}`,
+              { headers: shopifyHeaders(store), timeout: 15000 }
+            );
+            return (r.data.orders || []).map(mapShopifyOrder);
+          } catch { return []; }
+        })(),
+        orderIdsByEmail(store, em, limit).catch(() => []),
+      ]);
+      viaCustomer.forEach((o) => byId.set(String(o.id), o));
+      const missing = ids.filter((id) => !byId.has(id));
+      const fetched = await Promise.all(missing.map((id) => fetchShopifyOrderById(store, id)));
+      fetched.filter(Boolean).forEach((o) => byId.set(String(o.id), o));
+    }));
 
-    const orders = (orderResp.data.orders || []).map((o) => {
-      const fulfillment = o.fulfillments?.[0];
-      return {
-        id: o.id,
-        name: o.name,
-        date: o.created_at,
-        total: o.total_price,
-        status: o.financial_status,
-        fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-        items: (o.line_items || []).map((i) => ({
-          title: i.title,
-          quantity: i.quantity,
-          price: i.price,
-          variant: i.variant_title,
-        })),
-        trackingNumber: fulfillment?.tracking_number || null,
-        trackingUrl: fulfillment?.tracking_url || null,
-        trackingCompany: fulfillment?.tracking_company || null,
-      };
-    });
-
-    return { orders };
+    // ③ 引き当て済みのShopify注文（別メール・ゲスト購入）
+    const shopifyClaims = claims.filter((c) => c.channel === 'shopify' && !byId.has(String(c.order_ref)));
+    const claimed = await Promise.all(shopifyClaims.map((c) => fetchShopifyOrderById(store, c.order_ref)));
+    claimed.filter(Boolean).forEach((o) => byId.set(String(o.id), { ...o, claimed: true }));
   }
+
+  // ④ 引き当て済みのAmazon注文（表示のたびに最新の状況を取得）
+  const amazon = (await Promise.all(
+    claims.filter((c) => c.channel === 'amazon').map(async (c) => {
+      try { return await fetchAmazonOrder(c.order_ref); } catch { return { source: 'amazon', id: c.order_ref, name: c.order_ref, date: null, total: '0', status: '取得できませんでした', fulfillmentStatus: 'unknown', items: [], stale: true }; }
+    })
+  )).filter(Boolean);
+
+  const orders = [...byId.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+  try {
+    const badges = await returns.getReturnBadges(orders.map((o) => o.id));
+    orders.forEach((o) => { o.returnBadge = badges[String(o.id)] || null; });
+  } catch { /* 返品の状況が取れなくても注文は出す */ }
+  return { orders, amazonOrders: amazon };
+}
+
+// ── 注文の引き当て（別メール・ゲスト購入・Amazon）──
+const claimAttempts = new Map(); // userId -> [timestamps]（総当たり防止：1時間10回）
+function tooManyAttempts(userId) {
+  const now = Date.now();
+  const list = (claimAttempts.get(userId) || []).filter((t) => now - t < 3600 * 1000);
+  list.push(now);
+  claimAttempts.set(userId, list);
+  return list.length > 10;
+}
+const digits = (v) => String(v || '').replace(/\D/g, '');
+
+// POST /order-claim  { channel:'shopify', orderNumber:'#1234', verify:'メール / 郵便番号 / 電話番号' }
+router.post('/order-claim', async (req, res) => {
+  try {
+    const user = req.fitpeakUser;
+    if (!user) return res.status(401).json({ error: 'ログインが必要です' });
+    if (tooManyAttempts(user.id)) return res.status(429).json({ error: '試行回数が多すぎます。1時間ほど空けてお試しください。' });
+
+    const { orderNumber, verify } = req.body || {};
+    const num = digits(orderNumber);
+    const proof = String(verify || '').trim();
+    if (!num || !proof) return res.status(400).json({ error: '注文番号と確認情報を入力してください' });
+
+    const store = await getShopifyStore();
+    if (!store) return res.status(500).json({ error: 'Shopify not connected' });
+
+    const data = await shopifyGraphql(
+      store,
+      `query($q:String!){ orders(first:1, query:$q){ nodes{ legacyResourceId name email phone shippingAddress{ zip phone } billingAddress{ zip phone } } } }`,
+      { q: `name:#${num}` }
+    );
+    const o = data.orders?.nodes?.[0];
+    const NOT_FOUND = { error: '注文が見つかりませんでした。注文番号と確認情報をご確認ください。' };
+    if (!o) return res.status(404).json(NOT_FOUND);
+
+    // 確認情報：注文時のメール／郵便番号／電話番号のどれかが一致すること
+    const p = proof.toLowerCase();
+    const pd = digits(proof);
+    const emails = [o.email].filter(Boolean).map((e) => e.toLowerCase());
+    const zips = [o.shippingAddress?.zip, o.billingAddress?.zip].map(digits).filter(Boolean);
+    const phones = [o.phone, o.shippingAddress?.phone, o.billingAddress?.phone].map(digits).filter((x) => x.length >= 8);
+    const ok =
+      emails.includes(p) ||
+      (pd.length === 7 && zips.includes(pd)) ||
+      (pd.length >= 10 && phones.some((ph) => ph.slice(-10) === pd.slice(-10)));
+    if (!ok) return res.status(404).json(NOT_FOUND);
+
+    const supabase = getSupabase();
+    const ref = String(o.legacyResourceId);
+    const { data: exist } = await supabase.from('member_order_claims').select('auth_user_id').eq('channel', 'shopify').eq('order_ref', ref).maybeSingle();
+    if (exist && exist.auth_user_id !== user.id) {
+      return res.status(409).json({ error: 'この注文はすでに別のアカウントに登録されています。心当たりがない場合はLINEでご連絡ください。' });
+    }
+    if (!exist) {
+      await supabase.from('member_order_claims').insert({ auth_user_id: user.id, channel: 'shopify', order_ref: ref, order_label: o.name });
+    }
+    ordersCache.clear();
+    res.json({ success: true, name: o.name });
+  } catch (err) {
+    console.error('POST /api/my-fitpeak/order-claim error:', err.response?.data || err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /order-claims/:channel/:ref - 引き当てを外す（Amazonの「一覧から外す」用）
+router.delete('/order-claims/:channel/:ref', async (req, res) => {
+  try {
+    const user = req.fitpeakUser;
+    if (!user) return res.status(401).json({ error: 'ログインが必要です' });
+    await getSupabase().from('member_order_claims').delete()
+      .eq('auth_user_id', user.id).eq('channel', req.params.channel).eq('order_ref', req.params.ref);
+    ordersCache.clear();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 本人の注文か（会員のメール、または引き当て済み）
+async function isOwnOrder(req, o, email) {
+  const orderEmail = (o.customer?.email || o.email || '').toLowerCase();
+  const emails = await memberEmails(email);
+  if (emails.includes(orderEmail) || String(email).toLowerCase() === orderEmail) return true;
+  if (req.fitpeakUser) {
+    const claims = await getClaims(req.fitpeakUser.id);
+    return claims.some((c) => c.channel === 'shopify' && String(c.order_ref) === String(o.id));
+  }
+  return false;
 }
 
 // GET /orders/:id - 注文詳細
@@ -136,11 +338,7 @@ router.get('/orders/:id', async (req, res) => {
     const o = orderResp.data.order;
     if (!o) return res.status(404).json({ error: 'Order not found' });
 
-    // 本人確認: メールが一致するか
-    const orderEmail = o.customer?.email || o.email;
-    if (orderEmail?.toLowerCase() !== String(email).toLowerCase()) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
+    if (!(await isOwnOrder(req, o, email))) return res.status(403).json({ error: 'Unauthorized' });
 
     // フルフィルメント情報
     let fulfillments = [];
@@ -181,10 +379,59 @@ router.get('/orders/:id', async (req, res) => {
         zip: o.shipping_address.zip,
       } : null,
       fulfillments,
+      financialStatus: o.financial_status,
+      returnInfo: await buildReturnInfo(o, fulfillments),
     });
   } catch (err) {
     console.error('GET /api/my-fitpeak/orders/:id error:', err.response?.data || err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// 返品・交換の状況と、申請できるか
+async function buildReturnInfo(o, fulfillments) {
+  try {
+    const [status, deadline] = await Promise.all([returns.getReturnStatus(o.id), returns.returnDeadline(o.name, o.created_at)]);
+    const shipped = (o.fulfillment_status === 'fulfilled') || fulfillments.length > 0;
+    const refunded = ['refunded', 'partially_refunded'].includes(o.financial_status);
+    let blocked = null;
+    if (status.approved) blocked = '申請は承認済みです';
+    else if (refunded) blocked = '返金済みです';
+    else if (!shipped) blocked = '発送前のご注文です。キャンセルはLINEからお問い合わせください';
+    else if (deadline.remaining < 0) blocked = `返品期限（購入から${deadline.maxDays}日）を過ぎています`;
+    else if (status.deniedCount >= 3) blocked = '申請できる回数の上限に達しました。LINEでお問い合わせください';
+    return { ...status, deadline: { maxDays: deadline.maxDays, remaining: deadline.remaining }, allowedReasons: deadline.allowedReasons, canRequest: !blocked, blockedReason: blocked };
+  } catch (e) {
+    console.error('buildReturnInfo error:', e.message);
+    return null;
+  }
+}
+
+// POST /orders/:id/return - 返品・交換の申請（審査は Business-hub の返品・交換審査システムと同じ）
+router.post('/orders/:id/return', express.json({ limit: '30mb' }), async (req, res) => {
+  try {
+    const user = req.fitpeakUser;
+    if (!user) return res.status(401).json({ error: 'ログインが必要です' });
+    const email = req.fitpeakEmail || user.email;
+    const store = await getShopifyStore();
+    if (!store) return res.status(500).json({ error: 'Shopify not connected' });
+
+    const r = await axios.get(`https://${store.shop_domain}/admin/api/${SHOPIFY_API}/orders/${req.params.id}.json`, { headers: shopifyHeaders(store), timeout: 15000 });
+    const o = r.data.order;
+    if (!o) return res.status(404).json({ error: '注文が見つかりません' });
+    if (!(await isOwnOrder(req, o, email))) return res.status(403).json({ error: 'この注文は操作できません' });
+    if (o.fulfillment_status !== 'fulfilled' && !(o.fulfillments || []).length) {
+      return res.status(409).json({ error: '発送前の注文は返品できません' });
+    }
+
+    const { requestType, reason, reasonDetail, shippingAddress, images } = req.body || {};
+    const result = await returns.submitReturn({ user, order: o, requestType, reason, reasonDetail, shippingAddress, images });
+    ordersCache.clear();
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('POST /api/my-fitpeak/orders/:id/return error:', err.response?.data || err.message);
+    res.status(500).json({ error: '申請の処理に失敗しました。時間をおいてお試しください。' });
   }
 });
 
@@ -448,55 +695,30 @@ async function getAmazonAccessToken() {
   };
 }
 
-// POST /amazon-order - Amazon注文番号で検索
+// POST /amazon-order - Amazon注文番号を自分の注文として登録（注文は保存され、以降は最新の状況が自動で反映される）
 router.post('/amazon-order', async (req, res) => {
   try {
-    const { orderId } = req.body;
-    if (!orderId) return res.status(400).json({ error: 'orderId required' });
-
-    // 注文番号フォーマットチェック
-    if (!/^\d{3}-\d{7}-\d{7}$/.test(orderId.trim())) {
+    const user = req.fitpeakUser;
+    if (!user) return res.status(401).json({ error: 'ログインが必要です' });
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!/^\d{3}-\d{7}-\d{7}$/.test(orderId)) {
       return res.status(400).json({ error: '注文番号の形式が正しくありません。例: 250-1234567-1234567' });
     }
+    if (tooManyAttempts(user.id)) return res.status(429).json({ error: '試行回数が多すぎます。1時間ほど空けてお試しください。' });
 
-    const { token, endpoint } = await getAmazonAccessToken();
+    const order = await fetchAmazonOrder(orderId);
+    if (!order) return res.status(404).json({ error: '注文が見つかりません。注文番号を再度ご確認ください。' });
 
-    // 注文取得
-    const orderRes = await axios.get(
-      `${endpoint}/orders/v0/orders/${orderId.trim()}`,
-      { headers: { 'x-amz-access-token': token } }
-    );
-    const order = orderRes.data.payload;
-    if (!order) return res.status(404).json({ error: '注文が見つかりません' });
-
-    // 注文アイテム取得
-    let items = [];
-    try {
-      const itemsRes = await axios.get(
-        `${endpoint}/orders/v0/orders/${orderId.trim()}/orderItems`,
-        { headers: { 'x-amz-access-token': token } }
-      );
-      items = (itemsRes.data.payload?.OrderItems || []).map((i) => ({
-        title: i.Title,
-        sku: i.SellerSKU,
-        quantity: i.QuantityOrdered,
-        price: i.ItemPrice?.Amount || '0',
-        variant: '',
-      }));
-    } catch { /* ignore */ }
-
-    res.json({
-      source: 'amazon',
-      id: order.AmazonOrderId,
-      name: order.AmazonOrderId,
-      date: order.PurchaseDate,
-      total: order.OrderTotal?.Amount || '0',
-      status: order.OrderStatus,
-      fulfillmentStatus: order.OrderStatus === 'Shipped' ? 'fulfilled' : order.OrderStatus === 'Unshipped' ? 'unfulfilled' : order.OrderStatus,
-      buyerName: order.BuyerInfo?.BuyerName || '',
-      items,
-      fulfillmentChannel: order.FulfillmentChannel,
-    });
+    const supabase = getSupabase();
+    const { data: exist } = await supabase.from('member_order_claims').select('auth_user_id').eq('channel', 'amazon').eq('order_ref', orderId).maybeSingle();
+    if (exist && exist.auth_user_id !== user.id) {
+      return res.status(409).json({ error: 'この注文はすでに別のアカウントに登録されています。心当たりがない場合はLINEでご連絡ください。' });
+    }
+    if (!exist) {
+      await supabase.from('member_order_claims').insert({ auth_user_id: user.id, channel: 'amazon', order_ref: orderId, order_label: orderId });
+    }
+    ordersCache.clear();
+    res.json(order);
   } catch (err) {
     console.error('POST /api/my-fitpeak/amazon-order error:', err.response?.data || err.message);
     const status = err.response?.status;
