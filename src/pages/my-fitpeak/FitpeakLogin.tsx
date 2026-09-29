@@ -264,7 +264,7 @@ export default function FitpeakLogin() {
   // LINE連携完了画面
   if (linkDone) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
+      <div className="fp-root min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-10 mx-auto mb-2" />
@@ -288,7 +288,7 @@ export default function FitpeakLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
+    <div className="fp-root min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-10 mx-auto mb-2" />

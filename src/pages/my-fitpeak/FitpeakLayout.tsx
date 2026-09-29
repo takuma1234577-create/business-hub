@@ -19,7 +19,7 @@ export default function FitpeakLayout() {
     }`
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="fp-root min-h-screen bg-[#0a0a0a] overflow-x-hidden">
       <header className="border-b border-white/10 bg-[#0f0f0f]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between py-4">
