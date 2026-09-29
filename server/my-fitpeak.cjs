@@ -28,6 +28,24 @@ async function getShopifyStore() {
   return data;
 }
 
+// LINEログインの人は内部用メール(@line.fitpeak.co)なので、LINEと結びついたShopifyのメールで注文を探す
+async function resolveOrderEmail(email) {
+  if (!String(email).endsWith('@line.fitpeak.co')) return email;
+  try {
+    const supabase = getSupabase();
+    const { data: member } = await supabase.from('members').select('line_user_id').eq('email', email).maybeSingle();
+    if (!member?.line_user_id) return email;
+    const { data: link } = await supabase
+      .from('line_shopify_links')
+      .select('shopify_email')
+      .eq('line_user_id', member.line_user_id)
+      .maybeSingle();
+    return link?.shopify_email || email;
+  } catch {
+    return email;
+  }
+}
+
 // 注文一覧の短期キャッシュ（同じ人の再表示・二重リクエストを速くする。60秒）
 const ordersCache = new Map(); // key: email|limit -> { at, promise }
 const ORDERS_TTL_MS = 60 * 1000;
@@ -48,7 +66,7 @@ router.get('/orders', async (req, res) => {
     if (hit && Date.now() - hit.at < ORDERS_TTL_MS) {
       return res.json(await hit.promise);
     }
-    const promise = fetchOrders(store, email, limit);
+    const promise = fetchOrders(store, await resolveOrderEmail(email), limit);
     ordersCache.set(key, { at: Date.now(), promise });
     promise.catch(() => ordersCache.delete(key));
     if (ordersCache.size > 500) {
