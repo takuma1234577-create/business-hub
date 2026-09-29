@@ -17,6 +17,7 @@ interface Order {
   trackingUrl?: string
   trackingCompany?: string
   source?: 'shopify' | 'amazon'
+  returnBadge?: { requestType: 'return' | 'exchange'; result: 'approved' | 'denied' } | null
 }
 
 export default function FitpeakHome() {
@@ -36,6 +37,7 @@ export default function FitpeakHome() {
   const [ordersLoading, setOrdersLoading] = useState(true)
 
   // 別のメールアドレス・ゲスト購入の公式サイト注文を追加する
+  const [amazonReturnFor, setAmazonReturnFor] = useState<string | null>(null)
   const [claimOpen, setClaimOpen] = useState(false)
   const [claimNumber, setClaimNumber] = useState('')
   const [claimProof, setClaimProof] = useState('')
@@ -348,6 +350,21 @@ export default function FitpeakHome() {
                       <X size={14} />
                     </button>
                     {body}
+                    <button
+                      type="button"
+                      onClick={() => setAmazonReturnFor(amazonReturnFor === order.name ? null : order.name)}
+                      className="inline-block text-xs text-white/50 hover:text-white mr-4 mt-3"
+                    >
+                      返品する
+                    </button>
+                    {amazonReturnFor === order.name && (
+                      <div className="mt-3 rounded-lg bg-[#FF9900]/10 border border-[#FF9900]/30 p-3 text-xs text-white/70">
+                        Amazonでご購入の商品は、Amazonで返品のお手続きをお願いします。下のリンクからAmazonのご注文履歴を開き、該当の注文の「商品の返品」を選んでください。
+                        <a href="https://www.amazon.co.jp/gp/css/order-history" target="_blank" rel="noopener noreferrer" className="block text-[#FF9900] hover:underline mt-2">
+                          Amazonの注文履歴を開く
+                        </a>
+                      </div>
+                    )}
                     <a
                       href={`https://www.amazon.co.jp/gp/your-account/order-details?orderID=${order.name}`}
                       target="_blank"
@@ -367,8 +384,17 @@ export default function FitpeakHome() {
                   className="block p-4 sm:p-5 rounded-xl bg-[#151515] border border-white/10 hover:border-white/25 transition"
                 >
                   {body}
-                  <div className="flex items-center justify-end gap-1 mt-3 text-xs text-white/40">
-                    詳細を見る <ChevronRight size={14} />
+                  <div className="flex items-center justify-between gap-1 mt-3 text-xs text-white/40">
+                    <span>
+                      {order.returnBadge ? (
+                        <span className={order.returnBadge.result === 'approved' ? 'text-green-400' : 'text-red-400'}>
+                          {order.returnBadge.requestType === 'return' ? '返品' : '交換'}・{order.returnBadge.result === 'approved' ? '承認済み' : '不承認'}
+                        </span>
+                      ) : (
+                        '返品・交換は詳細から'
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1">詳細を見る <ChevronRight size={14} /></span>
                   </div>
                 </Link>
               )

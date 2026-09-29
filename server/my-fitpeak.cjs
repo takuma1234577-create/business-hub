@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+const returns = require('./my-fitpeak-returns.cjs');
 
 // Supabase
 function getSupabase() {
@@ -224,6 +225,10 @@ async function buildOrders(email, authUserId, limit) {
   )).filter(Boolean);
 
   const orders = [...byId.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+  try {
+    const badges = await returns.getReturnBadges(orders.map((o) => o.id));
+    orders.forEach((o) => { o.returnBadge = badges[String(o.id)] || null; });
+  } catch { /* 返品の状況が取れなくても注文は出す */ }
   return { orders, amazonOrders: amazon };
 }
 
@@ -305,6 +310,18 @@ router.delete('/order-claims/:channel/:ref', async (req, res) => {
   }
 });
 
+// 本人の注文か（会員のメール、または引き当て済み）
+async function isOwnOrder(req, o, email) {
+  const orderEmail = (o.customer?.email || o.email || '').toLowerCase();
+  const emails = await memberEmails(email);
+  if (emails.includes(orderEmail) || String(email).toLowerCase() === orderEmail) return true;
+  if (req.fitpeakUser) {
+    const claims = await getClaims(req.fitpeakUser.id);
+    return claims.some((c) => c.channel === 'shopify' && String(c.order_ref) === String(o.id));
+  }
+  return false;
+}
+
 // GET /orders/:id - 注文詳細
 router.get('/orders/:id', async (req, res) => {
   try {
@@ -321,15 +338,7 @@ router.get('/orders/:id', async (req, res) => {
     const o = orderResp.data.order;
     if (!o) return res.status(404).json({ error: 'Order not found' });
 
-    // 本人確認: 会員のメール、または引き当て済みの注文であること
-    const orderEmail = (o.customer?.email || o.email || '').toLowerCase();
-    const emails = await memberEmails(email);
-    let allowed = emails.includes(orderEmail) || String(email).toLowerCase() === orderEmail;
-    if (!allowed && req.fitpeakUser) {
-      const claims = await getClaims(req.fitpeakUser.id);
-      allowed = claims.some((c) => c.channel === 'shopify' && String(c.order_ref) === String(o.id));
-    }
-    if (!allowed) return res.status(403).json({ error: 'Unauthorized' });
+    if (!(await isOwnOrder(req, o, email))) return res.status(403).json({ error: 'Unauthorized' });
 
     // フルフィルメント情報
     let fulfillments = [];
@@ -370,10 +379,59 @@ router.get('/orders/:id', async (req, res) => {
         zip: o.shipping_address.zip,
       } : null,
       fulfillments,
+      financialStatus: o.financial_status,
+      returnInfo: await buildReturnInfo(o, fulfillments),
     });
   } catch (err) {
     console.error('GET /api/my-fitpeak/orders/:id error:', err.response?.data || err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// 返品・交換の状況と、申請できるか
+async function buildReturnInfo(o, fulfillments) {
+  try {
+    const [status, deadline] = await Promise.all([returns.getReturnStatus(o.id), returns.returnDeadline(o.name, o.created_at)]);
+    const shipped = (o.fulfillment_status === 'fulfilled') || fulfillments.length > 0;
+    const refunded = ['refunded', 'partially_refunded'].includes(o.financial_status);
+    let blocked = null;
+    if (status.approved) blocked = '申請は承認済みです';
+    else if (refunded) blocked = '返金済みです';
+    else if (!shipped) blocked = '発送前のご注文です。キャンセルはLINEからお問い合わせください';
+    else if (deadline.remaining < 0) blocked = `返品期限（購入から${deadline.maxDays}日）を過ぎています`;
+    else if (status.deniedCount >= 3) blocked = '申請できる回数の上限に達しました。LINEでお問い合わせください';
+    return { ...status, deadline: { maxDays: deadline.maxDays, remaining: deadline.remaining }, allowedReasons: deadline.allowedReasons, canRequest: !blocked, blockedReason: blocked };
+  } catch (e) {
+    console.error('buildReturnInfo error:', e.message);
+    return null;
+  }
+}
+
+// POST /orders/:id/return - 返品・交換の申請（審査は Business-hub の返品・交換審査システムと同じ）
+router.post('/orders/:id/return', express.json({ limit: '30mb' }), async (req, res) => {
+  try {
+    const user = req.fitpeakUser;
+    if (!user) return res.status(401).json({ error: 'ログインが必要です' });
+    const email = req.fitpeakEmail || user.email;
+    const store = await getShopifyStore();
+    if (!store) return res.status(500).json({ error: 'Shopify not connected' });
+
+    const r = await axios.get(`https://${store.shop_domain}/admin/api/${SHOPIFY_API}/orders/${req.params.id}.json`, { headers: shopifyHeaders(store), timeout: 15000 });
+    const o = r.data.order;
+    if (!o) return res.status(404).json({ error: '注文が見つかりません' });
+    if (!(await isOwnOrder(req, o, email))) return res.status(403).json({ error: 'この注文は操作できません' });
+    if (o.fulfillment_status !== 'fulfilled' && !(o.fulfillments || []).length) {
+      return res.status(409).json({ error: '発送前の注文は返品できません' });
+    }
+
+    const { requestType, reason, reasonDetail, shippingAddress, images } = req.body || {};
+    const result = await returns.submitReturn({ user, order: o, requestType, reason, reasonDetail, shippingAddress, images });
+    ordersCache.clear();
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('POST /api/my-fitpeak/orders/:id/return error:', err.response?.data || err.message);
+    res.status(500).json({ error: '申請の処理に失敗しました。時間をおいてお試しください。' });
   }
 });
 
