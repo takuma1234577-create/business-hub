@@ -31,31 +31,40 @@ export default function FitpeakHome() {
   const [amazonSearching, setAmazonSearching] = useState(false)
   const [amazonError, setAmazonError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      if (!user?.email) { setLoading(false); return }
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const email = user?.email
 
+  // 注文（Shopify取得は遅い）とLINE連携の確認を並行して走らせ、画面の骨組みは待たずに出す。
+  // 依存を user オブジェクトではなく email にして、同じ取得が2回走らないようにする。
+  useEffect(() => {
+    if (!email) { setLoading(false); setOrdersLoading(false); return }
+    let cancelled = false
+    setLoading(false)
+
+    ;(async () => {
       try {
-        const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(user.email)}&limit=20`)
-        if (res.ok) {
+        const res = await apiFetch(`/api/my-fitpeak/orders?email=${encodeURIComponent(email)}&limit=20`)
+        if (res.ok && !cancelled) {
           const data = await res.json()
           setOrders((data.orders || []).map((o: Order) => ({ ...o, source: 'shopify' as const })))
         }
       } catch { /* 取得できなくても画面は出す */ }
+      if (!cancelled) setOrdersLoading(false)
+    })()
 
+    ;(async () => {
       try {
         const { data } = await fitpeakSupabase
           .from('line_shopify_links')
           .select('id')
-          .eq('shopify_email', user.email)
+          .eq('shopify_email', email)
           .maybeSingle()
-        setLineLinked(!!data)
+        if (!cancelled) setLineLinked(!!data)
       } catch { /* 同上 */ }
+    })()
 
-      setLoading(false)
-    }
-    load()
-  }, [user])
+    return () => { cancelled = true }
+  }, [email])
 
   const handleAmazonSearch = async () => {
     const id = amazonInput.trim()
@@ -176,7 +185,17 @@ export default function FitpeakHome() {
           </div>
         )}
 
-        {allOrders.length === 0 ? (
+        {ordersLoading && allOrders.length === 0 ? (
+          <div className="space-y-3" aria-busy="true" aria-label="注文を読み込み中">
+            {[0, 1].map((i) => (
+              <div key={i} className="p-5 rounded-xl bg-[#151515] border border-white/10 animate-pulse">
+                <div className="h-3 w-24 rounded bg-white/10" />
+                <div className="h-4 w-2/3 rounded bg-white/10 mt-3" />
+                <div className="h-3 w-1/3 rounded bg-white/5 mt-3" />
+              </div>
+            ))}
+          </div>
+        ) : allOrders.length === 0 ? (
           <div className="rounded-2xl bg-[#151515] border border-white/10 text-center py-14 px-6">
             <Package size={36} className="mx-auto text-white/15 mb-4" />
             <p className="text-white/60 text-sm">ご注文はまだありません</p>

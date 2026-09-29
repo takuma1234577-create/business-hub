@@ -12,8 +12,10 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// Shopify store info
+// Shopify store info（毎回DBを引かないよう5分だけメモリに持つ）
+let storeCache = { data: null, at: 0 };
 async function getShopifyStore() {
+  if (storeCache.data && Date.now() - storeCache.at < 5 * 60 * 1000) return storeCache.data;
   const supabase = getSupabase();
   const { data } = await supabase
     .from('channel_stores')
@@ -22,8 +24,13 @@ async function getShopifyStore() {
     .eq('is_active', true)
     .limit(1)
     .single();
+  if (data) storeCache = { data, at: Date.now() };
   return data;
 }
+
+// 注文一覧の短期キャッシュ（同じ人の再表示・二重リクエストを速くする。60秒）
+const ordersCache = new Map(); // key: email|limit -> { at, promise }
+const ORDERS_TTL_MS = 60 * 1000;
 
 // GET /orders - メールアドレスでShopify注文を取得
 router.get('/orders', async (req, res) => {
@@ -35,18 +42,39 @@ router.get('/orders', async (req, res) => {
     const store = await getShopifyStore();
     if (!store) return res.status(500).json({ error: 'Shopify not connected' });
 
+    // 同じ人の同時リクエストは1本にまとめ、60秒は結果を使い回す
+    const key = `${String(email).toLowerCase()}|${limit}`;
+    const hit = ordersCache.get(key);
+    if (hit && Date.now() - hit.at < ORDERS_TTL_MS) {
+      return res.json(await hit.promise);
+    }
+    const promise = fetchOrders(store, email, limit);
+    ordersCache.set(key, { at: Date.now(), promise });
+    promise.catch(() => ordersCache.delete(key));
+    if (ordersCache.size > 500) {
+      for (const [k, v] of ordersCache) if (Date.now() - v.at > ORDERS_TTL_MS) ordersCache.delete(k);
+    }
+    return res.json(await promise);
+  } catch (err) {
+    console.error('GET /api/my-fitpeak/orders error:', err.response?.data || err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function fetchOrders(store, email, limit) {
+  {
     // 顧客を検索
     const custResp = await axios.get(
       `https://${store.shop_domain}/admin/api/2024-01/customers/search.json?query=email:${encodeURIComponent(email)}`,
-      { headers: { 'X-Shopify-Access-Token': store.access_token } }
+      { headers: { 'X-Shopify-Access-Token': store.access_token }, timeout: 15000 }
     );
     const customers = custResp.data.customers || [];
-    if (customers.length === 0) return res.json({ orders: [] });
+    if (customers.length === 0) return { orders: [] };
 
     const customerId = customers[0].id;
     const orderResp = await axios.get(
       `https://${store.shop_domain}/admin/api/2024-01/customers/${customerId}/orders.json?status=any&limit=${limit}`,
-      { headers: { 'X-Shopify-Access-Token': store.access_token } }
+      { headers: { 'X-Shopify-Access-Token': store.access_token }, timeout: 15000 }
     );
 
     const orders = (orderResp.data.orders || []).map((o) => {
@@ -70,12 +98,9 @@ router.get('/orders', async (req, res) => {
       };
     });
 
-    res.json({ orders });
-  } catch (err) {
-    console.error('GET /api/my-fitpeak/orders error:', err.response?.data || err.message);
-    res.status(500).json({ error: err.message });
+    return { orders };
   }
-});
+}
 
 // GET /orders/:id - 注文詳細
 router.get('/orders/:id', async (req, res) => {
