@@ -1,17 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { Package, UserRound, Bell, Crown } from 'lucide-react'
+import { Package, UserRound, Bell, Crown, ChevronDown } from 'lucide-react'
 
-// 公式サイト（fitpeak.co）と同じメニュー。My FITPEAK は公式サイトの一部として見せる
-const SITE = 'https://fitpeak.co'
-const SITE_LINKS = [
-  { label: '商品', href: `${SITE}/collections/fitpeak筋トレギア一覧` },
-  { label: 'ツール', href: `${SITE}/pages/tools` },
-  { label: '最安ナビ', href: `${SITE}/pages/compare` },
-  { label: 'メディア', href: `${SITE}/pages/fitpeak-media` },
-]
+import { SITE, SITE_NAV } from './lib/siteNav'
 
 export default function FitpeakLayout() {
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
   useEffect(() => {
     const previousTitle = document.title
     document.title = 'My FITPEAK'
@@ -36,12 +30,41 @@ export default function FitpeakLayout() {
               <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-6" />
               <span className="text-xs text-white/30">マイページ</span>
             </a>
-            <nav className="flex items-center gap-1 sm:gap-3" aria-label="公式サイト">
-              {SITE_LINKS.map((l) => (
-                <a key={l.label} href={l.href} className="px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs text-white/50 hover:text-white whitespace-nowrap">
-                  {l.label}
-                </a>
-              ))}
+            <nav className="flex items-center gap-0.5 sm:gap-2" aria-label="公式サイト">
+              {SITE_NAV.map((g) =>
+                g.items ? (
+                  <div key={g.label} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenu(openMenu === g.label ? null : g.label)}
+                      className="flex items-center gap-0.5 px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs text-white/60 hover:text-white whitespace-nowrap"
+                      aria-expanded={openMenu === g.label}
+                    >
+                      {g.label}
+                      <ChevronDown size={11} />
+                    </button>
+                    {openMenu === g.label && (
+                      <div className="absolute right-0 top-full mt-1 z-30 min-w-[11rem] rounded-xl border border-white/10 bg-[#151515] py-1.5 shadow-xl">
+                        {g.items.map((it) =>
+                          it.soon || !it.href ? (
+                            <span key={it.name} className="flex items-center justify-between gap-3 px-4 py-2 text-xs text-white/30">
+                              {it.name}<span className="text-[10px]">準備中</span>
+                            </span>
+                          ) : (
+                            <a key={it.name} href={it.href} className="block px-4 py-2 text-xs text-white/70 hover:text-white hover:bg-white/5">
+                              {it.name}
+                            </a>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <a key={g.label} href={g.href} className="px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs text-white/60 hover:text-white whitespace-nowrap">
+                    {g.label}
+                  </a>
+                )
+              )}
             </nav>
           </div>
           <nav className="flex gap-1 -mb-px">
