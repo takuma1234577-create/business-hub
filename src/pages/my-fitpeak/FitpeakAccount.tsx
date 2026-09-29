@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MessageCircle, CheckCircle, ExternalLink, User, LogOut } from 'lucide-react'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
-import { displayName } from './lib/api'
+import { displayName, isLineAccount } from './lib/api'
 
 interface LinkInfo {
   id: string
@@ -16,7 +16,17 @@ interface LinkInfo {
 export default function FitpeakAccount() {
   const { user, signOut } = useFitpeakAuth()
   const navigate = useNavigate()
-  const [linkInfo, setLinkInfo] = useState<LinkInfo | null>(null)
+  const [linkRow, setLinkRow] = useState<LinkInfo | null>(null)
+  // LINEログインで入った人は、LINE連携済みとして扱う（連携テーブルに行が無くても）
+  const linkInfo: LinkInfo | null = linkRow ?? (isLineAccount(user)
+    ? {
+        id: 'line-login',
+        line_user_id: String(user?.user_metadata?.line_user_id || ''),
+        shopify_customer_name: '',
+        linked_at: user?.created_at || new Date().toISOString(),
+        friends: { display_name: String(user?.user_metadata?.display_name || 'LINEユーザー'), picture_url: null },
+      }
+    : null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,7 +38,7 @@ export default function FitpeakAccount() {
           .select('id, line_user_id, shopify_customer_name, linked_at, friends(display_name, picture_url)')
           .eq('shopify_email', user.email)
           .maybeSingle()
-        setLinkInfo(data as LinkInfo | null)
+        setLinkRow(data as LinkInfo | null)
       } catch { /* 取得できなくても画面は出す */ }
       setLoading(false)
     }
