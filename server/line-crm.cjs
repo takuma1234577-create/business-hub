@@ -3958,6 +3958,9 @@ async function processWebhookEvents(channelId, events) {
           }
         } catch (e) { console.error('[follow] click confirm error:', e.message); }
 
+        // 公式サイト経由の友だちは、My FITPEAKの会員を用意して登録特典クーポンを自動登録する
+        try { await require('./line-welcome-coupon.cjs').onSiteFollow({ lineUserId, displayName, trafficSourceId }); } catch (e) { console.error('[follow] welcome coupon error:', e.message); }
+
         // 経路別タグを付与（付与のみ・タグ連動配信は発火させない）
         if (trafficSourceId && sourceTagIds.length > 0) {
           try {

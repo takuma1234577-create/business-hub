@@ -407,6 +407,8 @@ router.post('/line-link', async (req, res) => {
       await supabase.from('line_shopify_links').insert(linkData);
     }
 
+    await require('./line-welcome-coupon.cjs').mergeLineMemberIntoEmailMember({ lineUserId, email: email.trim() });
+
     const name = shopifyCustomerName || friend.display_name || '';
     res.json({
       success: true,
@@ -502,6 +504,38 @@ router.post('/amazon-order', async (req, res) => {
     const status = err.response?.status;
     if (status === 404 || status === 400) return res.status(404).json({ error: '注文が見つかりません。注文番号を再度ご確認ください。' });
     return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// GET /coupons - 自分のクーポン（未使用・期限内）
+router.get('/coupons', async (req, res) => {
+  try {
+    if (!req.fitpeakUser) return res.status(401).json({ error: 'ログインが必要です' });
+    const supabase = getSupabase();
+    const member = await resolveMember(supabase, req);
+    if (!member) return res.json({ coupons: [] });
+    const { data } = await supabase
+      .from('coupons')
+      .select('code, coupon_code, discount_type, discount_value, discount_amount, expires_at, source, used_at, is_active, status')
+      .eq('member_id', member.id)
+      .is('used_at', null)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const now = Date.now();
+    const coupons = (data || [])
+      .filter((c) => c.is_active !== false && (!c.status || !['used', 'expired', 'inactive'].includes(c.status)) && (!c.expires_at || new Date(c.expires_at).getTime() > now))
+      .map((c) => ({
+        code: c.coupon_code || c.code,
+        label: c.discount_type === 'percentage' || c.discount_type === 'percent' ? `${Number(c.discount_value)}%OFF` : `${Number(c.discount_amount || c.discount_value).toLocaleString('ja-JP')}円OFF`,
+        expiresAt: c.expires_at,
+        source: c.source,
+        note: c.source === 'line_signup' ? '3,000円以上のご注文で使えます（1人1回・定期購入は対象外）' : '',
+      }));
+    res.json({ coupons });
+  } catch (err) {
+    console.error('GET /api/my-fitpeak/coupons error:', err.message);
+    res.status(500).json({ error: 'クーポンを取得できませんでした' });
   }
 });
 

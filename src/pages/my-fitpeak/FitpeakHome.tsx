@@ -4,6 +4,7 @@ import { Package, ChevronRight, Truck, Search, Plus, X, MessageCircle, CheckCirc
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
 import { apiFetch, displayName, isLineAccount } from './lib/api'
+import FitpeakCoupons from './FitpeakCoupons'
 
 interface Order {
   id: number | string
@@ -147,6 +148,9 @@ export default function FitpeakHome() {
           )}
         </div>
       </section>
+
+      {/* クーポン（公式LINE登録で自動登録） */}
+      <FitpeakCoupons />
 
       {/* 注文 */}
       <section>
