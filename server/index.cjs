@@ -19,6 +19,30 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// ===== 会員向けドメイン（my.fitpeak.co）と管理ダッシュボードの分離 =====
+// my.fitpeak.co では、会員向けAPIと外部サービスの戻り先（公開）だけを返す。
+// 管理用API（認証が必要なもの）は管理用ドメイン（hub.fitpeak.co など）でのみ動く。
+// Vercel Cron（x-vercel-cron）や内部呼び出しには影響しない。
+const MEMBER_HOST = 'my.fitpeak.co';
+const MEMBER_HOST_API_ALLOW = [
+  '/api/my-fitpeak',
+  '/api/public/',
+  // 外部サービスからの戻り・公開フォーム（authMiddleware の公開パスと同じもの）
+  '/api/line-crm/webhook', '/api/line-crm/track/', '/api/line-crm/go/', '/api/line-crm/line-login/',
+  '/api/line-crm/liff/', '/api/line-crm/public/', '/api/line-crm/heatmap/hm.js', '/api/line-crm/heatmap/collect',
+  '/api/shopify-line/webhook', '/api/return-review/submit',
+  '/api/ebay-notifications', '/api/ebay-oauth',
+  '/api/invoice/auth', '/api/settings/google/', '/api/settings/shopify/', '/api/settings/tiktok/',
+  '/api/hp-outreach/lp/',
+];
+app.use((req, res, next) => {
+  if (req.hostname !== MEMBER_HOST) return next();
+  if (!req.path.startsWith('/api/')) return next();
+  if (req.headers['x-vercel-cron']) return next();
+  if (MEMBER_HOST_API_ALLOW.some((p) => req.path.startsWith(p))) return next();
+  return res.status(404).json({ error: 'not found' });
+});
+
 // Auth
 const authRoutes = require(path.join(__dirname, 'auth.cjs'));
 const { authMiddleware } = require(path.join(__dirname, 'auth.cjs'));

@@ -38,7 +38,29 @@ window.fetch = function (input, init) {
   return originalFetch.call(this, input, init)
 }
 
+// 会員向けドメインと管理ダッシュボードの分離
+//  my.fitpeak.co  : My FITPEAK と公開フォームだけ。管理画面は出さない
+//  hub.fitpeak.co : 管理ダッシュボード。My FITPEAK は my.fitpeak.co へ送る
+const MEMBER_HOST = 'my.fitpeak.co'
+const ADMIN_HOST = 'hub.fitpeak.co'
+const MEMBER_PATHS = ['/my-fitpeak', '/review-form', '/gift-address', '/inventory-partner']
+const isMemberPath = (p: string) => MEMBER_PATHS.some((m) => p === m || p.startsWith(m + '/'))
+
 function App() {
+  const host = window.location.hostname
+  const pathNow = window.location.pathname
+  if (host === MEMBER_HOST && !isMemberPath(pathNow)) {
+    window.location.replace('/my-fitpeak')
+    return null
+  }
+  if (host === ADMIN_HOST && pathNow.startsWith('/my-fitpeak')) {
+    window.location.replace(`https://${MEMBER_HOST}${pathNow}${window.location.search}${window.location.hash}`)
+    return null
+  }
+  return <AppInner />
+}
+
+function AppInner() {
   const [auth, setAuth] = useState<'loading' | 'ok' | 'login'>('loading')
   const isPublicForm = window.location.pathname === '/review-form'
   const isGiftForm = window.location.pathname === '/gift-address'
