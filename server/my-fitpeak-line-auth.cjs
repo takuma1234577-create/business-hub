@@ -31,6 +31,8 @@ const router = express.Router();
 const LINE_VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
 const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token';
 const LINE_AUTHORIZE_URL = 'https://access.line.me/oauth2/v2.1/authorize';
+// 友だち追加用LIFF（public/liff/add.html）。My FITPEAKのLINEログインにも ?mode=myfp で使う
+const LIFF_ID = (process.env.MY_FITPEAK_LIFF_ID || '2006537445-rcvSBpCP').trim();
 
 function myFitpeakBase() {
   return (process.env.MY_FITPEAK_BASE_URL || 'https://my.fitpeak.co').replace(/\/$/, '');
@@ -228,6 +230,17 @@ router.get('/auth/line/start', async (req, res) => {
     if (!login.configured) return res.status(500).send('LINEログインチャネルが未設定です');
 
     const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : '/my-fitpeak';
+
+    // スマホでは、LINEのWeb画面（メール・パスワード入力）ではなくLINEアプリを直接開く。
+    // LIFFのURLはユニバーサルリンクなので、LINEが入っていればアプリが起動する。
+    // 失敗時は LIFF 側（public/liff/add.html）が ?web=1 付きでここへ戻す。
+    const ua = String(req.headers['user-agent'] || '');
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+    if (isMobile && req.query.web !== '1' && LIFF_ID) {
+      const safe = redirect.startsWith('/') ? redirect : '/my-fitpeak';
+      return res.redirect(`https://liff.line.me/${LIFF_ID}?${new URLSearchParams({ mode: 'myfp', redirect: safe })}`);
+    }
+
     const state = Buffer.from(JSON.stringify({
       n: crypto.randomBytes(8).toString('hex'),
       r: redirect.startsWith('/') ? redirect : '/my-fitpeak',

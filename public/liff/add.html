@@ -51,6 +51,29 @@
     try { location.replace(url); } catch (e) { location.href = url; }
     setTimeout(function(){ if (document.visibilityState === 'visible') show('manual'); }, 1800);
   }
+  // ── My FITPEAK のLINEログイン（?mode=myfp）──────────────────────────────
+  // スマホのブラウザで「LINEでログイン」を押したとき、LINEのWeb画面ではなくLINEアプリを直接開く。
+  // https://liff.line.me/<LIFF_ID>?mode=myfp&redirect=/my-fitpeak が入口。
+  // アプリで認証 → /api/my-fitpeak/auth/line でセッション用トークンを受け取り → my.fitpeak.co へ戻す。
+  // 失敗したときは従来のWebログイン（/auth/line/start?web=1）へ切り替える。
+  var MYFP_BASE = 'https://my.fitpeak.co';
+  var isMyFp = qp('mode') === 'myfp';
+  var myfpRedirect = qp('redirect'); if (!myfpRedirect || myfpRedirect.charAt(0) !== '/') myfpRedirect = '/my-fitpeak';
+  function myfpWebFallback(){ location.replace(MYFP_BASE + '/api/my-fitpeak/auth/line/start?web=1&redirect=' + encodeURIComponent(myfpRedirect)); }
+  if (isMyFp) {
+    if (!window.liff) { myfpWebFallback(); return; }
+    setTimeout(myfpWebFallback, 12000);
+    liff.init({ liffId: LIFF_ID }).then(function(){
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+      var body = { accessToken: liff.getAccessToken() };
+      try { var it = liff.getIDToken(); if (it) body.idToken = it; } catch (e) {}
+      return fetch(location.origin + '/api/my-fitpeak/auth/line', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+        .then(function(r){ return r.json().then(function(d){ if (!r.ok || !d.tokenHash) throw new Error(d.error || 'login failed'); return d; }); })
+        .then(function(d){ location.replace(MYFP_BASE + '/my-fitpeak/login#' + new URLSearchParams({ lt: d.tokenHash, next: myfpRedirect }).toString()); });
+    }).catch(function(e){ console.error(e); myfpWebFallback(); });
+    return;
+  }
+
   if (!window.liff) { show('manual'); return; }
   var watchdog = setTimeout(function(){ show('manual'); }, 7000);
   liff.init({ liffId: LIFF_ID }).then(function(){
