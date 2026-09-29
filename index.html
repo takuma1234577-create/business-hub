@@ -7,7 +7,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>業務ツール</title>
+    <title>My FITPEAK｜FITPEAK公式 会員ページ</title>
+    <meta name="description" content="FITPEAK公式サイトの会員ページ。ご注文の確認、保証登録、通知の設定、ポイントとクーポンの確認ができます。LINEでかんたんにログインできます。" />
+    <meta property="og:site_name" content="FITPEAK" />
+    <meta property="og:title" content="My FITPEAK｜FITPEAK公式 会員ページ" />
+    <meta property="og:locale" content="ja_JP" />
+    <script>
+      // このアプリは社内の業務ツールと同じ作りのため、会員向けドメイン以外では従来のタイトルにする
+      if (location.hostname !== 'my.fitpeak.co') document.title = '業務ツール'
+    </script>
   </head>
   <body>
     <div id="root"></div>
