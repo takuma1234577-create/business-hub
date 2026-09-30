@@ -1,0 +1,53 @@
+{
+ "_note": "価格DB(pc_offers)のitem_idと、動画用の表示情報・指標の算出根拠。protein_pct等はメーカー公表値(要定期確認)。",
+ "categories": {
+  "soy": {
+   "category": "ソイプロテイン", "rank_title": "ソイプロテイン最安ランキング",
+   "metric_label": "タンパク質20gあたり", "basis": "protein20",
+   "items": [
+    {"id": "morinaga-oishii-daizu-900g", "name": "森永 おいしい大豆プロテイン", "size_g": 900, "protein_pct": 50, "brand": "森永製菓", "img": "morinaga_daizu_1kg_coffee"},
+    {"id": "myprotein-soy-isolate-1kg", "name": "マイプロテイン ソイ アイソレート", "size_g": 1000, "protein_pct": 90, "brand": "マイプロテイン\nソイ", "img": "myprotein_impact_soy_isolate"},
+    {"id": "nichiga-soy-domestic-1kg", "name": "NICHIGA 大豆プロテイン（国内製造）", "size_g": 1000, "protein_pct": 84.1, "brand": "NICHIGA", "img": "nichiga_soy_1kg"},
+    {"id": "grong-simple-soy-1kg", "name": "グロング シンプルソイ", "size_g": 1000, "protein_pct": 80, "brand": "グロング", "img": "gronG_simple_soy_1kg_kinako"},
+    {"id": "grong-simple-soy-3kg", "name": "グロング シンプルソイ", "size_g": 3000, "protein_pct": 80, "brand": "グロング", "img": "gronG_simple_soy_1kg_kinako"},
+    {"id": "nichie-soy-1kg", "name": "nichie ソイプロテイン", "size_g": 1000, "protein_pct": 90, "brand": "nichie", "img": "nichie_soy_protein"},
+    {"id": "nichie-soy-3kg", "name": "nichie ソイプロテイン", "size_g": 3000, "protein_pct": 90, "brand": "nichie", "img": "nichie_soy_protein"}
+   ],
+   "collage_extra": ["savas_soy100_920g_cocoa", "reys_soy_protein_1kg_choco", "verifyst_soy_3kg_choco", "belegend_soy_900g_banana", "savas_soy100_2000g_cocoa", "nuto_soy_1kg_cocoa", "jaks_soy100_1kg_choco"]
+  },
+  "creatine": {
+   "category": "クレアチン", "rank_title": "クレアチン最安ランキング",
+   "metric_label": "1回5gあたり", "basis": "dose", "dose_g": 5,
+   "items": [
+    {"id": "reys-creatine-1kg", "name": "REYS クレアチン", "size_g": 1000, "brand": "REYS", "img": "reys_creatine_1kg"},
+    {"id": "ogarmade-creatine-1kg", "name": "OgarMade クレアチン", "size_g": 1000, "brand": "OgarMade", "img": "ogarmade_creatine_1kg"},
+    {"id": "zapro-creatine-1kg", "name": "ザプロ クレアチン", "size_g": 1000, "brand": "THE PROTEIN", "img": "theprotein_creatine_1kg"},
+    {"id": "belegend-creatine-1kg", "name": "ビーレジェンド クレアチン", "size_g": 1000, "brand": "ビーレジェンド", "img": "belegend_creatine_1kg"},
+    {"id": "naturein-creatine-1kg", "name": "Nature In クレアチン", "size_g": 1000, "brand": "Nature In", "img": "naturein_creatine_1kg"},
+    {"id": "grong-creatine-1kg", "name": "グロング クレアチン", "size_g": 1000, "brand": "グロング", "img": "gronG_creatine_1kg"},
+    {"id": "myprotein-creatine-1kg", "name": "マイプロテイン クレアチン", "size_g": 1000, "brand": "マイプロテイン", "img": "myprotein_impact_creatine"},
+    {"id": "dns-creatine-200g", "name": "DNS クレアチン", "size_g": 200, "brand": "DNS", "img": "dns_creatine"},
+    {"id": "valx-creatine-daily-500g", "name": "バルクス クレアチン デイリー", "size_g": 500, "brand": "VALX", "img": "valx_creatine_daily_500g"},
+    {"id": "on-creatine-600g-jp", "name": "ON クレアチン", "size_g": 600, "brand": "ON", "img": "on_micronized_creatine_600g"}
+   ],
+   "collage_extra": ["crevolt_creatine_1kg", "innocect_creatine_1kg", "hulxfactor_creatine_610g"]
+  },
+  "eaabcaa": {
+   "category": "EAA・BCAA", "rank_title": "EAA・BCAA最安ランキング",
+   "metric_label": "1回20gあたり", "basis": "dose", "dose_g": 20,
+   "items": [
+    {"id": "nichiga-bcaa-211-500g", "name": "NICHIGA BCAA 2:1:1", "size_g": 500, "brand": "NICHIGA\nBCAA", "img": "nichiga_bcaa_500g_plain"},
+    {"id": "nichiga-eaa-600g", "name": "NICHIGA EAA", "size_g": 600, "brand": "NICHIGA\nEAA", "img": "nichiga_eaa_600g_nonflavor"},
+    {"id": "myprotein-impact-eaa-1kg", "name": "マイプロテイン Impact EAA", "size_g": 1000, "brand": "マイプロテイン", "img": "myprotein_impact_eaa"},
+    {"id": "xplosion-bcaa-1kg", "name": "X-PLOSION BCAA", "size_g": 1000, "brand": "X-PLOSION\nBCAA", "img": "xplosion_bcaa_citrulline_arginine_1kg_cola"},
+    {"id": "grong-bcaa-1kg", "name": "グロング BCAA", "size_g": 1000, "brand": "グロング\nBCAA", "img": "gronG_bcaa_1kg_noflavor"},
+    {"id": "dns-bcaa-200g", "name": "DNS BCAA 200g グレープフルーツ", "size_g": 200, "brand": "DNS\nBCAA", "img": "dns_bcaa_200g_grapefruit"},
+    {"id": "reys-eaa-600g", "name": "REYS EAA", "size_g": 600, "brand": "REYS\nEAA", "img": "reys_eaa_lemon_lime_600g"},
+    {"id": "ogarmade-eaa-500g-pineapple", "name": "OgarMade EAA", "size_g": 500, "brand": "OgarMade\nEAA", "img": "ogarmade_eaa_500g_pineapple"}
+   ],
+   "collage_extra": ["theprotein_perfect_eaa_675g_bloodorange", "ambique_allinone_eaa_620g_grape", "innocect_eaa_600g_mikan", "theprotein_eaa_1kg_pineapple", "theprotein_eaa_betaalanine_600g_energy", "tarza_bcaa_500g_pineapple"]
+  }
+ },
+ "channel_map": {"rakuten": "楽天市場", "amazon": "Amazon", "official": "公式サイト"},
+ "rotation": ["soy", "creatine", "eaabcaa"]
+}

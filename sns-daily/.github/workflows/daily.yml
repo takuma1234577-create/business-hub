@@ -1,0 +1,35 @@
+name: daily-short
+on:
+  schedule:
+    - cron: "30 10 * * *"   # 毎日 19:30 JST（GitHub側の遅延あり）
+  workflow_dispatch:
+concurrency: daily-short
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - name: 生成と投稿
+        env:
+          SUPABASE_URL: https://fajqnrqfjugonbssssts.supabase.co
+          SUPABASE_KEY: sb_publishable_Yzy7ryBHN4YTKCGqJkio6A_wYv2cq-n
+          PUBLISH: ${{ vars.PUBLISH }}          # true にした時だけ実投稿（既定はドライラン）
+          DRY_RUN: "false"
+          UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+          UPLOAD_POST_USER: ${{ secrets.UPLOAD_POST_USER }}
+        run: python daily.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: out, path: out/, retention-days: 7 }
+      - name: 投稿記録を保存
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add state/posted.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "posted log" && git push)
