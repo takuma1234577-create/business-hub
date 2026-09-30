@@ -822,6 +822,19 @@ router.post('/api-keys/:id/test', async (req, res) => {
       const data = await resp.json();
       const modelCount = data.models?.length || 0;
       res.json({ success: true, message: `接続成功 (${modelCount} models available)` });
+    } else if (id === 'upload_post_api_key') {
+      // Upload-Post: プロフィールと接続済みSNSアカウントを数えて返す
+      const uploadPost = require('./upload-post.cjs');
+      const profiles = await uploadPost.listProfiles();
+      const { user } = await uploadPost.getConfig();
+      const target = profiles.find(p => p.username === user);
+      const connected = Object.entries(target?.social_accounts || {}).filter(([, v]) => v).map(([k]) => k);
+      const detail = !user
+        ? 'プロフィール名（UPLOAD_POST_USER）が未設定です'
+        : target
+          ? `プロフィール「${user}」の接続済みSNS: ${connected.length ? connected.join(', ') : 'なし'}`
+          : `プロフィール「${user}」が見つかりません（Upload-Post側で作成してください）`;
+      res.json({ success: true, message: `接続成功 (${profiles.length}プロフィール) — ${detail}` });
     } else {
       res.json({ success: true, message: 'キーが設定されています' });
     }

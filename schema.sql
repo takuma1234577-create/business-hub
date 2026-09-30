@@ -1626,17 +1626,32 @@ create index if not exists idx_sap_sent_at on sales_agent_proposals(sent_at);
 create table if not exists sns_post_queue (
   id            uuid primary key default gen_random_uuid(),
   video_id      uuid not null references sns_videos(id) on delete cascade,
-  platform      text not null,
+  platform      text not null,                  -- 'tiktok' | 'instagram' | 'youtube'
   caption       text not null default '',
   hashtags      jsonb not null default '[]'::jsonb,
   scheduled_for timestamptz,
-  status        text not null default 'queued',
+  status        text not null default 'queued',  -- 'queued' | 'publishing' | 'posted' | 'skipped' | 'failed'
   post_url      text,
   error         text,
   created_at    timestamptz default now(),
-  posted_at     timestamptz
+  posted_at     timestamptz,
+  -- Upload-Postの追跡ID（非同期投稿=request_id / 予約投稿=job_id）と生レスポンス
+  upload_post_request_id text,
+  upload_post_job_id     text,
+  platform_result        jsonb
 );
 alter table sns_post_queue enable row level security;
 create policy "service_role_all" on sns_post_queue using (true);
 create index if not exists idx_spq_status on sns_post_queue(status);
 create index if not exists idx_spq_video on sns_post_queue(video_id);
+create index if not exists idx_spq_due on sns_post_queue(scheduled_for) where status = 'queued';
+create index if not exists idx_spq_request on sns_post_queue(upload_post_request_id);
+
+-- 自動投稿のON/OFF（既定OFF。公開アカウントへの投稿は取り消せないため明示的に有効化する）
+create table if not exists sns_post_settings (
+  id           text primary key default 'default',
+  auto_publish boolean not null default false,
+  updated_at   timestamptz default now()
+);
+alter table sns_post_settings enable row level security;
+create policy "service_role_all" on sns_post_settings using (true);

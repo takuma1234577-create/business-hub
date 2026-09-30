@@ -234,6 +234,9 @@ app.get('/api/daily-cron', async (req, res) => {
     subscription:        '/api/subscription/cron',
     // LINE Login→友だち追加のMeta CAPI未送信分を再送
     capiRetry:           '/api/line-crm/line-login/capi/retry',
+    // SNS自動投稿: 予定時刻を過ぎた投稿キューをUpload-Post経由で投稿し、処理中の投稿を確定
+    // （sns_post_settings.auto_publish が false の間は投稿せず、状況確定だけ行う）
+    snsPublish:          '/api/fitpeak-sns/cron/publish',
     dailyBackup:         '/api/backup/run',
   };
 

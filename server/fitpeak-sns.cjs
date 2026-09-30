@@ -13,6 +13,19 @@
  *   POST   /api/fitpeak-sns/videos/render   動画レンダリング開始
  *   GET    /api/fitpeak-sns/videos/:id/poll 動画ステータス確認
  *   GET    /api/fitpeak-sns/config          商品マスタ等の設定取得
+ *
+ * SNS投稿（Upload-Post経由でTikTok/Instagram/YouTube Shortsへ）:
+ *   POST   /api/fitpeak-sns/videos/:id/queue       完成動画を投稿キューに追加
+ *   GET    /api/fitpeak-sns/post-queue            投稿キュー一覧
+ *   PUT    /api/fitpeak-sns/post-queue/:id        投稿文・予定時刻の編集
+ *   POST   /api/fitpeak-sns/post-queue/:id/publish      投稿（未設定時は投稿アシスト）
+ *   GET    /api/fitpeak-sns/post-queue/:id/poll         投稿状況の確認
+ *   POST   /api/fitpeak-sns/post-queue/:id/mark-posted  手動投稿後に投稿済みへ
+ *   POST   /api/fitpeak-sns/post-queue/:id/skip         見送り
+ *   GET    /api/fitpeak-sns/post-settings         自動投稿の設定取得
+ *   PUT    /api/fitpeak-sns/post-settings         自動投稿のON/OFF
+ *   GET    /api/fitpeak-sns/upload-post/status    Upload-Postの接続状況
+ *   GET    /api/fitpeak-sns/cron/publish          cron: 予定時刻の自動投稿と状況確定
  */
 
 const express = require('express');
@@ -466,22 +479,32 @@ router.delete('/videos/:id', async (req, res) => {
 });
 
 // ===========================================================================
-// SNS投稿キュー（キュー + ワンタップ投稿）
-//   完成動画をAIで投稿文最適化 → キュー化 → 人がワンタップ投稿。
-//   TikTok/Instagram公式APIが接続済みなら自動投稿、未接続なら投稿アシスト
-//   （投稿文コピー + 動画DL + 「投稿済み」ワンタップ）にフォールバック。
+// SNS投稿キュー（キュー + 自動投稿 / ワンタップ投稿）
+//   完成動画をAIで投稿文最適化 → キュー化 → Upload-Post経由でTikTok・Instagram・
+//   YouTube Shortsへ投稿する。Upload-Postが未設定のときは投稿アシスト
+//   （投稿文コピー + 動画DL + 「投稿済み」ワンタップ）にフォールバックする。
+//
+//   status: 'queued'（投稿待ち）→ 'publishing'（Upload-Post側で処理中）
+//           → 'posted'（投稿完了）/ 'failed'（失敗）/ 'skipped'（見送り）
 // ===========================================================================
 
-const PLATFORM_LABEL = { tiktok: 'TikTok', instagram: 'Instagram' };
+const uploadPost = require('./upload-post.cjs');
+
+const PLATFORM_LABEL = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube Shorts' };
+const DEFAULT_PLATFORMS = ['tiktok', 'instagram', 'youtube'];
+// 1回のcronで投稿する件数の上限（10分間隔で回るため、まとめて投稿しすぎないようにする）
+const PUBLISH_PER_RUN = 5;
 
 // プラットフォーム別の投稿文をAIで最適化
 async function optimizeCaption(video, platform) {
   const { getAnthropicClient } = require('./shared.cjs');
   const productName = (PRODUCTS[video.product] || {}).name || video.product || 'FITPEAK商品';
   const baseCaption = video.caption || '';
-  const guide = platform === 'tiktok'
-    ? 'TikTok向け: 最初の1行で強いフック。短く勢いのある口語。トレンド感。ハッシュタグは8〜12個（日本語＋一部英語、#筋トレ #宅トレ #ジム など）。最適投稿時間帯は平日19:00〜22:00。'
-    : 'Instagram Reels向け: 共感→価値→CTAの流れ。改行を使い読みやすく。絵文字は使わない。ハッシュタグは15〜25個をまとめて末尾に。最適投稿時間帯は平日20:00〜21:00、週末11:00。';
+  const guide = {
+    tiktok: 'TikTok向け: 最初の1行で強いフック。短く勢いのある口語。トレンド感。ハッシュタグは8〜12個（日本語＋一部英語、#筋トレ #宅トレ #ジム など）。最適投稿時間帯は平日19:00〜22:00。',
+    instagram: 'Instagram Reels向け: 共感→価値→CTAの流れ。改行を使い読みやすく。絵文字は使わない。ハッシュタグは15〜25個をまとめて末尾に。最適投稿時間帯は平日20:00〜21:00、週末11:00。',
+    youtube: 'YouTube Shorts向け: 本文の1行目がそのまま動画タイトルになるため、1行目は40文字以内で検索されやすい言葉を入れる。2行目以降は説明欄向けに要点を3行程度。ハッシュタグは3〜5個で #Shorts を必ず含める。最適投稿時間帯は平日20:00〜22:00。',
+  }[platform] || '';
 
   const prompt = `あなたはFITPEAK（筋トレギアD2Cブランド）のSNS運用責任者です。
 以下の動画について、${PLATFORM_LABEL[platform]}に最適化した投稿文を作成してください。
@@ -537,7 +560,7 @@ router.post('/videos/:id/queue', async (req, res) => {
     const sb = getSupabase();
     const platforms = Array.isArray(req.body?.platforms) && req.body.platforms.length
       ? req.body.platforms
-      : ['tiktok', 'instagram'];
+      : DEFAULT_PLATFORMS;
 
     const { data: video } = await sb.from('sns_videos').select('*').eq('id', req.params.id).single();
     if (!video) return res.status(404).json({ error: '動画が見つかりません' });
@@ -594,6 +617,9 @@ router.put('/post-queue/:id', async (req, res) => {
     const allowed = ['caption', 'hashtags', 'scheduled_for', 'platform'];
     const patch = {};
     for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
+    if (patch.platform && !PLATFORM_LABEL[patch.platform]) {
+      return res.status(400).json({ error: `未対応のプラットフォームです: ${patch.platform}` });
+    }
     const { data, error } = await sb.from('sns_post_queue')
       .update(patch).eq('id', req.params.id).select().single();
     if (error) throw error;
@@ -603,53 +629,180 @@ router.put('/post-queue/:id', async (req, res) => {
   }
 });
 
-// TikTok/Instagram公式APIで投稿（接続済みなら）。未接続ならmanualモードを返す。
-async function publishToPlatform(item, video) {
-  const sb = getSupabase();
-  // channel_stores に該当プラットフォームの有効な認証情報があるか
-  const { data: store } = await sb.from('channel_stores')
-    .select('channel, access_token, metadata')
-    .eq('channel', item.platform.toUpperCase())
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
+// ── 自動投稿の設定（既定OFF）──
+// OFFの間はcronから投稿せず、人のワンタップ投稿だけが動く。
+// 公開アカウントへの投稿は取り消せないため、明示的にONにするまでは自動で出さない。
+async function getPostSettings() {
+  try {
+    const sb = getSupabase();
+    const { data } = await sb.from('sns_post_settings').select('*').eq('id', 'default').maybeSingle();
+    return { auto_publish: !!data?.auto_publish };
+  } catch {
+    return { auto_publish: false };
+  }
+}
 
-  if (!store || !store.access_token) {
-    // API未接続 → 投稿アシスト（手動）モード
-    return {
-      mode: 'manual',
-      video_url: video.video_url,
-      caption: `${item.caption}\n\n${(item.hashtags || []).join(' ')}`.trim(),
-    };
+router.get('/post-settings', async (_req, res) => {
+  try {
+    const settings = await getPostSettings();
+    res.json({ ...settings, upload_post_configured: await uploadPost.isConfigured() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/post-settings', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.from('sns_post_settings').upsert({
+      id: 'default',
+      auto_publish: !!req.body?.auto_publish,
+      updated_at: new Date().toISOString(),
+    }).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload-Postの接続状況（APIキー・プロフィール・接続済みSNSアカウント）
+router.get('/upload-post/status', async (_req, res) => {
+  try {
+    const cfg = await uploadPost.getConfig();
+    if (!cfg.apiKey) return res.json({ configured: false, reason: 'Upload-PostのAPIキーが未設定です' });
+
+    const profiles = await uploadPost.listProfiles();
+    const profile = profiles.find((p) => p.username === cfg.user) || null;
+    res.json({
+      configured: !!(cfg.apiKey && cfg.user),
+      user: cfg.user || null,
+      profile_found: !!profile,
+      connected: Object.entries(profile?.social_accounts || {}).filter(([, v]) => v).map(([k]) => k),
+      profiles: profiles.map((p) => p.username),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 投稿 ──
+
+// 投稿本文（キャプション＋ハッシュタグ）
+function composeCaption(item) {
+  return `${item.caption || ''}\n\n${(item.hashtags || []).join(' ')}`.trim();
+}
+
+// YouTubeは本文とは別に「動画タイトル」が必要。本文の1行目から作る
+// （YouTubeのタイトル上限は100文字なので95文字で切る）。
+function youtubeTitle(item) {
+  const firstLine = String(item.caption || '').split('\n').map((s) => s.trim()).find(Boolean) || 'FITPEAK';
+  return firstLine.length > 95 ? `${firstLine.slice(0, 95)}…` : firstLine;
+}
+
+// Upload-Postが設定済みなら自動投稿。未設定なら投稿アシスト（手動）モードを返す。
+async function publishToPlatform(item, video) {
+  const text = composeCaption(item);
+
+  if (!uploadPost.supportsPlatform(item.platform) || !(await uploadPost.isConfigured())) {
+    return { mode: 'manual', video_url: video.video_url, caption: text };
   }
 
-  // 公式API接続済み → ここで各プラットフォームのContent Posting APIを呼ぶ
-  // （TikTok Content Posting API / Instagram Graph API。審査通過後にcredentialを
-  //   channel_storesへ登録すれば、この分岐で自動投稿される。）
-  throw new Error(`${PLATFORM_LABEL[item.platform]}の自動投稿APIは未実装です（認証情報は検出）。手動投稿をご利用ください。`);
+  const payload = await uploadPost.uploadVideo({
+    videoUrl: video.video_url,
+    platform: item.platform,
+    title: item.platform === 'youtube' ? youtubeTitle(item) : text,
+    description: text,
+    idempotencyKey: item.id, // 同じキュー項目を再試行しても二重投稿にならない（24時間）
+  });
+
+  return { mode: 'api', ...uploadPost.readResult(payload, item.platform), raw: payload };
+}
+
+// 投稿結果をキューに反映する
+async function applyPublishResult(item, result) {
+  const patch = {
+    upload_post_request_id: result.requestId || item.upload_post_request_id || null,
+    upload_post_job_id: result.jobId || item.upload_post_job_id || null,
+    platform_result: result.raw ?? item.platform_result ?? null,
+  };
+
+  if (result.state === 'posted') {
+    patch.status = 'posted';
+    patch.posted_at = new Date().toISOString();
+    patch.post_url = result.postUrl || item.post_url || null;
+    patch.error = null;
+  } else if (result.state === 'failed') {
+    patch.status = 'failed';
+    patch.error = result.error || '投稿に失敗しました';
+  } else {
+    // Upload-Post側で処理中。cron（/cron/publish）がステータスを見て確定させる。
+    patch.status = 'publishing';
+    patch.error = null;
+  }
+
+  const sb = getSupabase();
+  const { error } = await sb.from('sns_post_queue').update(patch).eq('id', item.id);
+  if (error) throw error;
+  return patch;
+}
+
+// 処理中（publishing）の投稿をUpload-Postのステータスで確定させる
+async function pollQueueItem(item) {
+  if (!item.upload_post_request_id && !item.upload_post_job_id) return null;
+  const payload = await uploadPost.getStatus({
+    requestId: item.upload_post_request_id,
+    jobId: item.upload_post_job_id,
+  });
+  const result = uploadPost.readResult(payload, item.platform);
+  if (result.state === 'pending') return null; // まだ処理中
+  return applyPublishResult(item, { ...result, raw: payload });
 }
 
 // ワンタップ投稿
 router.post('/post-queue/:id/publish', async (req, res) => {
+  const sb = getSupabase();
+  let item = null;
   try {
-    const sb = getSupabase();
-    const { data: item } = await sb.from('sns_post_queue').select('*').eq('id', req.params.id).maybeSingle();
+    ({ data: item } = await sb.from('sns_post_queue').select('*').eq('id', req.params.id).maybeSingle());
     if (!item) return res.status(404).json({ error: 'キュー項目が見つかりません' });
+    if (item.status === 'posted') {
+      return res.json({ mode: 'api', status: 'posted', already_posted: true, post_url: item.post_url });
+    }
+
     const { data: video } = await sb.from('sns_videos').select('*').eq('id', item.video_id).maybeSingle();
     if (!video) return res.status(404).json({ error: '動画が見つかりません' });
+    if (video.status !== 'done' || !video.video_url) {
+      return res.status(400).json({ error: 'レンダリング完了済みの動画のみ投稿できます' });
+    }
 
     const result = await publishToPlatform(item, video);
 
     if (result.mode === 'manual') {
       // 手動投稿アシスト: 投稿文と動画URLを返す（statusは変更しない。投稿後にmark-posted）
-      return res.json({ mode: 'manual', ...result });
+      return res.json({ mode: 'manual', video_url: result.video_url, caption: result.caption });
     }
 
-    // API投稿成功
-    await sb.from('sns_post_queue').update({
-      status: 'posted', posted_at: new Date().toISOString(), post_url: result.post_url || null, error: null,
-    }).eq('id', item.id);
-    res.json({ mode: 'api', post_url: result.post_url });
+    const patch = await applyPublishResult(item, result);
+    res.json({ mode: 'api', status: patch.status, post_url: patch.post_url || null, error: patch.error || null });
+  } catch (err) {
+    if (item) {
+      await sb.from('sns_post_queue').update({ status: 'failed', error: err.message }).eq('id', item.id);
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 処理中の投稿の状況確認（手動ポーリング用）
+router.get('/post-queue/:id/poll', async (req, res) => {
+  try {
+    const sb = getSupabase();
+    const { data: item } = await sb.from('sns_post_queue').select('*').eq('id', req.params.id).maybeSingle();
+    if (!item) return res.status(404).json({ error: 'キュー項目が見つかりません' });
+    if (item.status !== 'publishing') return res.json(item);
+
+    const patch = await pollQueueItem(item);
+    res.json({ ...item, ...(patch || {}) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -678,6 +831,68 @@ router.post('/post-queue/:id/skip', async (req, res) => {
     if (error) throw error;
     res.json(data);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// cron: 処理中の投稿を確定させ、予定時刻を過ぎたキューを自動投稿する
+// （/api/daily-cron から10分間隔で呼ばれる。自動投稿は設定がONのときだけ）
+router.get('/cron/publish', async (_req, res) => {
+  try {
+    const sb = getSupabase();
+    let confirmed = 0;
+    let failed = 0;
+
+    // 1) 処理中の投稿を確定させる（自動投稿がOFFでも、投稿した結果は取り込む）
+    const { data: pendingItems } = await sb.from('sns_post_queue')
+      .select('*').eq('status', 'publishing').limit(20);
+    for (const item of pendingItems || []) {
+      try {
+        const patch = await pollQueueItem(item);
+        if (patch?.status === 'posted') confirmed++;
+        else if (patch?.status === 'failed') failed++;
+      } catch (err) {
+        console.error('[sns-publish] poll error:', err.message);
+      }
+    }
+
+    // 2) 予定時刻を過ぎたキューを投稿
+    const settings = await getPostSettings();
+    if (!settings.auto_publish) {
+      return res.json({ ok: true, auto_publish: false, confirmed, failed, published: 0 });
+    }
+    if (!(await uploadPost.isConfigured())) {
+      return res.json({ ok: true, skipped: 'Upload-Postが未設定', confirmed, failed, published: 0 });
+    }
+
+    const { data: dueItems } = await sb.from('sns_post_queue')
+      .select('*')
+      .eq('status', 'queued')
+      .not('scheduled_for', 'is', null)
+      .lte('scheduled_for', new Date().toISOString())
+      .order('scheduled_for', { ascending: true })
+      .limit(PUBLISH_PER_RUN);
+
+    let published = 0;
+    for (const item of dueItems || []) {
+      try {
+        const { data: video } = await sb.from('sns_videos').select('*').eq('id', item.video_id).maybeSingle();
+        if (!video || video.status !== 'done' || !video.video_url) continue;
+        const result = await publishToPlatform(item, video);
+        if (result.mode !== 'api') continue; // Upload-Post未設定（ここには来ない想定）
+        const patch = await applyPublishResult(item, result);
+        if (patch.status === 'failed') failed++;
+        else published++;
+      } catch (err) {
+        console.error('[sns-publish] publish error:', err.message);
+        await sb.from('sns_post_queue').update({ status: 'failed', error: err.message }).eq('id', item.id);
+        failed++;
+      }
+    }
+
+    res.json({ ok: true, auto_publish: true, confirmed, failed, published });
+  } catch (err) {
+    console.error('[sns-publish] cron error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
