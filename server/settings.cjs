@@ -687,6 +687,10 @@ const API_KEY_SERVICES = [
   { id: 'line_login_channel_secret', label: 'LINEログイン チャネルシークレット', envVar: 'LINE_LOGIN_CHANNEL_SECRET', placeholder: '32文字の英数字' },
   { id: 'line_liff_add_id', label: 'LIFF ID（友だち追加用LIFFアプリ）', envVar: 'LINE_LIFF_ADD_ID', placeholder: '2006537445-xxxxxxxx' },
 
+  // 筋トレ最安ナビ 自動投稿（Upload-Post：TikTok/Instagram/YouTube Shortsへ一括投稿）
+  { id: 'upload_post_api_key', label: 'Upload-Post APIキー（筋トレ最安ナビ自動投稿）', envVar: 'UPLOAD_POST_API_KEY', placeholder: 'eyJ...' },
+  { id: 'upload_post_user', label: 'Upload-Post プロフィール名（ユーザー名）', envVar: 'UPLOAD_POST_USER', placeholder: 'Upload-Postで作成したプロフィール名' },
+
   // Meta Conversions API（LINE友だち追加を「登録完了」としてMetaに送り返す）
   { id: 'meta_pixel_id', label: 'Meta ピクセルID（Fitpeak\'s pixel）', envVar: 'META_PIXEL_ID', placeholder: '1066935279150670' },
   { id: 'meta_capi_access_token', label: 'Meta コンバージョンAPI アクセストークン', envVar: 'META_CAPI_ACCESS_TOKEN', placeholder: 'EAA...' },
