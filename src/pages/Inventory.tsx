@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Boxes, RefreshCw, Plus, Save, Send, Copy, AlertTriangle, CheckCircle, Trash2, ExternalLink,
+  ArrowLeft, Boxes, RefreshCw, Plus, Save, Send, Copy, AlertTriangle, CheckCircle, Trash2, ExternalLink, ChevronRight, ChevronDown,
 } from 'lucide-react'
 import { createApi } from '../lib/api'
 
@@ -138,12 +138,48 @@ export default function Inventory() {
   )
 }
 
+
+// 商品ごとにバリエーション（色・サイズ）をまとめる。親の行に合計と、いちばん急ぐ判定を出し、押すと中身が開く
+const STATUS_RANK: Record<RowStatus, number> = { now: 0, prepare: 1, ordered: 2, unknown: 3, no_snapshot: 3, ok: 4, discontinued: 5 }
+const MAT_RANK: Record<Row['material_state'], number> = { short: 0, low: 1, unknown: 2, ok: 3 }
+interface Group {
+  product: string; rows: Row[]; live: Row[]; status: RowStatus; mat: Row['material_state']
+  fulfillable: number; inbound: number; daily: number; shipping: number; ready: number; inspecting: number; ordered: number
+  total: number; days: number | null; recommended: number; stockout: string | null; urgent: number
+}
+function groupRows(rows: Row[]): Group[] {
+  const map = new Map<string, Row[]>()
+  for (const r of rows) map.set(r.product, [...(map.get(r.product) || []), r])
+  const out: Group[] = []
+  for (const [product, list] of map) {
+    const live = list.filter(r => !r.discontinued)
+    const base = live.length ? live : list
+    const sum = (f: (r: Row) => number | null) => list.reduce((a, r) => a + (f(r) || 0), 0)
+    const days = base.map(r => r.total_days).filter((d): d is number => d !== null)
+    const outs = base.map(r => r.stockout_date).filter((d): d is string => !!d).sort()
+    out.push({
+      product, rows: list, live,
+      status: base.reduce<RowStatus>((w, r) => (STATUS_RANK[r.status] < STATUS_RANK[w] ? r.status : w), base[0].status),
+      mat: base.reduce<Row['material_state']>((w, r) => (MAT_RANK[r.material_state] < MAT_RANK[w] ? r.material_state : w), 'ok'),
+      fulfillable: sum(r => r.fulfillable), inbound: sum(r => r.inbound), daily: sum(r => r.daily),
+      shipping: sum(r => r.shipping), ready: sum(r => r.ready), inspecting: sum(r => r.inspecting), ordered: sum(r => r.ordered),
+      total: sum(r => r.total), days: days.length ? Math.min(...days) : null,
+      recommended: sum(r => r.recommended), stockout: outs[0] || null,
+      urgent: base.filter(r => r.status === 'now' || r.status === 'prepare').length,
+    })
+  }
+  return out.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || ((a.days ?? 1e9) - (b.days ?? 1e9)) || a.product.localeCompare(b.product, 'ja'))
+}
+
 // ---------------------------------------------------------------- ダッシュボード
 function DashboardTab({ data, rows, products, colors, product, color, setProduct, setColor, run }: {
   data: Dashboard; rows: Row[]; products: string[]; colors: string[]; product: string; color: string
   setProduct: (p: string) => void; setColor: (c: string) => void; run: Run
 }) {
   const s = data.settings
+  const groups = useMemo(() => groupRows(rows), [rows])
+  const [open, setOpen] = useState<Set<string>>(() => new Set())
+  const toggle = (p: string) => setOpen(prev => { const n = new Set(prev); if (n.has(p)) n.delete(p); else n.add(p); return n })
   const counts = { now: 0, prepare: 0, ordered: 0, short: 0 }
   for (const r of data.rows.filter(r => r.active)) {
     if (r.status === 'now') counts.now++
@@ -174,6 +210,10 @@ function DashboardTab({ data, rows, products, colors, product, color, setProduct
         <select className={INP} value={color} onChange={e => setColor(e.target.value)}>
           <option>すべて</option>{colors.map(c => <option key={c || '(なし)'} value={c}>{c || '（色なし）'}</option>)}
         </select>
+        <div className="flex gap-1 text-sm">
+          <button onClick={() => setOpen(new Set(groups.map(g => g.product)))} className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">すべて開く</button>
+          <button onClick={() => setOpen(new Set())} className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">すべて閉じる</button>
+        </div>
         <div className="ml-auto flex flex-wrap gap-2 text-sm">
           <button onClick={() => run(() => api.post('/sync/amazon-inventory'), 'Amazon在庫を取得しました')} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700">
             <RefreshCw size={14} /> Amazon在庫を今すぐ取得
@@ -198,33 +238,63 @@ function DashboardTab({ data, rows, products, colors, product, color, setProduct
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
-              <tr key={r.id} className={`border-t border-gray-100 dark:border-gray-800 ${r.discontinued ? 'text-gray-400' : ''}`}>
-                <td className="px-2 py-2 whitespace-nowrap">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_UI[r.status].cls}`}>{STATUS_UI[r.status].label}</span>
-                  {r.warnings.length > 0 && (
-                    <div className="mt-1 space-y-0.5">{r.warnings.map((w, i) => <div key={i} className="text-[11px] text-amber-700 dark:text-amber-400 whitespace-normal max-w-xs">⚠ {w}</div>)}</div>
-                  )}
-                </td>
-                <td className="px-2 py-2 whitespace-nowrap">{r.product}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{r.color}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{r.size}</td>
-                <td className={`px-2 py-2 text-right ${r.amazon_days !== null && r.amazon_days < s.lead_time_days && !r.discontinued ? 'text-red-600 font-semibold' : ''}`}>{fmt(r.fulfillable)}</td>
-                <td className="px-2 py-2 text-right">{fmt(r.inbound)}</td>
-                <td className="px-2 py-2 text-right">{fmt(r.daily, 1)}</td>
-                <td className="px-2 py-2 text-right">{fmt(r.amazon_days)}</td>
-                <td className="px-2 py-2 text-right">{r.shipping || '—'}</td>
-                <td className="px-2 py-2 text-right">{r.ready || '—'}</td>
-                <td className="px-2 py-2 text-right">{r.inspecting || '—'}</td>
-                <td className="px-2 py-2 text-right">{r.ordered || '—'}</td>
-                <td className="px-2 py-2 text-right font-medium">{fmt(r.total)}</td>
-                <td className="px-2 py-2 text-right">{fmt(r.total_days)}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{r.stockout_date || '—'}</td>
-                <td className="px-2 py-2 text-right font-semibold">{r.recommended ? fmt(r.recommended) : '—'}</td>
-                <td className={`px-2 py-2 whitespace-nowrap ${MAT_UI[r.material_state].cls}`}>{MAT_UI[r.material_state].label}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={17} className="px-3 py-6 text-center text-gray-500">該当する商品がありません</td></tr>}
+            {groups.map(g => {
+              const isOpen = open.has(g.product)
+              return (
+                <Fragment key={g.product}>
+                  <tr onClick={() => toggle(g.product)} className="border-t border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/40 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <td className="px-2 py-2.5 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_UI[g.status].cls}`}>{STATUS_UI[g.status].label}</span>
+                      {g.urgent > 0 && <span className="ml-1 text-[11px] text-red-600 dark:text-red-400">{g.urgent}件が要対応</span>}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap font-semibold" colSpan={3}>
+                      <span className="inline-flex items-center gap-1">{isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}{g.product}
+                        <span className="text-xs font-normal text-gray-500">（{g.rows.length}種類）</span></span>
+                    </td>
+                    <td className="px-2 py-2.5 text-right font-medium">{fmt(g.fulfillable)}</td>
+                    <td className="px-2 py-2.5 text-right">{fmt(g.inbound)}</td>
+                    <td className="px-2 py-2.5 text-right">{fmt(g.daily, 1)}</td>
+                    <td className="px-2 py-2.5 text-right text-gray-400">—</td>
+                    <td className="px-2 py-2.5 text-right">{g.shipping || '—'}</td>
+                    <td className="px-2 py-2.5 text-right">{g.ready || '—'}</td>
+                    <td className="px-2 py-2.5 text-right">{g.inspecting || '—'}</td>
+                    <td className="px-2 py-2.5 text-right">{g.ordered || '—'}</td>
+                    <td className="px-2 py-2.5 text-right font-semibold">{fmt(g.total)}</td>
+                    <td className="px-2 py-2.5 text-right">{fmt(g.days)}</td>
+                    <td className="px-2 py-2.5 whitespace-nowrap">{g.stockout || '—'}</td>
+                    <td className="px-2 py-2.5 text-right font-semibold">{g.recommended ? fmt(g.recommended) : '—'}</td>
+                    <td className={`px-2 py-2.5 whitespace-nowrap ${MAT_UI[g.mat].cls}`}>{MAT_UI[g.mat].label}</td>
+                  </tr>
+                  {isOpen && g.rows.map(r => (
+                    <tr key={r.id} className={`border-t border-gray-100 dark:border-gray-800 ${r.discontinued ? 'text-gray-400' : ''}`}>
+                      <td className="pl-7 pr-2 py-2 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_UI[r.status].cls}`}>{STATUS_UI[r.status].label}</span>
+                        {r.warnings.length > 0 && (
+                          <div className="mt-1 space-y-0.5">{r.warnings.map((w, i) => <div key={i} className="text-[11px] text-amber-700 dark:text-amber-400 whitespace-normal max-w-xs">⚠ {w}</div>)}</div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-gray-400">└</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{r.color || '—'}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{r.size || '—'}</td>
+                      <td className={`px-2 py-2 text-right ${r.amazon_days !== null && r.amazon_days < s.lead_time_days && !r.discontinued ? 'text-red-600 font-semibold' : ''}`}>{fmt(r.fulfillable)}</td>
+                      <td className="px-2 py-2 text-right">{fmt(r.inbound)}</td>
+                      <td className="px-2 py-2 text-right">{fmt(r.daily, 1)}</td>
+                      <td className="px-2 py-2 text-right">{fmt(r.amazon_days)}</td>
+                      <td className="px-2 py-2 text-right">{r.shipping || '—'}</td>
+                      <td className="px-2 py-2 text-right">{r.ready || '—'}</td>
+                      <td className="px-2 py-2 text-right">{r.inspecting || '—'}</td>
+                      <td className="px-2 py-2 text-right">{r.ordered || '—'}</td>
+                      <td className="px-2 py-2 text-right font-medium">{fmt(r.total)}</td>
+                      <td className="px-2 py-2 text-right">{fmt(r.total_days)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{r.stockout_date || '—'}</td>
+                      <td className="px-2 py-2 text-right font-semibold">{r.recommended ? fmt(r.recommended) : '—'}</td>
+                      <td className={`px-2 py-2 whitespace-nowrap ${MAT_UI[r.material_state].cls}`}>{MAT_UI[r.material_state].label}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              )
+            })}
+            {groups.length === 0 && <tr><td colSpan={17} className="px-3 py-6 text-center text-gray-500">該当する商品がありません</td></tr>}
           </tbody>
         </table>
       </div>
