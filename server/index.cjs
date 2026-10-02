@@ -80,6 +80,8 @@ const inventoryModule = require(path.join(__dirname, 'inventory.cjs'));
 app.use('/api/public/inventory', cors(), inventoryModule.publicRouter);
 // 在庫: AI組織向け（Bearer INVENTORY_AI_KEY）
 app.use('/api/public/inventory-ai', inventoryModule.aiRouter);
+// 秘密の仲介窓口（キーを渡さず、サーバーが代わりに外部APIを呼ぶ。Bearer BROKER_KEYS）
+app.use('/api/public/broker', express.json({ limit: '300kb' }), require(path.join(__dirname, 'broker.cjs')));
 
 // eBay アカウント削除通知（認証不要）。
 // eBayが直接叩くので認証ミドルウェアより前に置く必要がある。
