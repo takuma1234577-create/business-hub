@@ -44,15 +44,28 @@ const SERVICES = {
   },
   openai: {
     secret: ['org_openai', 'openai'], host: 'api.openai.com', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
-    rules: [{ m: 'POST', p: /^\/v1\/(chat\/completions|responses|embeddings)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
+    rules: [{ m: 'POST', p: /^\/v1\/(chat\/completions|responses)$/, tier: 'metered' }, { m: 'POST', p: /^\/v1\/embeddings$/, tier: 'free' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
   },
   gemini: {
     secret: ['org_gemini', 'gemini'], host: 'generativelanguage.googleapis.com', auth: (k) => ({ query: { key: k } }),
-    rules: [{ m: 'POST', p: /^\/v1(beta)?\/models\/[\w.\-]+:(generateContent|countTokens)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1(beta)?\/models(\/[\w.\-]+)?$/, tier: 'free' }],
+    rules: [{ m: 'POST', p: /^\/v1(beta)?\/models\/[\w.\-]+:(generateContent|countTokens)$/, tier: 'metered' }, { m: 'POST', p: /^\/v1(beta)?\/models\/[\w.\-]+:(embedContent|batchEmbedContents)$/, tier: 'free' }, { m: 'GET', p: /^\/v1(beta)?\/models(\/[\w.\-]+)?$/, tier: 'free' }],
   },
   grok: {
     secret: 'org_grok', host: 'api.x.ai', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
     rules: [{ m: 'POST', p: /^\/v1\/(responses|chat\/completions)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
+  },
+  notion: {
+    secret: 'org_notion', host: 'api.notion.com', auth: (k) => ({ headers: { Authorization: `Bearer ${k}`, 'Notion-Version': '2022-06-28' } }),
+    vars: { notion_parent: 'org_notion_parent' }, bodyVars: true,
+    rules: [
+      { m: 'POST', p: /^\/v1\/databases$/, tier: 'free', body: 'parent_is_notion_parent' },
+      { m: 'POST', p: /^\/v1\/databases\/[0-9a-f\-]{32,36}\/query$/, tier: 'free', body: 'db_is_memory' },
+      { m: 'GET', p: /^\/v1\/databases\/[0-9a-f\-]{32,36}$/, tier: 'free' },
+      { m: 'POST', p: /^\/v1\/pages$/, tier: 'free', body: 'page_in_memory_db' },
+      { m: 'PATCH', p: /^\/v1\/pages\/[0-9a-f\-]{32,36}$/, tier: 'free' },
+      { m: 'GET', p: /^\/v1\/blocks\/[0-9a-f\-]{32,36}\/children$/, tier: 'free' },
+      { m: 'PATCH', p: /^\/v1\/blocks\/[0-9a-f\-]{32,36}\/children$/, tier: 'free' },
+    ],
   },
   pexels: {
     secret: 'pexels', host: 'api.pexels.com', auth: (k) => ({ headers: { Authorization: k } }),
@@ -94,6 +107,21 @@ const NOT_CALLABLE = {
   elevenlabs_voice_id: '設定値', elevenlabs_connection_id: '設定値', upload_post_user: '設定値（プロフィール名）',
   meta_pixel_id: '設定値（meta_capi の一部として使う）', meta_capi_test_code: '設定値', meta_capi_event_name: '設定値', slack_channel_id: '設定値',
 };
+
+// Notion は、共通メモリのデータベースの中だけに触れる（データベースの作成は、親ページの下だけ）
+async function memoryDbId() {
+  const { data } = await supabase.from('org_memory_config').select('value').eq('key', 'notion_db_id').maybeSingle();
+  return data?.value || null;
+}
+const norm = (id) => String(id || '').replace(/-/g, '').toLowerCase();
+async function bodyCheck(kind, path, body) {
+  if (kind === 'parent_is_notion_parent') return body?.parent?.page_id === '{notion_parent}' ? null : 'データベースは、API設定の親ページの下にだけ作れます';
+  const db = await memoryDbId();
+  if (!db) return '共通メモリのデータベースが、まだ作られていません';
+  if (kind === 'db_is_memory') return norm(path.split('/')[3]) === norm(db) ? null : '共通メモリ以外のデータベースには、触れません';
+  if (kind === 'page_in_memory_db') return norm(body?.parent?.database_id) === norm(db) ? null : '共通メモリのデータベースの中にだけ、ページを作れます';
+  return null;
+}
 
 // ---- 呼ぶ人 ------------------------------------------------------------------------
 function callerOf(req) {
@@ -173,9 +201,10 @@ router.post('/call', async (req, res) => {
     if (!svc) return fail(400, `未対応のサービスです: ${service}`);
     if (typeof path !== 'string' || !path.startsWith('/') || /\/\/|\.\.|[@\\#?\s]/.test(path.replace(/\{pixel\}/, ''))) return fail(400, 'path が不正です');
     // 許可リスト照合（pathの {pixel} などの変数は、サーバーが埋める）
-    const rule = svc.rules.find((r) => r.m === method && r.p.test(svc.vars ? path.replace(/\/\d{6,}\//, '/{pixel}/') : path));
+    const rule = svc.rules.find((r) => r.m === method && r.p.test(svc.vars?.pixel ? path.replace(/\/\d{6,}\//, '/{pixel}/') : path));
     if (!rule) return fail(403, `許可されていない呼び出しです（${service} ${method} ${path}）`);
     if (svc.scope && !svc.scope(path)) return fail(403, '許可されていないルーム・対象です');
+    if (rule.body) { const why = await bodyCheck(rule.body, path, body); if (why) return fail(403, why); }
     for (const k of Object.keys(query || {})) if (FORBIDDEN_QUERY.test(k)) return fail(400, `クエリ ${k} は指定できません`);
     if (body !== undefined && JSON.stringify(body).length > 200000) return fail(413, '本文が大きすぎます');
 
@@ -206,6 +235,8 @@ router.post('/call', async (req, res) => {
         headers['Content-Type'] = service === 'slack' ? 'application/json; charset=utf-8' : 'application/x-www-form-urlencoded';
         payload = service === 'slack' ? JSON.stringify(body) : new URLSearchParams(Object.fromEntries(Object.entries(body).map(([k, v]) => [k, String(v)]))).toString();
       } else { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+      // 本文の {変数} を、サーバー側の設定値で埋める（Notion の親ページID）。値は、呼び出し元には見えない
+      if (svc.bodyVars) for (const [v, secretId] of Object.entries(svc.vars || {})) { const val = await settings.getActiveApiKey(secretId); if (val) payload = payload.split(`{${v}}`).join(String(val).replace(/[^0-9a-fA-F-]/g, '')); }
     }
     const r = await fetch(url, { method, headers, body: payload, signal: AbortSignal.timeout(45000), redirect: 'error' });
     let text = await r.text();
