@@ -287,3 +287,4 @@ module.exports.approvalHash = approvalHash;
 module.exports.notionId = notionId;
 module.exports.SERVICES = SERVICES;
 module.exports.matchRule = matchRule;
+module.exports.checkApproval = checkApproval;
