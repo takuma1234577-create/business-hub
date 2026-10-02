@@ -83,6 +83,9 @@ app.use('/api/public/inventory-ai', inventoryModule.aiRouter);
 // 秘密の仲介窓口（キーを渡さず、サーバーが代わりに外部APIを呼ぶ。Bearer BROKER_KEYS）
 app.use('/api/public/broker', express.json({ limit: '300kb' }), require(path.join(__dirname, 'broker.cjs')));
 
+// カスタマーサービス部門（AI組織）向け: メール自動返信・ナレッジの読み取り（個人情報は伏せる）と、承認済みナレッジの公開（Bearer CS_AI_KEY）
+app.use('/api/public/cs-ai', express.json({ limit: '300kb' }), require(path.join(__dirname, 'cs-ai.cjs')));
+
 // eBay アカウント削除通知（認証不要）。
 // eBayが直接叩くので認証ミドルウェアより前に置く必要がある。
 // これが応答しないとProductionキーセットが有効にならない。
