@@ -108,6 +108,14 @@ const NOT_CALLABLE = {
   meta_pixel_id: '設定値（meta_capi の一部として使う）', meta_capi_test_code: '設定値', meta_capi_event_name: '設定値', slack_channel_id: '設定値',
 };
 
+// Notion のページIDを、貼られた形（URL・題名つきの末尾・ハイフンあり/なし）から取り出して、標準の形（8-4-4-4-12）にする
+function notionId(value) {
+  const m = String(value || '').match(/[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}(?![0-9a-fA-F])/g);
+  if (!m) return null;
+  const h = m[m.length - 1].replace(/-/g, '').toLowerCase();
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 // Notion は、共通メモリのデータベースの中だけに触れる（データベースの作成は、親ページの下だけ）
 async function memoryDbId() {
   const { data } = await supabase.from('org_memory_config').select('value').eq('key', 'notion_db_id').maybeSingle();
@@ -236,7 +244,7 @@ router.post('/call', async (req, res) => {
         payload = service === 'slack' ? JSON.stringify(body) : new URLSearchParams(Object.fromEntries(Object.entries(body).map(([k, v]) => [k, String(v)]))).toString();
       } else { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
       // 本文の {変数} を、サーバー側の設定値で埋める（Notion の親ページID）。値は、呼び出し元には見えない
-      if (svc.bodyVars) for (const [v, secretId] of Object.entries(svc.vars || {})) { const val = await settings.getActiveApiKey(secretId); if (val) payload = payload.split(`{${v}}`).join(String(val).replace(/[^0-9a-fA-F-]/g, '')); }
+      if (svc.bodyVars) for (const [v, secretId] of Object.entries(svc.vars || {})) { const val = await settings.getActiveApiKey(secretId); if (val) payload = payload.split(`{${v}}`).join(notionId(val) || ''); }
     }
     const r = await fetch(url, { method, headers, body: payload, signal: AbortSignal.timeout(45000), redirect: 'error' });
     let text = await r.text();
@@ -253,4 +261,5 @@ router.post('/call', async (req, res) => {
 
 module.exports = router;
 module.exports.approvalHash = approvalHash;
+module.exports.notionId = notionId;
 module.exports.SERVICES = SERVICES;
