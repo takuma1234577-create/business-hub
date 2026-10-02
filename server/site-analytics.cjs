@@ -425,6 +425,47 @@ publicRouter.post('/signup-attr', express.json({ limit: '8kb' }), async (req, re
   }
 });
 
+// アフィリエイト収益（楽天・Amazon）。取り込みは fitpeak-ai-org の /api/revenue。ここは読むだけ。
+// 収益は「日別・発生ベース」。AIの予算の上限には、直近30日の収益がそのまま足される（fitpeak-ai-org）。
+const jstDate = (d) => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+router.get('/revenue', async (req, res) => {
+  try {
+    const { from, to } = range(req.query);
+    const fromDay = jstDate(from);
+    const toDay = jstDate(to);
+    const spanDays = Math.max(1, Math.round((Date.parse(toDay) - Date.parse(fromDay)) / 86400000) + 1);
+    const prevTo = new Date(Date.parse(fromDay) - 86400000).toISOString().slice(0, 10);
+    const prevFrom = new Date(Date.parse(fromDay) - spanDays * 86400000).toISOString().slice(0, 10);
+    const cols = 'source,day,clicks,orders,items,revenue_jpy,imported_at';
+    const [cur, prev] = await Promise.all([
+      supabase.from('affiliate_revenue').select(cols).gte('day', fromDay).lte('day', toDay).order('day'),
+      supabase.from('affiliate_revenue').select(cols).gte('day', prevFrom).lte('day', prevTo),
+    ]);
+    if (cur.error) throw new Error(cur.error.message);
+    if (prev.error) throw new Error(prev.error.message);
+    const sum = (rows) => rows.reduce((a, r) => {
+      const rev = Number(r.revenue_jpy) || 0;
+      a.total += rev; a.orders += r.orders || 0; a.clicks += r.clicks || 0; a.items += r.items || 0;
+      a[r.source] = (a[r.source] || 0) + rev;
+      return a;
+    }, { total: 0, rakuten: 0, amazon: 0, orders: 0, clicks: 0, items: 0 });
+    // 日ごとの並び（収益が無い日も0で埋める）
+    const byDay = {};
+    for (let t = Date.parse(fromDay); t <= Date.parse(toDay); t += 86400000) byDay[new Date(t).toISOString().slice(0, 10)] = { day: new Date(t).toISOString().slice(0, 10), rakuten: 0, amazon: 0, total: 0, orders: 0, clicks: 0 };
+    for (const r of cur.data) {
+      const d = byDay[r.day]; if (!d) continue;
+      const rev = Number(r.revenue_jpy) || 0;
+      d[r.source] += rev; d.total += rev; d.orders += r.orders || 0; d.clicks += r.clicks || 0;
+    }
+    const last = cur.data.reduce((m, r) => (r.imported_at > m ? r.imported_at : m), '');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ from: fromDay, to: toDay, days: Object.values(byDay), totals: sum(cur.data), prev_totals: sum(prev.data), last_imported_at: last || null });
+  } catch (err) {
+    console.error('[site-analytics/revenue]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 function shotPath(site, pagePath, device) {
   const h = crypto.createHash('sha1').update(`${site}${pagePath}`).digest('hex').slice(0, 16);
   return `site-heatmaps/${h}_${device === 'mobile' ? 'mobile' : 'desktop'}.jpg`;
