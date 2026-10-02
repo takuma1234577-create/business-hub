@@ -180,3 +180,14 @@ export interface JourneyEvent {
   channel: string | null
   ref_host: string | null
 }
+
+export interface RevenueTotals { total: number; rakuten: number; amazon: number; orders: number; clicks: number; items: number }
+export interface RevenueDay { day: string; rakuten: number; amazon: number; total: number; orders: number; clicks: number }
+export interface Revenue {
+  from: string
+  to: string
+  days: RevenueDay[]
+  totals: RevenueTotals
+  prev_totals: RevenueTotals
+  last_imported_at: string | null
+}

@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Activity, BarChart3, FileText, Flame, Code2, ExternalLink, UserPlus } from 'lucide-react'
+import { ArrowLeft, Activity, BarChart3, FileText, Flame, Code2, ExternalLink, UserPlus, Coins } from 'lucide-react'
 import type { Device, Preset } from './site-analytics/api'
 import { Seg } from './site-analytics/ui'
 import { useOverview } from './site-analytics/useOverview'
@@ -9,8 +9,9 @@ import PageTab from './site-analytics/PageTab'
 import HeatmapTab from './site-analytics/HeatmapTab'
 import SetupTab from './site-analytics/SetupTab'
 import SignupsTab from './site-analytics/SignupsTab'
+import RevenueTab from './site-analytics/RevenueTab'
 
-type Tab = 'realtime' | 'overview' | 'signups' | 'page' | 'heatmap' | 'setup'
+type Tab = 'realtime' | 'overview' | 'signups' | 'page' | 'heatmap' | 'revenue' | 'setup'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'realtime', label: 'リアルタイム', icon: <Activity size={15} /> },
@@ -18,6 +19,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'signups', label: '登録（LINE・My FITPEAK）', icon: <UserPlus size={15} /> },
   { id: 'page', label: 'ページ別', icon: <FileText size={15} /> },
   { id: 'heatmap', label: 'ヒートマップ', icon: <Flame size={15} /> },
+  { id: 'revenue', label: '収益', icon: <Coins size={15} /> },
   { id: 'setup', label: '設置方法', icon: <Code2 size={15} /> },
 ]
 
@@ -52,7 +54,7 @@ export default function SiteAnalytics() {
   const { data: siteData } = useOverview(preset, 'all', null, needPages)
   const pages = siteData?.pages || []
 
-  const showFilters = tab === 'overview' || tab === 'signups' || tab === 'page' || tab === 'heatmap'
+  const showFilters = tab === 'overview' || tab === 'signups' || tab === 'page' || tab === 'heatmap' || tab === 'revenue'
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900" style={{ fontFamily: '"Noto Sans JP", "Hiragino Sans", "Meiryo", sans-serif' }}>
@@ -89,7 +91,7 @@ export default function SiteAnalytics() {
         {showFilters && (
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <Seg<Preset> value={preset} onChange={(v) => set({ range: v })} options={PRESETS} />
-            {tab !== 'heatmap' && (
+            {tab !== 'heatmap' && tab !== 'revenue' && (
               <Seg<Device> value={device} onChange={(v) => set({ device: v === 'all' ? null : v })} options={[
                 { value: 'all', label: 'すべて' }, { value: 'mobile', label: 'スマホ' }, { value: 'desktop', label: 'PC' },
               ]} />
@@ -107,6 +109,7 @@ export default function SiteAnalytics() {
         {tab === 'heatmap' && (
           <HeatmapTab preset={preset} path={path} pages={pages} onChangePath={(p) => set({ path: p })} />
         )}
+        {tab === 'revenue' && <RevenueTab preset={preset} device={device} />}
         {tab === 'setup' && <SetupTab />}
       </main>
     </div>
