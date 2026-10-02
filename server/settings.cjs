@@ -691,6 +691,12 @@ const API_KEY_SERVICES = [
   { id: 'upload_post_api_key', label: 'Upload-Post APIキー（筋トレ最安ナビ自動投稿）', envVar: 'UPLOAD_POST_API_KEY', placeholder: 'eyJ...' },
   { id: 'upload_post_user', label: 'Upload-Post プロフィール名（ユーザー名）', envVar: 'UPLOAD_POST_USER', placeholder: 'Upload-Postで作成したプロフィール名' },
 
+  // FITPEAK AI組織が、得意不得意に応じて使い分ける他社のLLM。キーはここに入れるだけで、AI組織にも、私にも、キー自体は渡らない
+  // （サーバーが代わりに外部APIを呼ぶ「仲介窓口」だけが使う）。
+  { id: 'org_grok', label: 'xAI Grok APIキー（AI組織：Xの情報も使うリサーチ）', envVar: 'XAI_API_KEY', placeholder: 'xai-...' },
+  { id: 'org_openai', label: 'ChatGPT（OpenAI）APIキー（AI組織：汎用の推論・画像の理解）', envVar: 'OPENAI_ORG_API_KEY', placeholder: 'sk-...' },
+  { id: 'org_gemini', label: 'Gemini APIキー（AI組織：長い資料の読み込み・要約）', envVar: 'GEMINI_ORG_API_KEY', placeholder: 'AIzaSy...' },
+
   // FITPEAK AI組織（サイト運営エージェント）の低コスト業務の振り分け先 Jev。
   // Claude だけに寄せず、Jev で足りる業務を Jev に回してAPI費用を下げる。
   { id: 'jev', label: 'Jev APIキー（AI組織：低コスト業務の振り分け先）', envVar: 'JEV_API_KEY', placeholder: '' },

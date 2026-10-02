@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
 import { saApi } from './api'
 
 // AIエージェント管理マップ。fitpeak-ai-org の出来事（org_events）を3秒ごとに差分で取り、
 // ①組織マップ ②思考コンソール ③ツール起動 ④成果物タイムライン に出す。表示だけで、書き込みはしない。
 
-interface Agent { id: string; parent_id: string | null; layer: number; role_title: string; enabled: boolean }
+interface Agent { id: string; parent_id: string | null; layer: number; role_title: string; enabled: boolean; dept?: string | null; model?: string | null }
+interface ChatMsg { id: number; dept: string; from_agent: string; to_agent: string | null; body: string; created_at: string }
 interface Ev { id: number; at: string; agent_id: string | null; run_id: string | null; kind: string; level: string; title: string; detail: string | null; meta?: Record<string, unknown> | null }
 interface Running { run_id: string; agent_id: string; started_at: string; task: string; last: { title: string; at: string } | null }
 interface Status {
@@ -50,6 +51,58 @@ function layout(agents: Agent[]) {
     })
   })
   return { pos, W, H: 54 + Math.max(layers.length - 1, 0) * 108 + 62 }
+}
+
+
+const DEPTS: { id: string; label: string }[] = [
+  { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' },
+]
+
+// 部門のグループチャット（AI同士のやり取り）。オーナーが中身を読む
+function ChatPanel({ name }: { name: (id: string | null) => string }) {
+  const [dept, setDept] = useState('all')
+  const [msgs, setMsgs] = useState<ChatMsg[]>([])
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    if (document.hidden) return
+    try {
+      const r = await saApi.get<{ messages: ChatMsg[]; last_24h: Record<string, number> }>('/ai-chat', { params: { dept, limit: 100 } })
+      setMsgs(r.data.messages || []); setCounts(r.data.last_24h || {}); setErr('')
+    } catch (e: unknown) {
+      const m = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setErr(m || '取得に失敗しました')
+    }
+  }, [dept])
+  useEffect(() => {
+    const first = setTimeout(load, 0)
+    const t = setInterval(load, 10000)
+    return () => { clearTimeout(first); clearInterval(t) }
+  }, [load])
+  const total24 = Object.values(counts).reduce((a, b) => a + b, 0)
+  return (
+    <section className="min-w-0 rounded-xl bg-slate-950 border border-slate-800 p-3">
+      <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2"><MessagesSquare size={15} className="text-sky-300" />部門のグループチャット<span className="text-xs font-normal text-slate-500">直近24時間 {total24}件</span></h3>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {DEPTS.map((d) => (
+          <button key={d.id} onClick={() => setDept(d.id)} className={`px-2.5 py-1 rounded-full text-xs cursor-pointer border ${dept === d.id ? 'bg-sky-500/20 border-sky-400 text-sky-200' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}>
+            {d.label}{d.id !== 'all' && counts[d.id] ? ` ${counts[d.id]}` : ''}
+          </button>
+        ))}
+      </div>
+      {err && <p className="text-xs text-red-300 mb-2">{err}</p>}
+      {msgs.length === 0 ? <p className="text-xs text-slate-500">まだ、やり取りがありません（部長が動き始めると、ここに出ます）</p> : (
+        <ul className="space-y-2 max-h-96 overflow-y-auto">
+          {[...msgs].reverse().map((m) => (
+            <li key={m.id} className="text-sm">
+              <div className="text-[11px] text-slate-500">{hhmmss(m.created_at)} ／ {DEPTS.find((d) => d.id === m.dept)?.label || m.dept}</div>
+              <div className="break-words"><b className="text-sky-300">{name(m.from_agent)}</b>{m.to_agent ? <span className="text-slate-400"> → {name(m.to_agent)}</span> : <span className="text-slate-500"> → 全員</span>}<span className="text-slate-200">：{m.body}</span></div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 export default function AiMapTab() {
@@ -268,6 +321,7 @@ export default function AiMapTab() {
           </ul>
         )}
       </section>
+      <ChatPanel name={name} />
     </div>
   )
 }

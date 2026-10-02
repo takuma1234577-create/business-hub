@@ -43,12 +43,16 @@ const SERVICES = {
     rules: [{ m: 'POST', p: /^\/v1\/(messages|messages\/count_tokens)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
   },
   openai: {
-    secret: 'openai', host: 'api.openai.com', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
+    secret: ['org_openai', 'openai'], host: 'api.openai.com', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
     rules: [{ m: 'POST', p: /^\/v1\/(chat\/completions|responses|embeddings)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
   },
   gemini: {
-    secret: 'gemini', host: 'generativelanguage.googleapis.com', auth: (k) => ({ query: { key: k } }),
+    secret: ['org_gemini', 'gemini'], host: 'generativelanguage.googleapis.com', auth: (k) => ({ query: { key: k } }),
     rules: [{ m: 'POST', p: /^\/v1(beta)?\/models\/[\w.\-]+:(generateContent|countTokens)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1(beta)?\/models(\/[\w.\-]+)?$/, tier: 'free' }],
+  },
+  grok: {
+    secret: 'org_grok', host: 'api.x.ai', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
+    rules: [{ m: 'POST', p: /^\/v1\/(responses|chat\/completions)$/, tier: 'metered' }, { m: 'GET', p: /^\/v1\/models$/, tier: 'free' }],
   },
   pexels: {
     secret: 'pexels', host: 'api.pexels.com', auth: (k) => ({ headers: { Authorization: k } }),
@@ -110,6 +114,12 @@ function approvalHash({ service, method, path, body }) {
   return crypto.createHash('sha256').update(`${service}|${String(method).toUpperCase()}|${path}|${canonical(body)}`).digest('hex').slice(0, 24);
 }
 
+// 秘密は、候補の順に探す（AI組織専用の枠を先に、無ければ従来の枠）
+async function secretOf(svc) {
+  for (const id of [].concat(svc.secret)) { const v = await settings.getActiveApiKey(id); if (v) return v; }
+  return null;
+}
+
 async function audit(row) { try { await supabase.from('broker_audit').insert(row); } catch { /* 記録できなくても、呼び出しの結果は返す */ } }
 
 async function usedToday(caller, service) {
@@ -140,7 +150,7 @@ router.use((req, res, next) => {
 router.get('/services', async (req, res) => {
   const out = {};
   for (const [id, s] of Object.entries(SERVICES)) {
-    let configured = false; try { configured = !!(await settings.getActiveApiKey(s.secret)); } catch { configured = false; }
+    let configured = false; try { configured = !!(await secretOf(s)); } catch { configured = false; }
     out[id] = { host: s.host, configured, allowed: s.rules.map((r) => ({ method: r.m, path: String(r.p).replace(/^\/\^?|\$?\/$/g, ''), tier: r.tier })) };
   }
   res.json({ services: out, not_callable: NOT_CALLABLE, tiers: { free: '自由（読み取り等）', metered: `1日${DAILY_CAP.metered}回まで（費用がかかる）`, approval: 'オーナーのLINE承認が済んだ1回きりの操作' } });
@@ -180,7 +190,7 @@ router.post('/call', async (req, res) => {
       if (cap && (await usedToday(req.caller, service)) >= cap) return fail(429, `1日の回数の上限（${cap}回）に達しました`);
     }
 
-    const key = String((await settings.getActiveApiKey(svc.secret)) || '').trim();
+    const key = String((await secretOf(svc)) || '').trim();
     if (!key) return fail(503, `${service} のキーがAPI設定に未登録です`);
     const a = svc.auth(key);
     let realPath = path;

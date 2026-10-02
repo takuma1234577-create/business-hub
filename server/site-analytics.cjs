@@ -493,6 +493,19 @@ router.get('/ai-map', async (req, res) => {
   }
 });
 
+// 部門のグループチャット（AI同士のやり取り）を、オーナーが読む。取得元は fitpeak-ai-org の /api/live?mode=chat（読み取り専用）
+router.get('/ai-chat', async (req, res) => {
+  try {
+    const dept = String(req.query.dept || 'all').replace(/[^a-z]/g, '').slice(0, 10) || 'all';
+    const live = await aiOrg(`?mode=chat&dept=${dept}&limit=${Math.min(Number.parseInt(req.query.limit, 10) || 80, 300)}`);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(live);
+  } catch (err) {
+    console.error('[site-analytics/ai-chat]', err.message);
+    return res.status(502).json({ error: err.message });
+  }
+});
+
 function shotPath(site, pagePath, device) {
   const h = crypto.createHash('sha1').update(`${site}${pagePath}`).digest('hex').slice(0, 16);
   return `site-heatmaps/${h}_${device === 'mobile' ? 'mobile' : 'desktop'}.jpg`;
