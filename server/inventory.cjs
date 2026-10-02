@@ -543,6 +543,60 @@ publicRouter.post('/:key/lots', checkKey, async (req, res) => { try { res.json(a
 publicRouter.patch('/:key/lots/:id', checkKey, async (req, res) => { try { res.json(await updateLot(req.params.id, req.body, req.inventorySettings.partner_name)); } catch (e) { res.status(400).json({ error: e.message }); } });
 publicRouter.patch('/:key/materials/:id', checkKey, async (req, res) => { try { res.json(await updateMaterial(req.params.id, req.body, req.inventorySettings.partner_name)); } catch (e) { res.status(400).json({ error: e.message }); } });
 
+
+// ---------------------------------------------------------------------------
+// AI組織（fitpeak-ai-org）用API（Bearer INVENTORY_AI_KEY）
+//  - 在庫の状態と進行中ロットを読む／ロットを登録・更新する（二重発注を防ぐため、発注したら必ず連動させる）
+//  - チャットワークの発注ルーム（たお太郎）の直近のメッセージを読む（鍵はサーバーが持っていて、AI組織には渡さない）
+//  - 原価・売上の金額は返さない
+// ---------------------------------------------------------------------------
+const aiRouter = express.Router();
+aiRouter.use((req, res, next) => {
+  const key = process.env.INVENTORY_AI_KEY || '';
+  const given = (req.headers.authorization || '').replace(/^Bearer /, '');
+  if (!key || given !== key) return res.status(401).json({ error: 'unauthorized' });
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+aiRouter.get('/state', async (req, res) => {
+  try {
+    const all = await loadAll();
+    const d = computeDashboard(all);
+    const lots = all.lots.map(l => {
+      const p = all.products.find(x => x.id === l.product_id) || {};
+      return { id: l.id, lot_code: l.lot_code, product_id: l.product_id, product: p.product, color: p.color, size: p.size, qty: l.qty, status: l.status, ordered_at: l.ordered_at, status_updated_at: l.status_updated_at, updated_by: l.updated_by, tracking: l.tracking, note: l.note };
+    });
+    const rows = d.rows.map(r => ({ id: r.id, product: r.product, color: r.color, size: r.size, asin: r.asin, discontinued: r.discontinued, status: r.status, fulfillable: r.fulfillable, inbound: r.inbound, daily: r.daily, amazon_days: r.amazon_days, ordered: r.ordered, inspecting: r.inspecting, ready: r.ready, shipping: r.shipping, total: r.total, total_days: r.total_days, stockout_date: r.stockout_date, recommended: r.recommended, warnings: r.warnings }));
+    const materials = d.materials.map(m => ({ id: m.id, product: m.product, name: m.name, unit: m.unit, quantity: m.quantity, need_total: m.need_total, state: m.state, updated_at: m.updated_at, updated_by: m.updated_by }));
+    res.json({ now: new Date().toISOString(), settings: { lead_time_days: all.settings.lead_time_days, safety_days: all.settings.safety_days, coverage_days: all.settings.coverage_days, lot_size: all.settings.lot_size, min_qty: all.settings.min_qty, last_inventory_sync: all.settings.last_inventory_sync, last_sales_sync_date: all.settings.last_sales_sync_date },
+      status_labels: STATUS_LABELS, products: rows, lots, materials });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+aiRouter.post('/lots', async (req, res) => { try { res.json(await createLot(req.body, 'AI組織')); } catch (e) { res.status(400).json({ error: e.message }); } });
+aiRouter.patch('/lots/:id', async (req, res) => { try { res.json(await updateLot(req.params.id, req.body, 'AI組織')); } catch (e) { res.status(400).json({ error: e.message }); } });
+
+// 発注ルーム（既定: 設定のルーム、無ければ名前に ZF10696 を含むルーム）の直近メッセージ（最大100件。ChatworkのAPIは直近100件までしか返さない）
+let _roomCache = { id: null, at: 0 };
+async function orderRoomId() {
+  const s = await getSettings();
+  if (s.chatwork_room_id) return s.chatwork_room_id;
+  if (_roomCache.id && Date.now() - _roomCache.at < 3600000) return _roomCache.id;
+  const r = await axios.get(`${CHATWORK_BASE_URL}/rooms`, { headers: getChatworkHeaders() });
+  const room = (r.data || []).find(x => /ZF10696|代理購入/.test(x.name || ''));
+  if (!room) throw new Error('発注ルームが見つかりません（設定タブでルームを選んでください）');
+  _roomCache = { id: room.room_id, at: Date.now() };
+  return room.room_id;
+}
+aiRouter.get('/chatwork/messages', async (req, res) => {
+  try {
+    const roomId = await orderRoomId();
+    const r = await axios.get(`${CHATWORK_BASE_URL}/rooms/${roomId}/messages`, { headers: getChatworkHeaders(), params: { force: 1 } });
+    const msgs = (Array.isArray(r.data) ? r.data : []).map(m => ({ id: m.message_id, at: new Date(m.send_time * 1000).toISOString(), from: m.account?.name || '', body: String(m.body || '').slice(0, 4000) }));
+    res.json({ room_id: roomId, count: msgs.length, note: 'Chatworkのバージョンの制限で、直近100件まで', messages: msgs });
+  } catch (e) { res.status(500).json({ error: e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message }); }
+});
+
 module.exports = router;
 module.exports.publicRouter = publicRouter;
+module.exports.aiRouter = aiRouter;
 module.exports.computeDashboard = computeDashboard;
