@@ -466,6 +466,33 @@ router.get('/revenue', async (req, res) => {
   }
 });
 
+// AIエージェントの動き（リアルタイムマップ）。出来事の取得元は fitpeak-ai-org の /api/live（読み取り専用）。
+// 鍵はサーバー側だけに置き、ブラウザには出さない。agents は変わらないので1分覚えておく。
+let aiAgentsCache = { at: 0, v: null };
+async function aiOrg(path) {
+  const base = (process.env.AI_ORG_URL || 'https://fitpeak-ai-org.vercel.app').replace(/\/$/, '');
+  const key = process.env.AI_ORG_LIVE_KEY;
+  if (!key) throw new Error('AI_ORG_LIVE_KEY が未設定です');
+  const r = await fetch(`${base}/api/live${path}`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`AI組織の応答 ${r.status}`);
+  return r.json();
+}
+router.get('/ai-map', async (req, res) => {
+  try {
+    const after = Number.parseInt(req.query.after, 10);
+    const q = Number.isFinite(after) && after > 0 ? `?after=${after}&limit=200` : '?limit=120';
+    if (!aiAgentsCache.v || Date.now() - aiAgentsCache.at > 60000) {
+      aiAgentsCache = { at: Date.now(), v: (await aiOrg('?mode=agents')).agents || [] };
+    }
+    const live = await aiOrg(q);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ agents: aiAgentsCache.v, ...live });
+  } catch (err) {
+    console.error('[site-analytics/ai-map]', err.message);
+    return res.status(502).json({ error: err.message });
+  }
+});
+
 function shotPath(site, pagePath, device) {
   const h = crypto.createHash('sha1').update(`${site}${pagePath}`).digest('hex').slice(0, 16);
   return `site-heatmaps/${h}_${device === 'mobile' ? 'mobile' : 'desktop'}.jpg`;
