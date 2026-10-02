@@ -78,6 +78,8 @@ app.use('/api/public/gifting', cors(), giftingModule.publicRouter);
 // 商品在庫管理: たお太郎 担当者向け（キー付きURL・認証不要）
 const inventoryModule = require(path.join(__dirname, 'inventory.cjs'));
 app.use('/api/public/inventory', cors(), inventoryModule.publicRouter);
+// 在庫: AI組織向け（Bearer INVENTORY_AI_KEY）
+app.use('/api/public/inventory-ai', inventoryModule.aiRouter);
 
 // eBay アカウント削除通知（認証不要）。
 // eBayが直接叩くので認証ミドルウェアより前に置く必要がある。
