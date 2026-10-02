@@ -24,6 +24,7 @@ const FORBIDDEN_QUERY = /^(key|api_key|apikey|access_token|token|authorization|x
 
 // ---- サービスの許可リスト -------------------------------------------------------------
 // auth: 秘密をどう付けるか。rules: 許可する呼び出し（method と path の正規表現・強さ）。
+const ID = '[\\w\\-]{1,64}'; const FBA_IN = '/inbound/fba/2024-03-20';
 const SERVICES = {
   chatwork: {
     secret: 'chatwork', host: 'api.chatwork.com', auth: (k) => ({ headers: { 'X-ChatWorkToken': k } }),
@@ -89,11 +90,33 @@ const SERVICES = {
       { m: 'POST', p: /^\/api\/(chat\.postMessage|chat\.update|reactions\.add)$/, tier: 'approval' },
     ],
   },
+  // Amazon SP-API（FBA納品 v2024-03-20）。アクセストークンは、既存の連携（amazon.cjs）が毎回更新したものを使う。キー自体は出ない。
+  // 読み取りは自由／「生成」（計算だけで確定しない）は回数制限／作成・梱包情報・確定・取り消し（費用や在庫の動きに関わる）はLINE承認。他のAPI（注文・レポート等）は対象外
+  amazon_sp: {
+    token: async () => (await require('./amazon.cjs').getAccessToken()).token,
+    host: 'sellingpartnerapi-fe.amazon.com', auth: (k) => ({ headers: { 'x-amz-access-token': k } }),
+    rules: [
+      { m: 'GET', p: new RegExp(`^${FBA_IN}/inboundPlans$`), tier: 'free' },
+      { m: 'GET', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}(/(items|boxes|pallets|packingOptions|placementOptions|shipments/${ID}(/(contentUpdatePreviews|deliveryWindowOptions))?|packingGroups/${ID}/items))?$`), tier: 'free' },
+      { m: 'GET', p: new RegExp(`^${FBA_IN}/operations/${ID}$`), tier: 'free' },
+      { m: 'GET', p: new RegExp(`^/fba/inbound/v0/shipments/${ID}(/labels)?$`), tier: 'free' },
+      { m: 'POST', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}/(packingOptions|placementOptions)$`), tier: 'metered' },
+      { m: 'POST', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}/shipments/${ID}/(transportationOptions|deliveryWindowOptions)$`), tier: 'metered' },
+      { m: 'POST', p: new RegExp(`^${FBA_IN}/inboundPlans(/${ID}(/[A-Za-z]+(/${ID})?)*(/[A-Za-z]+)?)?$`), tier: 'approval' },
+      { m: 'PUT', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}(/[A-Za-z]+(/${ID})?)*$`), tier: 'approval' },
+    ],
+  },
   meta_capi: {
     secret: 'meta_capi_access_token', host: 'graph.facebook.com', auth: (k) => ({ query: { access_token: k } }), vars: { pixel: 'meta_pixel_id' },
     rules: [{ m: 'POST', p: /^\/v\d+\.\d+\/\{pixel\}\/events$/, tier: 'approval' }],
   },
 };
+
+/** 許可リストの照合（なければ null）。pathの {pixel} などの変数は、サーバーが埋める */
+function matchRule(service, method, path) {
+  const svc = SERVICES[service]; if (!svc) return null;
+  return svc.rules.find((r) => r.m === method && r.p.test(svc.vars?.pixel ? path.replace(/\/\d{6,}\//, '/{pixel}/') : path)) || null;
+}
 
 // 呼び出し用でない秘密（対象外）。理由を、一覧で示す
 const NOT_CALLABLE = {
@@ -186,7 +209,7 @@ router.use((req, res, next) => {
 router.get('/services', async (req, res) => {
   const out = {};
   for (const [id, s] of Object.entries(SERVICES)) {
-    let configured = false; try { configured = !!(await secretOf(s)); } catch { configured = false; }
+    let configured = false; try { configured = !!(await (s.token ? s.token() : secretOf(s))); } catch { configured = false; }
     out[id] = { host: s.host, configured, allowed: s.rules.map((r) => ({ method: r.m, path: String(r.p).replace(/^\/\^?|\$?\/$/g, ''), tier: r.tier })) };
   }
   res.json({ services: out, not_callable: NOT_CALLABLE, tiers: { free: '自由（読み取り等）', metered: `1日${DAILY_CAP.metered}回まで（費用がかかる）`, approval: 'オーナーのLINE承認が済んだ1回きりの操作' } });
@@ -209,7 +232,7 @@ router.post('/call', async (req, res) => {
     if (!svc) return fail(400, `未対応のサービスです: ${service}`);
     if (typeof path !== 'string' || !path.startsWith('/') || /\/\/|\.\.|[@\\#?\s]/.test(path.replace(/\{pixel\}/, ''))) return fail(400, 'path が不正です');
     // 許可リスト照合（pathの {pixel} などの変数は、サーバーが埋める）
-    const rule = svc.rules.find((r) => r.m === method && r.p.test(svc.vars?.pixel ? path.replace(/\/\d{6,}\//, '/{pixel}/') : path));
+    const rule = matchRule(service, method, path);
     if (!rule) return fail(403, `許可されていない呼び出しです（${service} ${method} ${path}）`);
     if (svc.scope && !svc.scope(path)) return fail(403, '許可されていないルーム・対象です');
     if (rule.body) { const why = await bodyCheck(rule.body, path, body); if (why) return fail(403, why); }
@@ -227,7 +250,7 @@ router.post('/call', async (req, res) => {
       if (cap && (await usedToday(req.caller, service)) >= cap) return fail(429, `1日の回数の上限（${cap}回）に達しました`);
     }
 
-    const key = String((await secretOf(svc)) || '').trim();
+    const key = String((await (svc.token ? svc.token() : secretOf(svc))) || '').trim();
     if (!key) return fail(503, `${service} のキーがAPI設定に未登録です`);
     const a = svc.auth(key);
     let realPath = path;
@@ -263,3 +286,4 @@ module.exports = router;
 module.exports.approvalHash = approvalHash;
 module.exports.notionId = notionId;
 module.exports.SERVICES = SERVICES;
+module.exports.matchRule = matchRule;
