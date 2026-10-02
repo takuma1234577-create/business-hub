@@ -427,7 +427,7 @@ publicRouter.post('/signup-attr', express.json({ limit: '8kb' }), async (req, re
 
 // アフィリエイト収益（楽天・Amazon）。取り込みは fitpeak-ai-org の /api/revenue。ここは読むだけ。
 // 収益は「日別・発生ベース」。AIの予算の上限には、直近30日の収益がそのまま足される（fitpeak-ai-org）。
-const jstDate = (d) => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+const jstDate = (d) => new Date(new Date(d).getTime() + 9 * 3600000).toISOString().slice(0, 10);   // range() は ISO文字列を返すので、Dateにしてから使う
 router.get('/revenue', async (req, res) => {
   try {
     const { from, to } = range(req.query);
