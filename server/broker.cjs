@@ -28,9 +28,11 @@ const SERVICES = {
   chatwork: {
     secret: 'chatwork', host: 'api.chatwork.com', auth: (k) => ({ headers: { 'X-ChatWorkToken': k } }),
     rules: [
-      { m: 'GET', p: /^\/v2\/(me|rooms|rooms\/\d+|rooms\/\d+\/(messages|members|tasks|files)|contacts)$/, tier: 'free' },
+      { m: 'GET', p: /^\/v2\/(me|rooms\/\d+|rooms\/\d+\/(messages|members|tasks|files))$/, tier: 'free' },
       { m: 'POST', p: /^\/v2\/rooms\/\d+\/messages$/, tier: 'approval' },
     ],
+    // 触れるルームを限定する（既定: たお太郎の発注ルームだけ。環境変数 BROKER_CHATWORK_ROOMS=ID,ID で追加）。会計事務所など、他のルームには触れない
+    scope: (path) => { const m = path.match(/^\/v2\/rooms\/(\d+)/); if (!m) return true; return String(process.env.BROKER_CHATWORK_ROOMS || '445627173').split(',').map((x) => x.trim()).includes(m[1]); },
   },
   jev: {
     secret: 'jev', host: 'api.typesafe.ai', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
@@ -163,6 +165,7 @@ router.post('/call', async (req, res) => {
     // 許可リスト照合（pathの {pixel} などの変数は、サーバーが埋める）
     const rule = svc.rules.find((r) => r.m === method && r.p.test(svc.vars ? path.replace(/\/\d{6,}\//, '/{pixel}/') : path));
     if (!rule) return fail(403, `許可されていない呼び出しです（${service} ${method} ${path}）`);
+    if (svc.scope && !svc.scope(path)) return fail(403, '許可されていないルーム・対象です');
     for (const k of Object.keys(query || {})) if (FORBIDDEN_QUERY.test(k)) return fail(400, `クエリ ${k} は指定できません`);
     if (body !== undefined && JSON.stringify(body).length > 200000) return fail(413, '本文が大きすぎます');
 
@@ -177,7 +180,7 @@ router.post('/call', async (req, res) => {
       if (cap && (await usedToday(req.caller, service)) >= cap) return fail(429, `1日の回数の上限（${cap}回）に達しました`);
     }
 
-    const key = await settings.getActiveApiKey(svc.secret);
+    const key = String((await settings.getActiveApiKey(svc.secret)) || '').trim();
     if (!key) return fail(503, `${service} のキーがAPI設定に未登録です`);
     const a = svc.auth(key);
     let realPath = path;
