@@ -697,6 +697,10 @@ const API_KEY_SERVICES = [
   { id: 'org_openai', label: 'ChatGPT（OpenAI）APIキー（AI組織：汎用の推論・画像の理解）', envVar: 'OPENAI_ORG_API_KEY', placeholder: 'sk-...' },
   { id: 'org_gemini', label: 'Gemini APIキー（AI組織：長い資料の読み込み・要約）', envVar: 'GEMINI_ORG_API_KEY', placeholder: 'AIzaSy...' },
 
+  // 共通メモリ（AI組織の外部メモリ）の本体 Notion。Notion のインテグレーションのトークンと、データベースを作る親ページのID。
+  { id: 'org_notion', label: 'Notion APIキー（AI組織：共通メモリ。内部インテグレーションのトークン）', envVar: 'NOTION_API_KEY', placeholder: 'ntn_... または secret_...' },
+  { id: 'org_notion_parent', label: 'Notion 親ページのID（AI組織：この下に「AI組織メモリ」のデータベースが作られる）', envVar: 'NOTION_PARENT_PAGE_ID', placeholder: 'ページのURL末尾の32文字' },
+
   // FITPEAK AI組織（サイト運営エージェント）の低コスト業務の振り分け先 Jev。
   // Claude だけに寄せず、Jev で足りる業務を Jev に回してAPI費用を下げる。
   { id: 'jev', label: 'Jev APIキー（AI組織：低コスト業務の振り分け先）', envVar: 'JEV_API_KEY', placeholder: '' },
