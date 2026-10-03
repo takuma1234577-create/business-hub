@@ -29,4 +29,21 @@ assert.equal(tier('DELETE', `${B}/inboundPlans/wf1`), null);
 assert.equal(tier('GET', '/orders/v0/orders'), null);                                     // 他のAPI（注文・レポート等）には触れない
 assert.equal(tier('GET', `${B}/inboundPlans/../../orders`), null);
 assert.equal(matchRule('nosuch', 'GET', '/x'), null);
+
+// 商品ページ(Listings)・カタログ・A+コンテンツ: 読み取りは自由、書き込み・申請は承認つき
+const L = '/listings/2021-08-01/items/AGE6B6YH3KSXW';
+assert.equal(tier('GET', `${L}/FP-RW-001`), 'free');
+assert.equal(tier('GET', '/catalog/2022-04-01/items/B0DR9QSZFW'), 'free');
+assert.equal(tier('PATCH', `${L}/FP-RW-001`), 'approval');          // タイトル・箇条書き・説明・画像の変更
+assert.equal(tier('PUT', `${L}/FP-RW-001`), 'approval');
+assert.equal(tier('DELETE', `${L}/FP-RW-001`), null);               // 出品の削除はできない
+assert.equal(tier('GET', '/aplus/2020-11-01/contentDocuments'), 'free');
+assert.equal(tier('GET', '/aplus/2020-11-01/contentDocuments/ABC123'), 'free');
+assert.equal(tier('POST', '/aplus/2020-11-01/contentDocuments'), 'approval');
+assert.equal(tier('POST', '/aplus/2020-11-01/contentDocuments/ABC123/asins'), 'approval');
+assert.equal(tier('POST', '/aplus/2020-11-01/contentDocuments/ABC123/approvalSubmissions'), 'approval');
+assert.equal(tier('DELETE', '/aplus/2020-11-01/contentDocuments/ABC123'), null);
+// 出品者IDは、SVPコーポレーション(AGE6B6YH3KSXW)だけ。別の事業のストアは触れない
+assert.equal(tier('PATCH', '/listings/2021-08-01/items/A6GVDAVC6TMCZ/ANY'), null);
+assert.equal(tier('GET', '/listings/2021-08-01/items/A14IWQQOZ4KZFL/ANY'), null);
 console.log('OK   仲介窓口 amazon_sp');
