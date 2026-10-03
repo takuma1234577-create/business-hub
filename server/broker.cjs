@@ -25,6 +25,7 @@ const FORBIDDEN_QUERY = /^(key|api_key|apikey|access_token|token|authorization|x
 // ---- サービスの許可リスト -------------------------------------------------------------
 // auth: 秘密をどう付けるか。rules: 許可する呼び出し（method と path の正規表現・強さ）。
 const ID = '[\\w\\-]{1,64}'; const FBA_IN = '/inbound/fba/2024-03-20';
+const SELLER = 'AGE6B6YH3KSXW'; const SKU = '[\\w.\\-%]{1,80}';     // 出品者ID(SVPコーポレーション)・SKU
 const SERVICES = {
   chatwork: {
     secret: 'chatwork', host: 'api.chatwork.com', auth: (k) => ({ headers: { 'X-ChatWorkToken': k } }),
@@ -104,6 +105,13 @@ const SERVICES = {
       { m: 'POST', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}/shipments/${ID}/(transportationOptions|deliveryWindowOptions)$`), tier: 'metered' },
       { m: 'POST', p: new RegExp(`^${FBA_IN}/inboundPlans(/${ID}(/[A-Za-z]+(/${ID})?)*(/[A-Za-z]+)?)?$`), tier: 'approval' },
       { m: 'PUT', p: new RegExp(`^${FBA_IN}/inboundPlans/${ID}(/[A-Za-z]+(/${ID})?)*$`), tier: 'approval' },
+      // 商品ページ(Listings)・カタログ・A+コンテンツ。出品者は SVPコーポレーション(FITPEAK)だけ。読み取りは自由、書き込み・申請はLINE/Slackの承認つき（承認した内容のとおりにだけ実行される）
+      { m: 'GET', p: new RegExp(`^/listings/2021-08-01/items/${SELLER}/${SKU}$`), tier: 'free' },
+      { m: 'PATCH', p: new RegExp(`^/listings/2021-08-01/items/${SELLER}/${SKU}$`), tier: 'approval' },
+      { m: 'PUT', p: new RegExp(`^/listings/2021-08-01/items/${SELLER}/${SKU}$`), tier: 'approval' },
+      { m: 'GET', p: /^\/catalog\/2022-04-01\/items\/[A-Z0-9]{10}$/, tier: 'free' },
+      { m: 'GET', p: new RegExp(`^/aplus/2020-11-01/contentDocuments(/${ID})?$`), tier: 'free' },
+      { m: 'POST', p: new RegExp(`^/aplus/2020-11-01/contentDocuments(/${ID}/(asins|approvalSubmissions))?$`), tier: 'approval' },
     ],
   },
   meta_capi: {
