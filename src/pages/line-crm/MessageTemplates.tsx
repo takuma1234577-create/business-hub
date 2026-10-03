@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import axios from 'axios'
 import { createClient } from '@supabase/supabase-js'
@@ -303,7 +304,7 @@ export default function MessageTemplates() {
     if (!testFriendId || blocks.length === 0) return
     const problems = findBlockProblems(blocks)
     if (problems.length > 0) {
-      alert('この内容ではLINEに送信できません。\n\n' + problems.join('\n'))
+      alert(uiText('この内容ではLINEに送信できません。\n\n' + problems.join('\n')))
       return
     }
     setTestSending(true)
@@ -313,10 +314,10 @@ export default function MessageTemplates() {
         messages: blocks,
       })
       const sentTo = res.data?.sent_to || ''
-      alert(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`)
+      alert(uiText(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`))
     } catch (err) {
       const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : 'テスト配信に失敗しました'
-      alert('テスト配信失敗: ' + msg)
+      alert(uiText('テスト配信失敗: ' + msg))
     } finally {
       setTestSending(false)
     }
@@ -364,7 +365,7 @@ export default function MessageTemplates() {
       setMoveDialogOpen(false)
       fetchTemplates()
     } catch (err) {
-      alert('移動失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('移動失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     }
   }
 
@@ -399,14 +400,14 @@ export default function MessageTemplates() {
       setShowForm(false)
       fetchTemplates()
     } catch (err) {
-      alert('保存失敗: ' + (err instanceof Error ? err.message : ''))
+      alert(uiText('保存失敗: ' + (err instanceof Error ? err.message : '')))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このテンプレートを削除しますか？')) return
+    if (!confirm(uiText('このテンプレートを削除しますか？'))) return
     try {
       await api.delete(`/message-templates/${id}`)
       fetchTemplates()
@@ -417,7 +418,7 @@ export default function MessageTemplates() {
 
   const addBlock = (kind: UIBlockKind) => {
     if (blocks.length >= 5) {
-      alert('1テンプレートは最大5メッセージまでです（LINE仕様）')
+      alert(uiText('1テンプレートは最大5メッセージまでです（LINE仕様）'))
       return
     }
     setBlocks([...blocks, createBlock(kind)])
@@ -428,10 +429,10 @@ export default function MessageTemplates() {
     if (!src) return
     const msgs = src.content?.messages || []
     const remaining = 5 - blocks.length
-    if (remaining <= 0) { alert('すでに5メッセージあります'); return }
+    if (remaining <= 0) { alert(uiText('すでに5メッセージあります')); return }
     const toAdd = msgs.slice(0, remaining)
     if (msgs.length > remaining) {
-      if (!confirm(`"${src.name}" は ${msgs.length} メッセージあります。\n上限超過分は取り込めません。${toAdd.length} メッセージを追加しますか？`)) return
+      if (!confirm(uiText(`"${src.name}" は ${msgs.length} メッセージあります。\n上限超過分は取り込めません。${toAdd.length} メッセージを追加しますか？`))) return
     }
     setBlocks([...blocks, ...toAdd])
     setImportDialogOpen(false)
@@ -560,7 +561,7 @@ export default function MessageTemplates() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-slate-900 dark:text-white">{t.name}</p>
+                      <p className="font-medium text-slate-900 dark:text-white"><span translate="no">{t.name}</span></p>
                       {t.folder && (
                         <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                           📁 {t.folder}
@@ -746,7 +747,7 @@ export default function MessageTemplates() {
                             }}
                             className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer ${f.id === testFriendId ? 'bg-[#06C755]/10 text-[#06C755] font-medium' : 'text-slate-700 dark:text-slate-300'}`}
                           >
-                            {f.display_name}
+                            <span translate="no">{f.display_name}</span>
                           </button>
                         ))
                       ) : friendSearch.trim() ? (
@@ -823,7 +824,7 @@ export default function MessageTemplates() {
                       onClick={() => importFromTemplate(t.id)}
                       className="w-full text-left px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 rounded cursor-pointer"
                     >
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t.name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white"><span translate="no">{t.name}</span></p>
                       <p className="text-xs text-slate-500 mt-0.5">
                         {(t.content?.messages || []).length} メッセージ
                         {t.folder && <span className="ml-2">📁 {t.folder}</span>}
@@ -1041,7 +1042,7 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
       if (!block.text) return null
       return (
         <div className="max-w-[75%] bg-white rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
-          <p className="text-sm text-slate-900 whitespace-pre-wrap break-words">
+          <p translate="no" className="text-sm text-slate-900 whitespace-pre-wrap break-words">
             {linkify(block.text)}
           </p>
         </div>
@@ -1098,10 +1099,10 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
                   )}
                   {(c.title || c.text) && (
                     <div className="px-3 py-2">
-                      {c.title && <p className="font-semibold text-sm text-slate-900 mb-0.5 truncate">{c.title}</p>}
+                      {c.title && <p translate="no" className="font-semibold text-sm text-slate-900 mb-0.5 truncate">{c.title}</p>}
                       {c.text && (
                         <p className="text-xs text-slate-700 whitespace-pre-wrap break-words line-clamp-2">
-                          {linkify(c.text)}
+                          <span translate="no">{linkify(c.text)}</span>
                         </p>
                       )}
                     </div>
@@ -1130,10 +1131,10 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
           )}
           {(t.title || t.text) && (
             <div className="px-3 py-2">
-              {t.title && <p className="font-semibold text-sm text-slate-900 mb-0.5">{t.title}</p>}
+              {t.title && <p translate="no" className="font-semibold text-sm text-slate-900 mb-0.5">{t.title}</p>}
               {t.text && (
                 <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">
-                  {linkify(t.text)}
+                  <span translate="no">{linkify(t.text)}</span>
                 </p>
               )}
             </div>
@@ -1354,7 +1355,7 @@ function DropUpload({
     const cat = accept.includes('video') ? 'video' : accept.includes('audio') ? 'audio' : accept.includes('image') ? 'image' : ''
     if (cat && file.type && !file.type.startsWith(cat + '/')) {
       const jp = cat === 'video' ? '動画' : cat === 'audio' ? '音声' : '画像'
-      alert(`この欄には${jp}ファイルを指定してください。\n選択されたファイル: ${file.type || file.name}`)
+      alert(uiText(`この欄には${jp}ファイルを指定してください。\n選択されたファイル: ${file.type || file.name}`))
       return
     }
     setUploading(true)
@@ -1366,7 +1367,7 @@ function DropUpload({
       onChange(url)
       if (onUploaded) await onUploaded(url, file)
     } catch (err) {
-      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
+      alert(uiText('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー')))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1442,7 +1443,7 @@ function ThumbDropUpload({ value, onChange, aspect = 'rectangle' }: { value: str
       setProgress(100)
       onChange(url)
     } catch (err) {
-      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
+      alert(uiText('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー')))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1641,7 +1642,7 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
                 >
                   <option value="">付与タグ...</option>
                   {tags.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
                 <input
@@ -1669,7 +1670,7 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
               >
                 <option value="">テンプレートを選択...</option>
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             )}
@@ -1702,7 +1703,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
     updateTmpl({ actions: options.map((a, idx) => (idx === i ? buildAnswerAction(label, tag, reply, tpl) : a)) })
   }
   const addOption = () => {
-    if (options.length >= 4) { alert('選択肢は最大4つまでです（LINE仕様）'); return }
+    if (options.length >= 4) { alert(uiText('選択肢は最大4つまでです（LINE仕様）')); return }
     updateTmpl({ actions: [...options, buildAnswerAction(`選択肢${options.length + 1}`, '', '', '')] })
   }
   const removeOption = (i: number) => {
@@ -1765,7 +1766,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
                   >
                     <option value="">なし</option>
                     {tags.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                      <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1778,7 +1779,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
                   >
                     <option value="">なし</option>
                     {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                      <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1813,7 +1814,7 @@ function CarouselEditor({ block, onChange, templates, tags }: { block: CarouselB
     })
   }
   const addColumn = () => {
-    if (columns.length >= 10) { alert('カルーセルは最大10カラムまでです'); return }
+    if (columns.length >= 10) { alert(uiText('カルーセルは最大10カラムまでです')); return }
     updateColumns([...columns, { title: '', text: '', actions: [{ type: 'message', label: 'ボタン1', text: '' }] }])
   }
   const removeColumn = (i: number) => {
@@ -1987,7 +1988,7 @@ function CarouselColumnEditor({
                 className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
               >
                 <option value="">テンプレート選択...</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {templates.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             )}
             {a.type === 'postback' && isAnswerAction(a) && (
@@ -1998,7 +1999,7 @@ function CarouselColumnEditor({
                   className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
                 >
                   <option value="">付与するタグ...</option>
-                  {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {tags.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
                 <input
                   type="text"

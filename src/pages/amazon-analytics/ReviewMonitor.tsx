@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Trash2, RefreshCw, Star, AlertTriangle,
@@ -87,14 +89,14 @@ export default function ReviewMonitor() {
       fetchOutreach()
       fetchStats()
     } catch (err: any) {
-      alert(err.response?.data?.error || '追加に失敗しました')
+      alert(uiText(err.response?.data?.error || '追加に失敗しました'))
     } finally {
       setAdding(false)
     }
   }
 
   const handleRemove = async (asin: string) => {
-    if (!confirm(`${asin} の監視を停止しますか?`)) return
+    if (!confirm(uiText(`${asin} の監視を停止しますか?`))) return
     await reviewMonitorApi.removeProduct(asin)
     fetchProducts()
   }
@@ -103,12 +105,12 @@ export default function ReviewMonitor() {
     setScanning(prev => new Set(prev).add(asin))
     try {
       const res = await reviewMonitorApi.scanOrders(asin)
-      alert(`スキャン完了: ${res.data.matched}件の注文を検出 (新規${res.data.new}件)`)
+      alert(uiText(`スキャン完了: ${res.data.matched}件の注文を検出 (新規${res.data.new}件)`))
       fetchProducts()
       fetchOutreach()
       fetchStats()
     } catch (err: any) {
-      alert(err.response?.data?.error || 'スキャンに失敗しました')
+      alert(uiText(err.response?.data?.error || 'スキャンに失敗しました'))
     } finally {
       setScanning(prev => { const n = new Set(prev); n.delete(asin); return n })
     }
@@ -121,7 +123,7 @@ export default function ReviewMonitor() {
       const res = await reviewMonitorApi.generateMessage(id)
       setDraftMessages(prev => ({ ...prev, [id]: res.data.message }))
     } catch (err) {
-      alert('メッセージ生成に失敗しました')
+      alert(uiText('メッセージ生成に失敗しました'))
     } finally {
       setGeneratingId(null)
     }
@@ -133,12 +135,12 @@ export default function ReviewMonitor() {
     setSendingId(id)
     try {
       const res = await reviewMonitorApi.sendMessage(id, msg)
-      alert(res.data.note)
+      alert(uiText(res.data.note))
       setDraftMessages(prev => { const n = { ...prev }; delete n[id]; return n })
       fetchOutreach()
       fetchStats()
     } catch (err: any) {
-      alert(err.response?.data?.error || '送信に失敗しました')
+      alert(uiText(err.response?.data?.error || '送信に失敗しました'))
     } finally {
       setSendingId(null)
     }
@@ -164,7 +166,7 @@ export default function ReviewMonitor() {
 
   const formatDate = (d: string | null) => {
     if (!d) return '-'
-    return new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    return new Date(d).toLocaleDateString(getLocale(), { year: 'numeric', month: '2-digit', day: '2-digit' })
   }
 
   const renderRating = (rating: number | null) => {

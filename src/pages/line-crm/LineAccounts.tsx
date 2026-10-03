@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState } from 'react'
 import axios from 'axios'
 import { Plus, Trash2, Copy, Check, CheckCircle2, Ban, MessageCircle } from 'lucide-react'
@@ -56,17 +57,17 @@ export default function LineAccounts() {
       await api.put(`/accounts/${account.id}`, { is_active: !account.is_active })
       reload()
     } catch (err) {
-      alert(axios.isAxiosError(err) ? err.response?.data?.error || err.message : '更新に失敗しました')
+      alert(uiText(axios.isAxiosError(err) ? err.response?.data?.error || err.message : '更新に失敗しました'))
     }
   }
 
   const handleDelete = async (account: LineAccount) => {
-    if (!confirm(`「${account.display_name}」を削除しますか？`)) return
+    if (!confirm(uiText(`「${account.display_name}」を削除しますか？`))) return
     try {
       await api.delete(`/accounts/${account.id}`)
       reload()
     } catch (err) {
-      alert(axios.isAxiosError(err) ? err.response?.data?.error || err.message : '削除に失敗しました')
+      alert(uiText(axios.isAxiosError(err) ? err.response?.data?.error || err.message : '削除に失敗しました'))
     }
   }
 

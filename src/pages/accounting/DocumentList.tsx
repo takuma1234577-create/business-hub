@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { documentApi } from './api'
 import type { AccountingDocument, DocumentType, DocumentStatus } from './types'
@@ -79,7 +80,7 @@ export function DocumentList({ onSelect }: Props) {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この書類を削除しますか？')) return
+    if (!confirm(uiText('この書類を削除しますか？'))) return
     await documentApi.delete(id)
     fetchDocs()
   }

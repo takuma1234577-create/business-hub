@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { Client, InvoiceItem, InvoiceItemType } from './types';
 import { clientApi } from './api';
@@ -71,7 +72,7 @@ export function ClientManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return;
+    if (!confirm(uiText('削除しますか？'))) return;
     try {
       await clientApi.delete(id);
       load();
@@ -188,8 +189,8 @@ export function ClientManager() {
             <tbody className="divide-y divide-gray-100">
               {clients.map(c => (
                 <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium">{c.companyName}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.contactName}</td>
+                  <td className="px-4 py-3 text-sm font-medium"><span translate="no">{c.companyName}</span></td>
+                  <td className="px-4 py-3 text-sm text-gray-600"><span translate="no">{c.contactName}</span></td>
                   <td className="px-4 py-3 text-sm text-gray-600">{c.email}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {c.defaultItems && c.defaultItems.length > 0 ? (

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { Send } from 'lucide-react'
@@ -53,10 +54,10 @@ export default function TestSendWidget({ getMessages, label = 'テスト配信' 
         messages,
       })
       const sentTo = res.data?.sent_to || ''
-      alert(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`)
+      alert(uiText(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`))
     } catch (err) {
       const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : 'テスト配信に失敗しました'
-      alert('テスト配信失敗: ' + msg)
+      alert(uiText('テスト配信失敗: ' + msg))
     } finally {
       setSending(false)
     }
@@ -104,7 +105,7 @@ export default function TestSendWidget({ getMessages, label = 'テスト配信' 
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer truncate"
                 >
-                  {f.display_name}
+                  <span translate="no">{f.display_name}</span>
                 </button>
               ))
             )}

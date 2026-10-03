@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { fiscalYearApi } from './api'
 import type { FiscalDocument, FiscalMetric, DocumentType } from './api'
@@ -109,7 +110,7 @@ export function FiscalAnalysis() {
   }, [documents.map(d => d.id + d.ai_status).join(',')])
 
   const handleUpload = async () => {
-    if (!uploadFile || !uploadDocType || !fiscalYear) { if (!fiscalYear) alert('書類をアップロードするには年度を選択してください'); return }
+    if (!uploadFile || !uploadDocType || !fiscalYear) { if (!fiscalYear) alert(uiText('書類をアップロードするには年度を選択してください')); return }
     setUploading(true)
     try {
       await fiscalYearApi.uploadDocument(uploadFile, fiscalYear.id, uploadDocType, undefined, selectedMonth || undefined)
@@ -118,12 +119,12 @@ export function FiscalAnalysis() {
     } catch (err: any) {
       const e = err?.response?.data?.error
       const msg = typeof e === 'string' ? e : (err?.message || JSON.stringify(e || err))
-      alert('アップロードに失敗しました: ' + msg)
+      alert(uiText('アップロードに失敗しました: ' + msg))
     } finally { setUploading(false) }
   }
 
   const handleDeleteDoc = async (id: string) => {
-    if (!confirm('この書類と解析データを削除しますか？')) return
+    if (!confirm(uiText('この書類と解析データを削除しますか？'))) return
     try { await fiscalYearApi.deleteDocument(id); fetchData() }
     catch (err) { console.error(err) }
   }

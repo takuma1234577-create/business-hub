@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck, Settings, FileText, Music, Download } from 'lucide-react'
 import { chatApi } from './api'
@@ -143,7 +145,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
     const isVideo = file.type.startsWith('video/')
     const isImage = file.type.startsWith('image/')
     if (!isVideo && !isImage) {
-      alert('画像または動画ファイルを選択してください')
+      alert(uiText('画像または動画ファイルを選択してください'))
       return
     }
     const previewUrl = URL.createObjectURL(file)
@@ -183,7 +185,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
     } catch (err) {
       console.error('Failed to send media:', err)
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id))
-      alert('メディアの送信に失敗しました')
+      alert(uiText('メディアの送信に失敗しました'))
     } finally {
       setSending(false)
     }
@@ -213,7 +215,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
   const handleBlock = async () => {
     const isBlocked = currentStatus === 'blocked'
     const msg = isBlocked ? 'この友だちのブロックを解除しますか？' : 'この友だちをブロックしますか？'
-    if (!confirm(msg)) return
+    if (!confirm(uiText(msg))) return
     setBlocking(true)
     try {
       const res = await fetch(`/api/line-crm/friends/${friend.id}/block`, {
@@ -235,12 +237,12 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr)
-    return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })
   }
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+    return d.toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
   // Render message content (text, image, video)
@@ -264,7 +266,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
                 const el = e.currentTarget
                 el.style.display = 'none'
                 const fallback = document.createElement('div')
-                fallback.textContent = '画像を読み込めません'
+                fallback.textContent = uiText('画像を読み込めません')
                 fallback.className = 'px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm text-slate-500'
                 el.parentNode?.appendChild(fallback)
               }}
@@ -366,7 +368,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
         const elements: React.ReactNode[] = []
         for (const m of obj.messages as Array<Record<string, unknown>>) {
           if (m.type === 'text' && typeof m.text === 'string') {
-            elements.push(<p key={elements.length} className="whitespace-pre-wrap">{m.text}</p>)
+            elements.push(<p translate="no" key={elements.length} className="whitespace-pre-wrap">{m.text}</p>)
           } else if (m.type === 'image') {
             const imgUrl = (m.originalContentUrl || m.previewImageUrl || m.url || '') as string
             if (imgUrl) {
@@ -381,7 +383,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
             }
           } else if (m.type === 'template' && m.template) {
             const tmpl = m.template as Record<string, unknown>
-            if (typeof tmpl.text === 'string') elements.push(<p key={elements.length}>{tmpl.text}</p>)
+            if (typeof tmpl.text === 'string') elements.push(<p translate="no" key={elements.length}>{tmpl.text}</p>)
             if (Array.isArray(tmpl.actions)) {
               const labels = (tmpl.actions as Array<Record<string, unknown>>)
                 .map(a => typeof a.label === 'string' ? `[${a.label}]` : '')
@@ -452,7 +454,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white truncate">{friend.display_name}</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white truncate"><span translate="no">{friend.display_name}</span></h3>
             {currentStatus === 'blocked' && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">ブロック中</span>
             )}
@@ -468,7 +470,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
                   className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium"
                   style={{ backgroundColor: tag.color || '#06C755' }}
                 >
-                  {tag.name}
+                  <span translate="no">{tag.name}</span>
                 </span>
               ))}
             </div>

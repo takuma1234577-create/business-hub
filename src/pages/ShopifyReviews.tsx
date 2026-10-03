@@ -1,3 +1,5 @@
+import { getLocale } from '../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { Star, Check, X, Trash2, Filter, RefreshCw, Plus, ChevronDown, ChevronUp, Download, XCircle } from 'lucide-react'
 import axios from 'axios'
@@ -189,7 +191,7 @@ function ProductCard({ product, stats, reviews, onRefresh }: {
   const productReviews = reviews.filter(r => r.shopify_product_id === product.shopify_product_id)
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return
+    if (!confirm(uiText('削除しますか？'))) return
     await api.delete(`/reviews/${id}`)
     onRefresh()
   }
@@ -271,11 +273,11 @@ function ProductCard({ product, stats, reviews, onRefresh }: {
                           {sourceLabel[r.source] || r.source}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 mb-1">
-                        {r.author_name} - {new Date(r.created_at).toLocaleDateString('ja-JP')}
+                      <p translate="no" className="text-xs text-slate-500 mb-1">
+                        {r.author_name} - {new Date(r.created_at).toLocaleDateString(getLocale())}
                       </p>
                       {r.title && <p className="text-sm font-medium text-slate-900 dark:text-white mb-0.5">{r.title}</p>}
-                      <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.body}</p>
+                      <p translate="no" className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.body}</p>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <button
@@ -325,19 +327,19 @@ export default function ShopifyReviews() {
       await api.post('/install-widget')
       setWidgetInstalled(true)
     } catch (err: any) {
-      alert('インストールエラー: ' + (err.response?.data?.error || err.message))
+      alert(uiText('インストールエラー: ' + (err.response?.data?.error || err.message)))
     }
     setWidgetLoading(false)
   }
 
   const handleUninstallWidget = async () => {
-    if (!confirm('ウィジェットをアンインストールしますか？')) return
+    if (!confirm(uiText('ウィジェットをアンインストールしますか？'))) return
     setWidgetLoading(true)
     try {
       await api.delete('/uninstall-widget')
       setWidgetInstalled(false)
     } catch (err: any) {
-      alert('アンインストールエラー: ' + (err.response?.data?.error || err.message))
+      alert(uiText('アンインストールエラー: ' + (err.response?.data?.error || err.message)))
     }
     setWidgetLoading(false)
   }
@@ -392,7 +394,7 @@ export default function ShopifyReviews() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return
+    if (!confirm(uiText('削除しますか？'))) return
     await api.delete(`/reviews/${id}`)
     fetchReviews()
     fetchStats()
@@ -515,7 +517,7 @@ export default function ShopifyReviews() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {stats.map(s => (
                   <tr key={s.shopify_product_id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                    <td className="px-4 py-3 text-slate-900 dark:text-white max-w-xs truncate">{s.product_title || s.shopify_product_id}</td>
+                    <td translate="no" className="px-4 py-3 text-slate-900 dark:text-white max-w-xs truncate">{s.product_title || s.shopify_product_id}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center gap-1">
                         <Star size={14} className="fill-yellow-400 text-yellow-400" />
@@ -591,9 +593,9 @@ export default function ShopifyReviews() {
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{sourceLabel[r.source] || r.source}</span>
                         {r.verified_purchase && <span className="text-xs text-green-600 font-medium">認証済み購入</span>}
                       </div>
-                      <p className="text-xs text-slate-500 mb-1">{r.author_name} - {r.product_title || r.shopify_product_id} - {new Date(r.created_at).toLocaleDateString('ja-JP')}</p>
+                      <p translate="no" className="text-xs text-slate-500 mb-1">{r.author_name} - {r.product_title || r.shopify_product_id} - {new Date(r.created_at).toLocaleDateString(getLocale())}</p>
                       {r.title && <p className="text-sm font-medium text-slate-900 dark:text-white mb-1">{r.title}</p>}
-                      <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.body}</p>
+                      <p translate="no" className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.body}</p>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       {r.status !== 'approved' && <button onClick={() => handleApprove(r.id)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600" title="承認"><Check size={16} /></button>}

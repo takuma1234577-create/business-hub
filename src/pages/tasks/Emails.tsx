@@ -1,3 +1,5 @@
+import { uiText } from '@business-hub/i18n/dialogs'
+import { getLocale } from '../../i18n/store'
 import { useState, useEffect } from 'react';
 import { api } from './api';
 import type { GmailMessage } from './types';
@@ -183,12 +185,12 @@ function EmailCard({ email }: { email: GmailMessage }) {
                 </span>
               )}
             </div>
-            <p className="font-medium text-sm text-gray-900 truncate">
-              {email.subject || '（件名なし）'}
+            <p translate="no" className="font-medium text-sm text-gray-900 truncate">
+              <span translate="no">{email.subject || uiText('（件名なし）')}</span>
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
               {email.from_name || email.from_address}
-              {email.received_at && ` • ${new Date(email.received_at).toLocaleDateString('ja-JP')}`}
+              {email.received_at && ` • ${new Date(email.received_at).toLocaleDateString(getLocale())}`}
             </p>
           </div>
           <span className="text-gray-400 text-sm flex-shrink-0">{expanded ? '▲' : '▼'}</span>
@@ -200,19 +202,19 @@ function EmailCard({ email }: { email: GmailMessage }) {
           {email.summary && (
             <div>
               <p className="text-xs font-semibold text-gray-500">📝 要約</p>
-              <p className="text-sm text-gray-700 mt-0.5">{email.summary}</p>
+              <p translate="no" className="text-sm text-gray-700 mt-0.5">{email.summary}</p>
             </div>
           )}
           {email.recommended_action && (
             <div>
               <p className="text-xs font-semibold text-gray-500">💡 推奨アクション</p>
-              <p className="text-sm text-gray-700 mt-0.5">{email.recommended_action}</p>
+              <p translate="no" className="text-sm text-gray-700 mt-0.5">{email.recommended_action}</p>
             </div>
           )}
           {email.body_snippet && (
             <div>
               <p className="text-xs font-semibold text-gray-500">本文プレビュー</p>
-              <p className="text-xs text-gray-600 mt-0.5 line-clamp-3">{email.body_snippet}</p>
+              <p translate="no" className="text-xs text-gray-600 mt-0.5 line-clamp-3">{email.body_snippet}</p>
             </div>
           )}
         </div>

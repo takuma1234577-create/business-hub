@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, MessageCircle, User } from 'lucide-react'
 import { chatApi, friendApi } from './api'
@@ -31,12 +33,12 @@ const formatTime = (iso?: string): string => {
   const now = new Date()
   const sameDay = d.toDateString() === now.toDateString()
   if (sameDay) {
-    return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })
   }
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return '昨日'
-  return d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+  return d.toLocaleDateString(getLocale(), { month: 'numeric', day: 'numeric' })
 }
 
 export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
@@ -167,7 +169,7 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium text-slate-900 dark:text-white truncate">
-                          {t.friend.display_name || '(名前なし)'}
+                          <span translate="no">{t.friend.display_name || uiText('(名前なし)')}</span>
                         </p>
                         <span className="text-xs text-slate-400 flex-shrink-0">
                           {formatTime(t.last_message?.created_at)}
@@ -176,7 +178,7 @@ export default function ChatThreads({ onSelectFriend }: ChatThreadsProps) {
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <p className={`text-sm truncate ${unread > 0 ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
                           {isOut && <span className="text-slate-400">自分: </span>}
-                          {text || `(${t.last_message?.message_type || 'メッセージ'})`}
+                          {text ? <span translate="no">{text}</span> : `(${t.last_message?.message_type || uiText('メッセージ')})`}
                         </p>
                         {unread > 0 && (
                           <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-[#06C755] text-white text-xs font-bold rounded-full flex items-center justify-center">

@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import {
   ShoppingBag,
@@ -60,7 +62,7 @@ function ChannelIcon({ channel }: { channel: Channel }) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString('ja-JP', {
+  return new Date(dateStr).toLocaleString(getLocale(), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -152,7 +154,7 @@ function OrderDetail({ order }: { order: Order }) {
                   className="border-t border-slate-100 dark:border-slate-800"
                 >
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                    {item.title || '-'}
+                    <span translate="no">{item.title || '-'}</span>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                     {item.channelSku}
@@ -271,7 +273,7 @@ export default function OrderList() {
   }
 
   const handleFulfillAll = async () => {
-    if (!confirm('全ての保留中注文をAmazon MCFで一括発送しますか？')) return
+    if (!confirm(uiText('全ての保留中注文をAmazon MCFで一括発送しますか？'))) return
     setFulfillingAll(true)
     try {
       const res = await orderApi.fulfillAll()
@@ -308,7 +310,7 @@ export default function OrderList() {
   }
 
   const handleSyncAllToShopify = async () => {
-    if (!confirm('追跡番号のある全注文をShopifyに反映しますか？')) return
+    if (!confirm(uiText('追跡番号のある全注文をShopifyに反映しますか？'))) return
     setSyncingAllShopify(true)
     try {
       const res = await orderApi.syncAllToShopify()

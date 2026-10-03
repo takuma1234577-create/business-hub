@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { RefreshCw, Check, X, ShieldCheck, AlertTriangle, Search, Settings2, Package } from 'lucide-react'
@@ -232,7 +233,7 @@ export default function ReviewOrderAdmin({ channelId }: { channelId: string }) {
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                     {r.friend?.display_name && <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{r.friend.display_name}</span>}
-                    <span className="text-xs text-slate-400">{new Date(r.created_at).toLocaleString('ja-JP')}</span>
+                    <span className="text-xs text-slate-400">{new Date(r.created_at).toLocaleString(getLocale())}</span>
                   </div>
                   <div className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     <Search size={13} className="text-slate-400" /> 注文番号: <span className="font-mono">{r.order_number || '—'}</span>

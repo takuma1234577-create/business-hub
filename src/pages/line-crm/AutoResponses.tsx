@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Plus, Pencil, Trash2, Zap, X, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
@@ -170,22 +171,22 @@ export default function AutoResponses() {
     try {
       const pending = parseKeywordsRaw(keywordInput)
       const finalKeywords = Array.from(new Set([...form.keywords, ...pending]))
-      if (finalKeywords.length === 0) { alert('キーワードを1件以上追加してください'); setSaving(false); return }
-      if (!form.name.trim()) { alert('ルール名を入力してください'); setSaving(false); return }
+      if (finalKeywords.length === 0) { alert(uiText('キーワードを1件以上追加してください')); setSaving(false); return }
+      if (!form.name.trim()) { alert(uiText('ルール名を入力してください')); setSaving(false); return }
 
       let response_messages: unknown[]
       if (form.response_mode === 'template') {
         if (form.template_id) {
           const tmpl = templates.find(t => t.id === form.template_id)
-          if (!tmpl || !tmpl.content?.messages?.length) { alert('テンプレートを選択してください'); setSaving(false); return }
+          if (!tmpl || !tmpl.content?.messages?.length) { alert(uiText('テンプレートを選択してください')); setSaving(false); return }
           response_messages = tmpl.content.messages
         } else if (form.existing_messages.length > 0) {
           response_messages = form.existing_messages
         } else {
-          alert('テンプレートを選択してください'); setSaving(false); return
+          alert(uiText('テンプレートを選択してください')); setSaving(false); return
         }
       } else {
-        if (!form.response_text.trim()) { alert('返信メッセージを入力してください'); setSaving(false); return }
+        if (!form.response_text.trim()) { alert(uiText('返信メッセージを入力してください')); setSaving(false); return }
         response_messages = [{ type: 'text', text: form.response_text }]
       }
 
@@ -208,14 +209,14 @@ export default function AutoResponses() {
       fetchResponses()
     } catch (err) {
       const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : (err instanceof Error ? err.message : '保存に失敗しました')
-      alert('保存失敗: ' + msg)
+      alert(uiText('保存失敗: ' + msg))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この自動応答を削除しますか？')) return
+    if (!confirm(uiText('この自動応答を削除しますか？'))) return
     try {
       await api.delete(`/auto-responses/${id}`)
       fetchResponses()
@@ -495,7 +496,7 @@ export default function AutoResponses() {
                     >
                       <option value="">{editingId && form.existing_messages.length > 0 ? '現在のメッセージを維持（変更する場合は選択）' : 'テンプレートを選択...'}</option>
                       {templates.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}（{t.content?.messages?.length || 0}件）</option>
+                        <option translate="no" key={t.id} value={t.id}>{uiText(`${t.name}（${t.content?.messages?.length || 0}件）`)}</option>
                       ))}
                     </select>
                     {!form.template_id && editingId && form.existing_messages.length > 0 && (
@@ -503,7 +504,7 @@ export default function AutoResponses() {
                         <p className="font-medium text-slate-500 dark:text-slate-400 mb-1">現在の応答内容:</p>
                         {form.existing_messages.map((m, i) => (
                           <p key={i}>
-                            {m.type === 'text' ? m.text : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
+                            {m.type === 'text' ? <span translate="no">{m.text}</span> : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
                           </p>
                         ))}
                       </div>
@@ -544,7 +545,7 @@ export default function AutoResponses() {
                     >
                       <option value="">タグを選択...</option>
                       {tags.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
+                        <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
                     <button

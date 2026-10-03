@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Boxes, RefreshCw, Save, Plus, CheckCircle, AlertTriangle } from 'lucide-react'
@@ -27,7 +28,7 @@ const MAT_UI = {
   short: { label: '不足', cls: 'text-red-700 font-semibold' }, unknown: { label: '未入力', cls: 'text-gray-500' },
 }
 const INP = 'px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm'
-const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
+const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleString(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
 
 export default function InventoryPartner() {
   const key = new URLSearchParams(window.location.search).get('k') || ''

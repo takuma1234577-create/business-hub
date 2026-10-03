@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import type { InvoiceData, InvoiceItem, Client, EmailTemplate, InvoiceItemType, SenderSettings, CalculatedFees, FeeTier } from './types';
@@ -292,7 +293,7 @@ export function InvoiceForm() {
       setMessage({ type: 'error', text: 'メールアドレスを入力してください' });
       return;
     }
-    if (!window.confirm(`${invoice.client.email} に送信してよろしいですか？`)) return;
+    if (!window.confirm(uiText(`${invoice.client.email} に送信してよろしいですか？`))) return;
     setLoading(true);
     try {
       const { base64, filename } = await generatePDF();
@@ -336,7 +337,7 @@ export function InvoiceForm() {
               >
                 <option value="">-- 新規入力 --</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.companyName}</option>
+                  <option translate="no" key={c.id} value={c.id}>{c.companyName}</option>
                 ))}
               </select>
             </div>
@@ -426,7 +427,7 @@ export function InvoiceForm() {
                       <p className="text-xs text-gray-500 mb-2">計算結果</p>
                       {calcResult.feeItems.map((fi, i) => (
                         <div key={i} className="flex justify-between text-sm py-1">
-                          <span>{fi.description}</span>
+                          <span translate="no">{fi.description}</span>
                           <span className="font-medium">¥{fi.fee.toLocaleString()}</span>
                         </div>
                       ))}
@@ -490,7 +491,7 @@ export function InvoiceForm() {
                         type="text"
                         value={item.description}
                         onChange={e => updateItem(item.id, 'description', e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                         placeholder={
                           item.itemType === 'performance' ? 'Amazonコンサル成果報酬' :
                           item.itemType === 'adspend' ? 'Amazon広告運用費' :
@@ -761,7 +762,7 @@ export function InvoiceForm() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -822,7 +823,7 @@ export function InvoiceForm() {
             <dl className="space-y-1 text-xs text-blue-700">
               <div className="flex justify-between">
                 <dt>請求先</dt>
-                <dd>{invoice.client.companyName || '-'}</dd>
+                <dd><span translate="no">{invoice.client.companyName || '-'}</span></dd>
               </div>
               <div className="flex justify-between">
                 <dt>請求日</dt>

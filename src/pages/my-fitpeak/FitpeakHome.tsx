@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, ChevronRight, Truck, Search, Plus, X, MessageCircle, CheckCircle } from 'lucide-react'
@@ -148,7 +149,7 @@ export default function FitpeakHome() {
     return { label: '準備中', cls: 'bg-white/5 text-white/50' }
   }
 
-  const yen = (v: string) => `¥${Number(v || 0).toLocaleString('ja-JP')}`
+  const yen = (v: string) => `¥${Number(v || 0).toLocaleString(getLocale())}`
 
   if (loading) {
     return (
@@ -309,13 +310,13 @@ export default function FitpeakHome() {
                           {isAmazon ? 'Amazon' : '公式サイト'}
                         </span>
                         <span className="text-[10px] text-white/30">
-                          {new Date(order.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          {new Date(order.date).toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                       </div>
                       <div className="mt-2 space-y-0.5">
                         {order.items.map((item, i) => (
                           <p key={i} className="text-sm text-white/80 truncate">
-                            {item.title}{item.variant ? `（${item.variant}）` : ''}
+                            <span translate="no">{item.title}</span>{item.variant ? `（${item.variant}）` : ''}
                             {item.quantity > 1 && <span className="text-white/40"> × {item.quantity}</span>}
                           </p>
                         ))}

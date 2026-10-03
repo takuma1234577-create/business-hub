@@ -1,7 +1,8 @@
+import { getLocale } from '../../i18n/store'
 // ---------------------------------------------------------------------------
 // 表記ヘルパー
 // ---------------------------------------------------------------------------
-export const fmtNum = (v: number | null | undefined) => (v == null ? '—' : Math.round(v).toLocaleString('ja-JP'))
+export const fmtNum = (v: number | null | undefined) => (v == null ? '—' : Math.round(v).toLocaleString(getLocale()))
 export const fmtPct = (v: number | null | undefined, d = 0) => (v == null ? '—' : `${(v * 100).toFixed(d)}%`)
 export function fmtDur(sec: number | null | undefined) {
   if (sec == null || !isFinite(sec)) return '—'

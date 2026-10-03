@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil, Target, Flame } from 'lucide-react'
 import { getChannelId } from './lineAccount'
@@ -116,7 +118,7 @@ export default function TrafficSources() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この流入経路を削除しますか？')) return
+    if (!confirm(uiText('この流入経路を削除しますか？'))) return
     try {
       await fetch(`/api/line-crm/traffic-sources/${id}`, { method: 'DELETE' })
       fetchSources()
@@ -310,7 +312,7 @@ export default function TrafficSources() {
                     <h3 className="font-medium text-slate-900 dark:text-white">{source.name}</h3>
                   </div>
                   {source.description && (
-                    <p className="text-sm text-slate-500 mb-2">{source.description}</p>
+                    <p translate="no" className="text-sm text-slate-500 mb-2">{source.description}</p>
                   )}
 
                   {/* Stats row */}
@@ -327,7 +329,7 @@ export default function TrafficSources() {
                       CVR: <span className="font-medium text-slate-600 dark:text-slate-300">{cvr(source)}</span>
                     </span>
                     <span>
-                      作成: {new Date(source.created_at).toLocaleDateString('ja-JP')}
+                      作成: {new Date(source.created_at).toLocaleDateString(getLocale())}
                     </span>
                   </div>
 
@@ -445,7 +447,7 @@ export default function TrafficSources() {
                           onClick={() => toggleFormTag(tag.id)}
                           className={`px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition ${on ? 'bg-[#06C755] text-white border-[#06C755]' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#06C755]'}`}
                         >
-                          {on ? '✓ ' : ''}{tag.name}
+                          {on ? '✓ ' : ''}<span translate="no">{tag.name}</span>
                         </button>
                       )
                     })}
@@ -464,7 +466,7 @@ export default function TrafficSources() {
                 >
                   <option value="">（全体の挨拶を使用）</option>
                   {templates.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-400">設定すると、この経路の友だちには全体の挨拶の代わりにこのテンプレを送ります。</p>

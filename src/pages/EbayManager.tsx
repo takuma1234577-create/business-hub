@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -264,7 +265,7 @@ export default function EbayManager() {
       const j = await res.json()
       if (res.status === 409 && j.needs_force) {
         // セット出品の疑いは黙って通さない。人が確認してから作る
-        if (confirm(`${j.error}\n\n${r.title_ja}\n\nこのまま作成しますか？`)) return makeListing(r, true)
+        if (confirm(uiText(`${j.error}\n\n${r.title_ja}\n\nこのまま作成しますか？`))) return makeListing(r, true)
         return
       }
       if (!res.ok) throw new Error(j.error || '作成に失敗しました')
@@ -289,7 +290,7 @@ export default function EbayManager() {
   }
 
   const endOne = async (id: string) => {
-    if (!confirm('この出品をeBayから取り下げます。よろしいですか？')) return
+    if (!confirm(uiText('この出品をeBayから取り下げます。よろしいですか？'))) return
     setBusyId(id)
     try {
       const r = await fetch(`/api/ebay/listings/${id}/end`, { method: 'POST' }).then((x) => x.json())
@@ -407,11 +408,11 @@ export default function EbayManager() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* ヘッダ */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800">
             <ArrowLeft size={20} />
           </button>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">eBay 無在庫管理</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               japan_hikari_store / 仕入先を10分ごとに巡回し、在庫が消えた出品を自動で落とします
@@ -487,7 +488,7 @@ export default function EbayManager() {
         )}
 
         {/* タブ */}
-        <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex flex-wrap gap-1 mb-4 border-b border-gray-200 dark:border-gray-800">
           {([
             ['stock', '在庫追従', <Package key="a" size={15} />],
             ['import', 'URL取り込み', <Download key="e" size={15} />],
@@ -778,7 +779,7 @@ export default function EbayManager() {
                   <div>
                     <div className="text-xs font-medium text-gray-500 mb-2">仕入先から取り込んだ情報</div>
                     <dl className="text-sm space-y-1">
-                      <Row k="商品名">{importResult.supplier.title_ja}</Row>
+                      <Row k="商品名"><span translate="no">{importResult.supplier.title_ja}</span></Row>
                       <Row k="価格">{jpy(importResult.supplier.price_jpy)}</Row>
                       <Row k="状態">
                         {importResult.supplier.condition_ja || '—'}
@@ -836,7 +837,7 @@ export default function EbayManager() {
                     <div className="text-xs font-medium text-gray-500 mb-2">生成した出品案</div>
                     <dl className="text-sm space-y-1">
                       <Row k="英語タイトル">
-                        {importResult.listing.title_en}
+                        <span translate="no">{importResult.listing.title_en}</span>
                         <span className="text-xs text-gray-400"> ({importResult.listing.title_en.length}/80)</span>
                       </Row>
                       {importResult.pricing && (
@@ -908,7 +909,7 @@ export default function EbayManager() {
                             <span className="ml-1 px-1 rounded text-xs bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">セット疑い</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-xs max-w-[18rem]">{r.title_en || '—'}</td>
+                        <td className="px-3 py-2 text-xs max-w-[18rem]"><span translate="no">{r.title_en || '—'}</span></td>
                         <td className="px-3 py-2 text-right whitespace-nowrap">{jpy(r.price_jpy)}</td>
                         <td className="px-3 py-2 text-xs whitespace-nowrap">{r.condition_ja || '—'}</td>
                         <td className="px-3 py-2 text-xs text-gray-500 max-w-[14rem] truncate" title={r.genre || ''}>{r.genre || '—'}</td>

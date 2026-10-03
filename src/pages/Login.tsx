@@ -128,7 +128,7 @@ export default function Login({ onLogin }: Props) {
                     <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                       placeholder={isSetup ? '6文字以上' : 'パスワード'} required minLength={isSetup ? 6 : 1}
                       className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-900/20" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    <button type="button" aria-label={showPassword ? 'パスワードを隠す' : 'パスワードを表示'} onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer">
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -149,7 +149,7 @@ export default function Login({ onLogin }: Props) {
               <div className="text-center mb-4">
                 <ShieldCheck size={32} className="mx-auto text-blue-500 mb-2" />
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  <span className="font-semibold">{maskedEmail}</span> に<br/>認証コードを送信しました
+                  認証コードの送信先: <span className="font-semibold" translate="no">{maskedEmail}</span>
                 </p>
               </div>
               <div>

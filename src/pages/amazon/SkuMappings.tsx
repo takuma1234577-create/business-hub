@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import {
   ShoppingBag,
@@ -95,7 +96,7 @@ export default function SkuMappings() {
       }
     }
 
-    if (!confirm(`選択した${parentArr.length}商品を1つに結合しますか？\n(${childAsins.length}バリエーション)`)) return
+    if (!confirm(uiText(`選択した${parentArr.length}商品を1つに結合しますか？\n(${childAsins.length}バリエーション)`))) return
 
     try {
       await groupApi.groupProducts(groupAsin, childAsins)
@@ -110,7 +111,7 @@ export default function SkuMappings() {
 
   const handleHideProduct = async (product: AmazonProduct) => {
     const allSkusInProduct = product.children.flatMap(c => c.skus.map(s => s.sellerSku))
-    if (!confirm(`「${product.productName}」を非表示にしますか？（${allSkusInProduct.length}SKU）`)) return
+    if (!confirm(uiText(`「${product.productName}」を非表示にしますか？（${allSkusInProduct.length}SKU）`))) return
     try {
       await hideApi.hideProduct(allSkusInProduct)
       setMessage({ type: 'success', text: `${product.productName} を非表示にしました` })
@@ -137,7 +138,7 @@ export default function SkuMappings() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この紐付けを解除しますか？')) return
+    if (!confirm(uiText('この紐付けを解除しますか？'))) return
     setDeleting(id)
     try {
       await skuMappingApi.delete(id)
@@ -467,7 +468,7 @@ export default function SkuMappings() {
                     <td className="px-4 py-2">
                       {sp.imageUrl ? <img src={sp.imageUrl} alt="" className="w-6 h-6 rounded object-cover" /> : <div className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800" />}
                     </td>
-                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[180px]">{sp.title}</td>
+                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[180px]"><span translate="no">{sp.title}</span></td>
                     <td className="px-4 py-2 text-slate-500">{sp.variantTitle || '-'}</td>
                     <td className="px-4 py-2 font-mono text-slate-500">{sp.sku || '-'}</td>
                     <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">¥{Number(sp.price).toLocaleString()}</td>

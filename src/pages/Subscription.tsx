@@ -1,3 +1,5 @@
+import { getLocale } from '../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState, useCallback } from 'react'
 import {
   RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, X,
@@ -112,15 +114,15 @@ const STATUS_COLOR: Record<string, string> = {
 
 function jst(v: string | null | undefined) {
   if (!v) return '—'
-  return new Date(v).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(v).toLocaleString(getLocale(), { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 function jstDay(v: string | null | undefined) {
   if (!v) return '—'
-  return new Date(v).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
+  return new Date(v).toLocaleDateString(getLocale(), { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 function yen(v: number | null | undefined) {
   if (v === null || v === undefined) return '—'
-  return `¥${Number(v).toLocaleString('ja-JP')}`
+  return `¥${Number(v).toLocaleString(getLocale())}`
 }
 function pct(v: number | null | undefined) {
   if (v === null || v === undefined) return '—'
@@ -363,7 +365,7 @@ function Contracts() {
                   <td className="px-4 py-3">
                     <p className="text-slate-900 dark:text-white">{s.email || '（メール未取得）'}</p>
                     <p className="text-xs text-slate-400">
-                      {s.subscription_plans?.display_name || s.subscription_plans?.name || 'プラン未紐づけ'}
+                      <span translate="no">{s.subscription_plans?.display_name || s.subscription_plans?.name || uiText('プラン未紐づけ')}</span>
                       {s.origin === 'preorder' && <span className="ml-2 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">予約</span>}
                     </p>
                   </td>
@@ -459,7 +461,7 @@ function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               <ActionBtn icon={<RefreshCw size={14} />} label="Shopifyと同期" busy={busy === 'sync'} onClick={() => act('sync', 'sync')} />
               <ActionBtn
                 icon={<Ban size={14} />} label="解約" danger busy={busy === 'cancel'}
-                onClick={() => { if (confirm('この定期購入を解約します。よろしいですか？')) act('cancel', 'cancel', { note: '管理画面から解約' }) }}
+                onClick={() => { if (confirm(uiText('この定期購入を解約します。よろしいですか？'))) act('cancel', 'cancel', { note: '管理画面から解約' }) }}
               />
             </div>
             {msg && <p className="text-sm text-slate-600 dark:text-slate-300">{msg}</p>}
@@ -668,7 +670,7 @@ function Plans({ onChanged }: { onChanged: () => void }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-medium text-slate-900 dark:text-white">
-                  {p.name}
+                  <span translate="no">{p.name}</span>
                   {p.is_preorder && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">予約販売</span>}
                   {!p.is_active && <span className="ml-2 text-xs text-slate-400">停止中</span>}
                 </p>

@@ -240,7 +240,7 @@ export default function Home() {
                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 w-full flex flex-wrap gap-2">
                   {tool.links.map((link) => (
                     <Link
-                      key={link.path}
+                      key={`${link.path}:${link.label}`}
                       to={link.path}
                       className="text-xs px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer no-underline"
                     >

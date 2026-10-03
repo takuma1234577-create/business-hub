@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { HistoryItem } from './types';
 import { historyApi } from './api';
@@ -16,7 +18,7 @@ export function HistoryView() {
   useEffect(() => { load(); }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この履歴を削除しますか？')) return;
+    if (!confirm(uiText('この履歴を削除しますか？'))) return;
     try {
       await historyApi.delete(id);
       load();
@@ -27,7 +29,7 @@ export function HistoryView() {
 
   const formatDate = (d?: string) => {
     if (!d) return '-';
-    return new Date(d).toLocaleString('ja-JP');
+    return new Date(d).toLocaleString(getLocale());
   };
 
   return (
@@ -60,7 +62,7 @@ export function HistoryView() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">{h.to}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{h.subject}</td>
+                  <td translate="no" className="px-4 py-3 text-sm text-gray-600">{h.subject}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{formatDate(h.sentAt || h.createdAt)}</td>
                   <td className="px-4 py-3">
                     <button onClick={() => handleDelete(h.id)} className="text-xs text-red-500 hover:underline">削除</button>

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { Schedule, Client, EmailTemplate, InvoiceItem, InvoiceItemType, ScheduleFeeRule, FeeTier } from './types';
 import { scheduleApi, clientApi, templateApi } from './api';
@@ -56,7 +57,7 @@ export function ScheduleManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return;
+    if (!confirm(uiText('削除しますか？'))) return;
     await scheduleApi.delete(id);
     load();
   };
@@ -104,7 +105,7 @@ export function ScheduleManager() {
               <label className="block text-sm text-gray-600 mb-1">クライアント</label>
               <select value={form.clientId} onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                {clients.map(c => <option translate="no" key={c.id} value={c.id}>{c.companyName}</option>)}
               </select>
             </div>
             <div>
@@ -117,7 +118,7 @@ export function ScheduleManager() {
               <label className="block text-sm text-gray-600 mb-1">メールテンプレート</label>
               <select value={form.templateId} onChange={e => setForm(p => ({ ...p, templateId: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {templates.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             <div>
@@ -304,7 +305,7 @@ export function ScheduleManager() {
                 </div>
               </div>
               <div className="mt-2 text-xs text-gray-500 space-y-1">
-                <p>テンプレート: {getName(s.templateId, templates, 'name')} {s.description && `/ ${s.description}`}</p>
+                <p translate="no">テンプレート: {getName(s.templateId, templates, 'name')} {s.description && `/ ${s.description}`}</p>
                 {s.fixedItems && s.fixedItems.length > 0 && (
                   <p>固定項目: {s.fixedItems.filter(i => i.description).map(i => i.description).join('、') || 'なし'}</p>
                 )}

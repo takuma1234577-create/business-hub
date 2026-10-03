@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Tag as TagIcon, Plus, Trash2, X, Check, Users } from 'lucide-react'
 import { tagApi } from './api'
@@ -50,7 +51,7 @@ export default function TagManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このタグを削除しますか？友だちからも外れます。')) return
+    if (!confirm(uiText('このタグを削除しますか？友だちからも外れます。'))) return
     try {
       await tagApi.delete(id)
       fetchTags()
@@ -176,7 +177,7 @@ export default function TagManager() {
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">{tag.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate"><span translate="no">{tag.name}</span></span>
                     <div className="hidden sm:block w-32 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
                       <div
                         className="h-full rounded-full"

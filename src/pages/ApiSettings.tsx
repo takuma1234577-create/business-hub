@@ -1,3 +1,5 @@
+import { getLocale } from '../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -269,7 +271,7 @@ export default function ApiSettings() {
   }
 
   const handleShopifyOAuth = async () => {
-    const shop = prompt('Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com')
+    const shop = prompt(uiText('Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com'))
     if (!shop) return
     try {
       const { data } = await api.get(`/shopify/login?shop=${encodeURIComponent(shop)}`)
@@ -338,7 +340,7 @@ export default function ApiSettings() {
   }
 
   const handleChannelGmailDisconnect = async (storeId: string) => {
-    if (!confirm('このチャネルのGmail連携を解除しますか？メール自動返信が停止します。')) return
+    if (!confirm(uiText('このチャネルのGmail連携を解除しますか？メール自動返信が停止します。'))) return
     try {
       await api.delete(`/channels/${storeId}/gmail/disconnect`)
       setChannelGmailStatus(prev => { const next = { ...prev }; delete next[storeId]; return next })
@@ -350,7 +352,7 @@ export default function ApiSettings() {
   }
 
   const handleChannelDelete = async (id: string) => {
-    if (!confirm('このチャネルの接続を解除しますか？')) return
+    if (!confirm(uiText('このチャネルの接続を解除しますか？'))) return
     try {
       await api.delete(`/channels/${id}`)
       setMessage({ type: 'success', text: 'チャネルを削除しました' })
@@ -430,7 +432,7 @@ export default function ApiSettings() {
   }
 
   const handleAmazonDelete = async (id: string) => {
-    if (!confirm('このAmazonアカウントの接続を解除しますか？')) return
+    if (!confirm(uiText('このAmazonアカウントの接続を解除しますか？'))) return
     try {
       await api.delete(`/amazon/accounts/${id}`)
       setMessage({ type: 'success', text: 'Amazonアカウントを削除しました' })
@@ -441,7 +443,7 @@ export default function ApiSettings() {
   }
 
   const handleDisconnect = async (id: string) => {
-    if (!confirm(`${id} の接続を解除しますか？`)) return
+    if (!confirm(uiText(`${id} の接続を解除しますか？`))) return
     try {
       await api.delete(`/connections/${id}`)
       setMessage({ type: 'success', text: `${id} の接続を解除しました` })
@@ -454,7 +456,7 @@ export default function ApiSettings() {
   const getConnection = (id: string) => connections.find(c => c.id === id)
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(dateStr).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
   // API設定用の認証ゲート
@@ -743,7 +745,7 @@ export default function ApiSettings() {
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       セラーID: {acct.seller_id} · マーケットプレイス: {acct.marketplace_id}
-                      {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                      {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
                   <button onClick={() => handleAmazonEdit(acct.id)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition" title="編集">
@@ -889,7 +891,7 @@ export default function ApiSettings() {
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {store.shop_domain || store.shop_id || '-'}
-                      {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                      {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
                   {/* Gmail連携ボタン */}
@@ -976,7 +978,7 @@ export default function ApiSettings() {
                     {key.isSet && key.source === 'database' && (
                       <button
                         onClick={async () => {
-                          if (!confirm(`${key.label} のキーを削除しますか？`)) return
+                          if (!confirm(uiText(`${key.label} のキーを削除しますか？`))) return
                           await api.delete(`/api-keys/${key.id}`)
                           fetchData()
                           setMessage({ type: 'success', text: `${key.label} を削除しました` })

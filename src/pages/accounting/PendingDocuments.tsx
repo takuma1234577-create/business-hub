@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { documentApi } from './api'
 import type { AccountingDocument, DocumentType } from './types'
@@ -117,7 +118,7 @@ export function PendingDocuments() {
           {uploadResults.map((r, i) => (
             <div key={i} className={`flex items-center gap-2 text-sm ${r.success ? 'text-emerald-600' : 'text-red-600'}`}>
               {r.success ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-              <span>{r.name}</span>
+              <span><span translate="no">{r.name}</span></span>
               {r.error && <span className="text-xs text-gray-500">({r.error})</span>}
             </div>
           ))}
@@ -212,7 +213,7 @@ function ManualForm({ onSaved }: { onSaved: () => void }) {
       onSaved()
     } catch (err) {
       console.error(err)
-      alert('保存に失敗しました')
+      alert(uiText('保存に失敗しました'))
     } finally {
       setSaving(false)
     }

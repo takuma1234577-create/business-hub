@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Send, CheckCircle, XCircle, Clock, RefreshCw, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { reviewApi } from './api'
@@ -73,7 +75,7 @@ export default function ReviewRequests() {
       ))
       fetchStats()
     } catch (err: any) {
-      alert(err.response?.data?.error || '送信に失敗しました')
+      alert(uiText(err.response?.data?.error || '送信に失敗しました'))
     } finally {
       setSending(prev => {
         const next = new Set(prev)
@@ -102,9 +104,9 @@ export default function ReviewRequests() {
       if (result.sent.length > 0) msg.push(`${result.sent.length}件 送信成功`)
       if (result.failed.length > 0) msg.push(`${result.failed.length}件 失敗`)
       if (result.skipped.length > 0) msg.push(`${result.skipped.length}件 スキップ(送信済み)`)
-      alert(msg.join('\n'))
+      alert(uiText(msg.join('\n')))
     } catch (err: any) {
-      alert(err.response?.data?.error || '一括送信に失敗しました')
+      alert(uiText(err.response?.data?.error || '一括送信に失敗しました'))
     } finally {
       setBulkSending(false)
     }
@@ -116,7 +118,7 @@ export default function ReviewRequests() {
       const res = await reviewApi.updateAutoConfig(autoConfig)
       setAutoConfig(res.data)
     } catch (err) {
-      alert('設定の保存に失敗しました')
+      alert(uiText('設定の保存に失敗しました'))
     } finally {
       setSavingConfig(false)
     }
@@ -156,7 +158,7 @@ export default function ReviewRequests() {
   }
 
   const formatDate = (d: string) => {
-    return new Date(d).toLocaleDateString('ja-JP', {
+    return new Date(d).toLocaleDateString(getLocale(), {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     })

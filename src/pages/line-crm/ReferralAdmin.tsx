@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Gift, RefreshCw, Check, Copy, Package, ExternalLink } from 'lucide-react'
@@ -36,7 +38,7 @@ const STATUS_TABS: { key: string; label: string }[] = [
   { key: '', label: 'すべて' },
 ]
 
-const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-')
+const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-')
 
 export default function ReferralAdmin() {
   const [status, setStatus] = useState('confirmed')
@@ -88,7 +90,7 @@ export default function ReferralAdmin() {
       await Promise.all([fetchRows(), fetchStock()])
     } catch (e) {
       const err = e as { response?: { data?: { error?: string } } }
-      alert(err.response?.data?.error || 'コードの引き当てに失敗しました')
+      alert(uiText(err.response?.data?.error || 'コードの引き当てに失敗しました'))
     }
     setBusyId(null)
   }

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Bot, Save, Plus, Pencil, Trash2, X, BookOpen, ToggleLeft, ToggleRight } from 'lucide-react'
 import { aiSettingsApi, knowledgeBaseApi } from './api'
@@ -90,7 +91,7 @@ export default function AiSettings() {
   }
 
   const handleDeleteKb = async (id: string) => {
-    if (!confirm('このナレッジベースを削除しますか？')) return
+    if (!confirm(uiText('このナレッジベースを削除しますか？'))) return
     try {
       await knowledgeBaseApi.delete(id)
       setKnowledgeBase(prev => prev.filter(kb => kb.id !== id))
@@ -269,7 +270,7 @@ export default function AiSettings() {
                         {kb.category}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{kb.content}</p>
+                    <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{kb.content}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

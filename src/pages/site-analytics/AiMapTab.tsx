@@ -1,3 +1,5 @@
+import { uiText } from '@business-hub/i18n/dialogs'
+import { getLocale } from '../../i18n/store'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
 import { saApi } from './api'
@@ -21,8 +23,8 @@ const DELIVERABLE = new Set(['run_end', 'finish', 'proposal', 'decision', 'apply
 const TOOL = new Set(['tool', 'tool_error'])
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
-const hhmmss = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', { hourCycle: 'h23', timeZone: 'Asia/Tokyo' })
-const yen = (usd: number | null) => (usd == null ? '-' : `約${Math.round(usd * 150).toLocaleString('ja-JP')}円`)
+const hhmmss = (iso: string) => new Date(iso).toLocaleTimeString(getLocale(), { hourCycle: 'h23', timeZone: 'Asia/Tokyo' })
+const yen = (usd: number | null) => (usd == null ? '-' : `約${Math.round(usd * 150).toLocaleString(getLocale())}円`)
 
 function useTyped(text: string, key: string | number) {
   const [n, setN] = useState(0)
@@ -149,7 +151,7 @@ function ChatPanel({ name, agents }: { name: (id: string | null) => string; agen
           {[...msgs].reverse().map((m) => (
             <li key={m.id} className="text-sm">
               <div className="text-[11px] text-slate-500">{hhmmss(m.created_at)} ／ {DEPTS.find((d) => d.id === m.dept)?.label || m.dept}</div>
-              <div className="break-words"><b className="text-sky-300">{name(m.from_agent)}</b>{m.to_agent ? <span className="text-slate-400"> → {name(m.to_agent)}</span> : <span className="text-slate-500"> → 全員</span>}{(() => { const k = kindOf(m.body); return <><span className="text-slate-400">：</span>{k && <span className={`mr-1 px-1.5 py-0.5 rounded border text-[10px] align-middle ${k.cls}`}>{k.tag.replace(/[【】]/g, '')}</span>}<span className="text-slate-200 whitespace-pre-wrap">{k ? m.body.slice(k.tag.length) : m.body}</span></> })()}</div>
+              <div className="break-words"><b className="text-sky-300">{name(m.from_agent)}</b>{m.to_agent ? <span className="text-slate-400"> → {name(m.to_agent)}</span> : <span className="text-slate-500"> → 全員</span>}{(() => { const k = kindOf(m.body); return <><span className="text-slate-400">：</span>{k && <span className={`mr-1 px-1.5 py-0.5 rounded border text-[10px] align-middle ${k.cls}`}>{k.tag.replace(/[【】]/g, '')}</span>}<span translate="no" className="text-slate-200 whitespace-pre-wrap">{k ? m.body.slice(k.tag.length) : m.body}</span></> })()}</div>
             </li>
           ))}
         </ul>
@@ -302,7 +304,7 @@ export default function AiMapTab() {
                     {st === 'run' && <circle cx={x} cy={y} r="15" fill="none" stroke={COLOR.run} strokeWidth="2" className="aim-ring" />}
                     <circle cx={x} cy={y} r="15" fill="#0f172a" stroke={COLOR[st]} strokeWidth={on ? 4 : 2} />
                     <circle cx={x} cy={y} r="5" fill={COLOR[st]} />
-                    <text x={x} y={y + 31} textAnchor="middle" fontSize="10.5" fill={on ? '#fff' : '#cbd5e1'}>{clip(a.role_title, 9)}</text>
+                    <text x={x} y={y + 31} textAnchor="middle" fontSize="10.5" fill={on ? '#fff' : '#cbd5e1'}>{clip(uiText(a.role_title), 16)}</text>
                   </g>
                 )
               })}
@@ -312,7 +314,7 @@ export default function AiMapTab() {
         {runList.length > 0 && (
           <div className="px-3 py-2 border-t border-slate-800 text-xs space-y-1">
             {runList.map((r) => (
-              <div key={r.run_id} className="flex gap-2"><b className="text-cyan-300 shrink-0">{name(r.agent_id)}</b><span className="text-slate-300 truncate">{r.task}{r.last ? ` ／ ${r.last.title}` : ''}</span></div>
+              <div key={r.run_id} className="flex gap-2"><b className="text-cyan-300 shrink-0">{name(r.agent_id)}</b><span translate="no" className="text-slate-300 truncate">{r.task}{r.last ? ` ／ ${r.last.title}` : ''}</span></div>
             ))}
           </div>
         )}
@@ -323,7 +325,7 @@ export default function AiMapTab() {
           <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2"><Brain size={15} className="text-cyan-300" />思考コンソール<span className="text-xs font-normal text-slate-500">{sel ? name(sel) : '全員'}</span></h3>
           <div className="rounded-lg bg-black/60 p-3 min-h-[120px] text-[13px] leading-relaxed font-mono text-emerald-300 whitespace-pre-wrap break-words">
             {latestThink
-              ? (<><div className="text-slate-500 text-[11px] mb-1">{hhmmss(latestThink.at)} {name(latestThink.agent_id)}</div><span className="aim-cursor">{typed}</span></>)
+              ? (<><div className="text-slate-500 text-[11px] mb-1">{hhmmss(latestThink.at)} {name(latestThink.agent_id)}</div><span translate="no" className="aim-cursor">{typed}</span></>)
               : <span className="text-slate-500">まだ発言がありません</span>}
           </div>
           <ul className="mt-2 space-y-1 max-h-44 overflow-y-auto text-xs">
@@ -343,7 +345,7 @@ export default function AiMapTab() {
                 return (
                   <li key={e.id} className={`rounded px-2 py-1.5 text-xs flex items-center gap-2 ${fresh ? 'aim-flash' : ''}`}>
                     {e.kind === 'tool_error' ? <AlertTriangle size={13} className="text-red-400 shrink-0" /> : <Wrench size={13} className="text-amber-300 shrink-0" />}
-                    <span className="min-w-0 flex-1 truncate">{e.title}</span>
+                    <span translate="no" className="min-w-0 flex-1 truncate">{e.title}</span>
                     <span className="hidden sm:inline text-slate-500 shrink-0">{name(e.agent_id)}</span>
                     <span className="w-16 h-1.5 rounded bg-slate-800 shrink-0" title={`直前の出来事から${g.toFixed(1)}秒`}>
                       <span className="block h-full rounded bg-amber-400" style={{ width: `${Math.min(100, (g / 20) * 100)}%` }} />
@@ -366,8 +368,8 @@ export default function AiMapTab() {
                   {e.level === 'error' ? <AlertTriangle size={15} className="text-red-400 mt-0.5 shrink-0" /> : <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" />}
                   <div className="min-w-0">
                     <div className="text-[11px] text-slate-500">{hhmmss(e.at)} ／ {name(e.agent_id)} ／ {e.kind}</div>
-                    <div className="break-words">{e.title}</div>
-                    {e.detail && <div className="text-xs text-slate-400 mt-0.5 break-words">{clip(e.detail, 220)}</div>}
+                    <div translate="no" className="break-words">{e.title}</div>
+                    {e.detail && <div translate="no" className="text-xs text-slate-400 mt-0.5 break-words">{clip(e.detail, 220)}</div>}
                   </div>
                 </div>
               </li>

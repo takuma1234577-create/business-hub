@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { saApi, type Device, type Overview, type Preset } from './api'
 
@@ -22,7 +23,7 @@ export function formatBucket(t: string, gran: 'hour' | 'day') {
   // t は日本時間の "YYYY-MM-DDTHH:MI"
   const [d, hm] = t.split('T')
   const [y, m, day] = d.split('-')
-  if (gran === 'hour') return `${Number(m)}/${Number(day)} ${Number(hm.split(':')[0])}時`
-  const w = ['日', '月', '火', '水', '木', '金', '土'][new Date(Date.UTC(Number(y), Number(m) - 1, Number(day))).getUTCDay()]
+  if (gran === 'hour') return new Intl.DateTimeFormat(getLocale(), { month: 'numeric', day: 'numeric', hour: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(y), Number(m) - 1, Number(day), Number(hm.split(':')[0]))))
+  const w = new Intl.DateTimeFormat(getLocale(), { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(y), Number(m) - 1, Number(day))))
   return `${Number(m)}/${Number(day)}(${w})`
 }

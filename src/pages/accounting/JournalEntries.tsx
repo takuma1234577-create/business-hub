@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { journalEntryApi, accountTitleApi, importStatementApi } from './api'
 import type { JournalEntry } from './api'
@@ -65,9 +66,9 @@ export function JournalEntries() {
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0
 
   const handleCreate = async () => {
-    if (!isBalanced) return alert('借方と貸方の合計が一致しません')
+    if (!isBalanced) return alert(uiText('借方と貸方の合計が一致しません'))
     const validLines = formLines.filter(l => l.accountTitleId && (l.debitAmount > 0 || l.creditAmount > 0))
-    if (validLines.length < 2) return alert('最低2行の仕訳が必要です')
+    if (validLines.length < 2) return alert(uiText('最低2行の仕訳が必要です'))
     try {
       await journalEntryApi.create({ entryDate: formDate, description: formDesc || undefined, lines: validLines })
       setShowForm(false)
@@ -80,14 +81,14 @@ export function JournalEntries() {
       fetchEntries()
     } catch (err) {
       console.error(err)
-      alert('仕訳の作成に失敗しました')
+      alert(uiText('仕訳の作成に失敗しました'))
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この仕訳を削除しますか？')) return
+    if (!confirm(uiText('この仕訳を削除しますか？'))) return
     try { await journalEntryApi.delete(id); fetchEntries() }
-    catch (err) { console.error(err); alert('削除に失敗しました') }
+    catch (err) { console.error(err); alert(uiText('削除に失敗しました')) }
   }
 
   const handleImport = async () => {
@@ -100,7 +101,7 @@ export function JournalEntries() {
     } catch (err: any) {
       console.error(err)
       const msg = err?.response?.data?.error || err?.message || '不明なエラー'
-      alert('取り込みに失敗しました: ' + msg)
+      alert(uiText('取り込みに失敗しました: ' + msg))
     }
     finally { setImporting(false) }
   }
@@ -274,7 +275,7 @@ export function JournalEntries() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-500">{entry.entry_date}</span>
-                      <span className="text-sm font-medium text-gray-900">{entry.description || '-'}</span>
+                      <span translate="no" className="text-sm font-medium text-gray-900">{entry.description || '-'}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                         entry.source === 'ai_import' ? 'bg-blue-100 text-blue-700' :
                         entry.source === 'opening' ? 'bg-purple-100 text-purple-700' :
