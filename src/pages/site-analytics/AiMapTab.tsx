@@ -68,7 +68,51 @@ const KINDS: { tag: string; cls: string }[] = [
 const kindOf = (body: string) => KINDS.find((k) => body.startsWith(k.tag))
 
 // 部門のグループチャット（AI同士のやり取り）。オーナーが中身を読む
-function ChatPanel({ name }: { name: (id: string | null) => string }) {
+// オーナーが直接書き込んで指示する欄。宛先を省略すると、社長室・全社は社長、部門はその部門の部長に最優先の仕事として入る
+const ROOM_OPTIONS = [{ id: 'exec', label: '社長室' }, { id: 'company', label: '全社チャット（全員宛て）' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }]
+function ChatComposer({ agents, defaultRoom, onSent }: { agents: Agent[]; defaultRoom: string; onSent: () => void }) {
+  const [room, setRoom] = useState(defaultRoom)
+  const [to, setTo] = useState('')
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => { setRoom(defaultRoom) }, [defaultRoom])
+  const targets = agents.filter((a) => a.enabled && a.id !== 'jev')
+  const send = async () => {
+    if (!body.trim() || busy) return
+    setBusy(true); setMsg(null)
+    try {
+      const r = await saApi.post<{ target: string }>('/ai-chat', { room, to: room === 'company' ? undefined : to || undefined, body })
+      setMsg({ ok: true, text: `送りました（${targets.find((a) => a.id === r.data.target)?.role_title || r.data.target} に最優先で伝わります）` })
+      setBody(''); onSent()
+    } catch (e: unknown) {
+      setMsg({ ok: false, text: (e as { response?: { data?: { error?: string } } })?.response?.data?.error || '送れませんでした' })
+    } finally { setBusy(false) }
+  }
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-800">
+      <div className="flex flex-wrap gap-2 mb-2">
+        <label className="text-xs text-slate-400">部屋
+          <select value={room} onChange={(e) => setRoom(e.target.value)} className="ml-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-xs text-slate-200">{ROOM_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
+        </label>
+        <label className="text-xs text-slate-400">宛先
+          <select value={room === 'company' ? '' : to} disabled={room === 'company'} onChange={(e) => setTo(e.target.value)} className="ml-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-xs text-slate-200 max-w-[14rem]">
+            <option value="">責任者（社長／部門の部長）</option>
+            {targets.map((a) => <option key={a.id} value={a.id}>{a.role_title}</option>)}
+          </select>
+        </label>
+      </div>
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} rows={3} placeholder="ここに直接書き込んで、指示できます（例: 記事ページの最初の画面にLINE登録ボタンを出して）" className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 placeholder-slate-600" />
+      <div className="flex items-center gap-3 mt-1.5">
+        <button onClick={send} disabled={busy || !body.trim()} className="px-3 py-1.5 rounded-full text-xs bg-sky-500/80 text-white disabled:opacity-40 cursor-pointer">{busy ? '送信中…' : '送信して指示する'}</button>
+        <span className="text-[11px] text-slate-500">{body.length}/1000 ・ 鍵・パスワードは書かない</span>
+        {msg && <span className={`text-xs ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</span>}
+      </div>
+    </div>
+  )
+}
+
+function ChatPanel({ name, agents }: { name: (id: string | null) => string; agents: Agent[] }) {
   const [dept, setDept] = useState('all')
   const [msgs, setMsgs] = useState<ChatMsg[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
@@ -110,6 +154,7 @@ function ChatPanel({ name }: { name: (id: string | null) => string }) {
           ))}
         </ul>
       )}
+      <ChatComposer agents={agents} defaultRoom={dept === 'all' ? 'exec' : dept} onSent={() => { void load() }} />
     </section>
   )
 }
@@ -330,7 +375,7 @@ export default function AiMapTab() {
           </ul>
         )}
       </section>
-      <ChatPanel name={name} />
+      <ChatPanel name={name} agents={agents} />
     </div>
   )
 }

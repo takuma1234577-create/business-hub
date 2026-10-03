@@ -19,6 +19,7 @@
  *               my.fitpeak.co はそれを覚えておき、ログイン後に POST /signup-attr へ送る。
  *               ログインユーザーが「サイトのリンクを押した後に作られた」ときだけ新規登録として site_signups に残す。
  */
+const { sendOwnerChat } = require('./owner-chat.cjs');
 const express = require('express');
 const crypto = require('crypto');
 const { getSupabase } = require('./shared.cjs');
@@ -504,6 +505,13 @@ router.get('/ai-chat', async (req, res) => {
     console.error('[site-analytics/ai-chat]', err.message);
     return res.status(502).json({ error: err.message });
   }
+});
+
+// オーナーがグループチャットに直接書いた指示。AI組織に渡して、チャットに出し、宛先（省略時は部屋の責任者）に最優先の仕事として入れる
+router.post('/ai-chat', async (req, res) => {
+  const { room, to, body } = req.body || {};
+  const r = await sendOwnerChat({ room: String(room || ''), to: to ? String(to) : undefined, body: String(body ?? '') });
+  return res.status(r.status || (r.ok ? 200 : 502)).json(r.data);
 });
 
 function shotPath(site, pagePath, device) {
