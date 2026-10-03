@@ -117,7 +117,7 @@ export default function FriendDetail({ friend, onBack, onOpenChat }: FriendDetai
           <div>
             <h3 className="text-xl font-bold text-slate-900 dark:text-white">{friend.display_name}</h3>
             {friend.status_message && (
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{friend.status_message}</p>
+              <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{friend.status_message}</p>
             )}
             <span className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-medium mt-1.5 ${st.cls}`}>
               {st.text}

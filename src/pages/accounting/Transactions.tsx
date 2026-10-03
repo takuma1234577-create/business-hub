@@ -822,7 +822,7 @@ export function Transactions() {
                     {transactions.map(tx => (
                       <tr key={tx.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{tx.transactionDate}</td>
-                        <td className="px-4 py-3 text-gray-900 max-w-[250px] truncate">{tx.description}</td>
+                        <td translate="no" className="px-4 py-3 text-gray-900 max-w-[250px] truncate">{tx.description}</td>
                         <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">{tx.counterparty || '-'}</td>
                         <td className="px-4 py-3 text-right whitespace-nowrap">
                           <span className={`inline-flex items-center gap-1 font-medium ${tx.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>

@@ -434,8 +434,8 @@ export default function Gifting() {
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm font-medium">{m.subject}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap mt-1">{m.body}</p>
+                      <p translate="no" className="text-sm font-medium">{m.subject}</p>
+                      <p translate="no" className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap mt-1">{m.body}</p>
                       <div className="flex gap-2 mt-3">
                         <button disabled={busyId === m.id} onClick={() => sendEmail(m)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"><Send size={13} /> 承認して送信</button>
                         <button onClick={() => { setEditId(m.id); setEditSubject(m.subject || ''); setEditBody(m.body || '') }} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-700"><PenLine size={13} /> 編集</button>
@@ -468,7 +468,7 @@ export default function Gifting() {
                     </div>
                     <span className="text-xs text-gray-400">{c?.followers != null ? fmtNum(c.followers) + 'フォロワー' : ''} {c?.fit_segment}</span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{m.body}</p>
+                  <p translate="no" className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{m.body}</p>
                   <div className="flex flex-wrap gap-2 mt-3">
                     <button disabled={busyId === m.id} onClick={() => openCopySend(m, c?.handle)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md bg-pink-500 text-white hover:bg-pink-600 disabled:opacity-50">
                       {busyId === m.id ? <RefreshCw size={13} className="animate-spin" /> : <MessageCircle size={13} />} DMを開く（コピー＆送信済み） <ExternalLink size={11} />

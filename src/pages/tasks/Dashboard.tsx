@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useState, useEffect } from 'react';
 import { api } from './api';
 import type { DailyReport, ExtractedTask, Task } from './types';
@@ -10,7 +11,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ pending: 0, in_progress: 0, done: 0 });
 
-  const today = new Date().toLocaleDateString('ja-JP', {
+  const today = new Date().toLocaleDateString(getLocale(), {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
 
@@ -171,11 +172,11 @@ function AiTaskItem({ task }: { task: ExtractedTask }) {
           <p className="font-medium text-sm text-gray-900">
             {task.title}
             {task.customer_name && (
-              <span className="ml-2 text-xs text-blue-600">（{task.customer_name}）</span>
+              <span translate="no" className="ml-2 text-xs text-blue-600">（{task.customer_name}）</span>
             )}
           </p>
           {task.description && (
-            <p className="text-xs text-gray-500 mt-0.5">{task.description}</p>
+            <p translate="no" className="text-xs text-gray-500 mt-0.5">{task.description}</p>
           )}
         </div>
         {task.due_hint && (

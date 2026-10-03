@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
@@ -64,8 +65,7 @@ interface BillTo { company: string; address: string; email: string }
 function formatJpDate(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso + 'T00:00:00')
-  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`
+  return d.toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 }
 
 function useToken() {
@@ -199,7 +199,7 @@ export default function ReviewForm() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4">
       <div className="w-full max-w-lg mx-auto mb-4 text-center">
         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">レビュー提出</h1>
-        {sub.product_name && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{sub.product_name}</p>}
+        {sub.product_name && <p translate="no" className="mt-1 text-sm text-slate-500 dark:text-slate-400">{sub.product_name}</p>}
         {sub.order_number && <p className="text-xs text-slate-400">注文番号: {sub.order_number}</p>}
       </div>
 

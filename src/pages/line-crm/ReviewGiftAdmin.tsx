@@ -196,7 +196,7 @@ export default function ReviewGiftAdmin() {
                     {c.friend?.picture_url && <img src={c.friend.picture_url} alt="" className="w-7 h-7 rounded-full" />}
                     <div>
                       <p className="text-sm font-medium text-slate-900 dark:text-white">{c.friend?.display_name || c.user_id || '匿名'}</p>
-                      <p className="text-[11px] text-slate-400">{fmt(c.created_at)} ・ {c.product_name || 'リストラップ'}</p>
+                      <p translate="no" className="text-[11px] text-slate-400">{fmt(c.created_at)} ・ {c.product_name || 'リストラップ'}</p>
                     </div>
                   </div>
                   {statusBadge(c)}

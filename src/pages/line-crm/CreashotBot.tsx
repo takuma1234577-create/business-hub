@@ -360,7 +360,7 @@ export default function CreashotBot() {
                           month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
                         })}
                       </td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-md">
+                      <td translate="no" className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-md">
                         {q.reply_text || q.error || (q.trigger_text ? `受信: ${q.trigger_text}` : '-')}
                       </td>
                     </tr>

@@ -305,7 +305,7 @@ export function ScheduleManager() {
                 </div>
               </div>
               <div className="mt-2 text-xs text-gray-500 space-y-1">
-                <p>テンプレート: {getName(s.templateId, templates, 'name')} {s.description && `/ ${s.description}`}</p>
+                <p translate="no">テンプレート: {getName(s.templateId, templates, 'name')} {s.description && `/ ${s.description}`}</p>
                 {s.fixedItems && s.fixedItems.length > 0 && (
                   <p>固定項目: {s.fixedItems.filter(i => i.description).map(i => i.description).join('、') || 'なし'}</p>
                 )}

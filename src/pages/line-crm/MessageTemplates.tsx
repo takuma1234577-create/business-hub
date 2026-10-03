@@ -1042,7 +1042,7 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
       if (!block.text) return null
       return (
         <div className="max-w-[75%] bg-white rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
-          <p className="text-sm text-slate-900 whitespace-pre-wrap break-words">
+          <p translate="no" className="text-sm text-slate-900 whitespace-pre-wrap break-words">
             {linkify(block.text)}
           </p>
         </div>

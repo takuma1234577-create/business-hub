@@ -34,6 +34,7 @@ const subscribe = (listener: () => void) => {
   return () => { listeners.delete(listener) }
 }
 export const getLanguage = () => language
+export const getLocale = () => ({ ja: 'ja-JP', en: 'en-US', es: 'es-ES' })[language]
 export function useLanguage() {
   return useSyncExternalStore(subscribe, () => language, () => 'ja' as Language)
 }

@@ -265,7 +265,7 @@ function NoteCard({ note }: { note: MeetingNote }) {
             <p className="font-medium text-gray-900">{note.title}</p>
             <div className="flex gap-3 mt-1">
               {note.customer_name && (
-                <span className="text-xs text-blue-600">👤 {note.customer_name}</span>
+                <span translate="no" className="text-xs text-blue-600">👤 {note.customer_name}</span>
               )}
               {note.meeting_date && (
                 <span className="text-xs text-gray-500">📅 {note.meeting_date}</span>

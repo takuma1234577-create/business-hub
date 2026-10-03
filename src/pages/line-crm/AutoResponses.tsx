@@ -503,7 +503,7 @@ export default function AutoResponses() {
                       <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                         <p className="font-medium text-slate-500 dark:text-slate-400 mb-1">現在の応答内容:</p>
                         {form.existing_messages.map((m, i) => (
-                          <p key={i}>
+                          <p translate="no" key={i}>
                             {m.type === 'text' ? m.text : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
                           </p>
                         ))}

@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -54,8 +55,8 @@ const MAT_UI = {
 const LOT_STATUSES = ['ordered', 'inspecting', 'ready', 'shipping', 'received', 'cancelled']
 const INP = 'px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm'
 
-const fmt = (n: number | null | undefined, d = 0) => (n === null || n === undefined ? '—' : n.toLocaleString('ja-JP', { maximumFractionDigits: d, minimumFractionDigits: d }))
-const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
+const fmt = (n: number | null | undefined, d = 0) => (n === null || n === undefined ? '—' : n.toLocaleString(getLocale(), { maximumFractionDigits: d, minimumFractionDigits: d }))
+const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleString(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
 const errText = (e: unknown) => { const ax = e as { response?: { data?: { error?: string } }; message?: string }; return ax.response?.data?.error || ax.message || String(e) }
 
 export default function Inventory() {

@@ -868,12 +868,12 @@
     "Consulta de existencias"
   ],
   "メール送信・下書き作成・メール取得": [
-    "Sending, drafting, and e-mailing",
-    "Envíos, redacción y correo electrónico"
+    "Send, draft and retrieve email",
+    "Enviar, redactar y obtener correos"
   ],
   "AI秘書": [
     "AI assistant",
-    "Auxiliar de inteligencia"
+    "Asistente de IA"
   ],
   "予定の取得・作成・管理": [
     "View, create and manage events",
@@ -888,8 +888,8 @@
     "Leer y gestionar archivos"
   ],
   "API設定の取得に失敗しました": [
-    "Failed to get API settings",
-    "Failed to get API settings"
+    "Failed to load API settings",
+    "No se pudo cargar la configuración de API"
   ],
   "Gmail連携が完了しました（メール自動返信用）": [
     "Gmail integration has been completed (for automatic mail reply)",
@@ -900,44 +900,44 @@
     "{0} autenticado"
   ],
   "Shopify「{0}」を連携しました": [
-    "Shopify「{0}」",
-    "Shopify:{0}"
+    "Connected Shopify store \"{0}\"",
+    "Tienda Shopify \"{0}\" conectada"
   ],
   "TikTokショップ「{0}」を連携しました": [
     "TikTok shop \"{0}\" has been linked.",
     "La tienda TikTok \"{0}\" ha sido vinculada."
   ],
   "認証URLの取得に失敗しました": [
-    "Failed to get authentication URL",
-    "Fallado para obtener URL de autenticación"
+    "Failed to get the authentication URL",
+    "No se pudo obtener la URL de autenticación"
   ],
   "{0} のトークンを更新しました": [
-    "Updated the  of {0}",
-    "Actualizado el {0}"
+    "Refreshed the token for {0}",
+    "Token de {0} actualizado"
   ],
   "更新失敗: {0}": [
     "Update failed: {0}",
     "Actualización fallida: {0}"
   ],
   "Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com": [
-    "Enter your Shopify store domain e.g. mystore.myshopify.com",
-    "Ingrese su dominio de la tienda por ejemplo mystore.myshopify.com"
+    "Enter your Shopify store domain.\nExample: mystore.myshopify.com",
+    "Introduce el dominio de tu tienda Shopify.\nEjemplo: mystore.myshopify.com"
   ],
   "Shopify認証URLの取得に失敗しました": [
-    "Failed to get Shopifyに URL",
-    "Failed to get Shopify URL"
+    "Failed to get the Shopify authentication URL",
+    "No se pudo obtener la URL de autenticación de Shopify"
   ],
   "TikTok認証URLの取得に失敗しました": [
-    "Failed to get TikTokに URL",
-    "Failed para obtener la URL de TikTok"
+    "Failed to get the TikTok authentication URL",
+    "No se pudo obtener la URL de autenticación de TikTok"
   ],
   "ストア名を入力してください": [
     "Enter a store name",
     "Ingrese el nombre de la tienda"
   ],
   "Shopifyドメインとアクセストークンを入力してください": [
-    "Enter your Shopify domain and accessと",
-    "Introduzca su dominio Shopify y el acceso"
+    "Enter your Shopify domain and access token",
+    "Introduce el dominio de Shopify y el token de acceso"
   ],
   "App KeyとApp Secretを入力してください": [
     "Enter App Key and App Secret",
@@ -961,26 +961,26 @@
   ],
   "テスト失敗": [
     "Test failed",
-    "El examen falló"
+    "La prueba falló"
   ],
   "Gmail認証URLの取得に失敗しました": [
-    "Failed to get Gmailに URL",
-    "Failed para obtener Gmail URL"
+    "Failed to get the Gmail authentication URL",
+    "No se pudo obtener la URL de autenticación de Gmail"
   ],
   "このチャネルのGmail連携を解除しますか？メール自動返信が停止します。": [
-    "Cancel the Gmail link in this channel? The automatic reply will be stopped.",
-    "Cancelar el enlace Gmail en este canal? La respuesta automática se detendrá."
+    "Disconnect Gmail for this channel? Automatic email replies will stop.",
+    "¿Desconectar Gmail de este canal? Se detendrán las respuestas automáticas por correo."
   ],
   "Gmail連携を解除しました": [
     "Gmail disconnected",
     "Gmail desconectado"
   ],
   "Gmail連携の解除に失敗しました": [
-    "Failed to cancel Gmail integration",
-    "Failed to cancel Gmail integration"
+    "Failed to disconnect Gmail",
+    "No se pudo desconectar Gmail"
   ],
   "このチャネルの接続を解除しますか？": [
-    "Unconnect this channel?",
+    "Disconnect this channel?",
     "¿Desconectar este canal?"
   ],
   "チャネルを削除しました": [
@@ -988,8 +988,8 @@
     "Canal eliminado"
   ],
   "アカウント情報の取得に失敗しました": [
-    "Failed to acquire account information",
-    "Failed to acquire account information"
+    "Failed to load account information",
+    "No se pudo obtener la información de la cuenta"
   ],
   "Amazonアカウントを更新しました": [
     "Updated Amazon account",
@@ -1004,8 +1004,8 @@
     "Por favor, introduzca todos los campos requeridos"
   ],
   "Amazon SP-APIアカウントを接続しました": [
-    "Connect Amazon SP-API account",
-    "Conectar cuenta de Amazon SP-API"
+    "Amazon SP-API account connected",
+    "Cuenta de Amazon SP-API conectada"
   ],
   "接続に失敗しました": [
     "Connection failed",
@@ -1017,27 +1017,27 @@
   ],
   "権限不足: {0}": [
     "Missing permissions: {0}",
-    "Perder permisos: {0}"
+    "Faltan permisos: {0}"
   ],
   "このAmazonアカウントの接続を解除しますか？": [
-    "Can I unsubscribe from this Amazon account?",
-    "¿Puedo cancelar mi suscripción de esta cuenta de Amazon?"
+    "Disconnect this Amazon account?",
+    "¿Desconectar esta cuenta de Amazon?"
   ],
   "Amazonアカウントを削除しました": [
     "Removed Amazon account",
     "Cuenta de Amazon eliminada"
   ],
   "{0} の接続を解除しますか？": [
-    "Can I unconnect {0}?",
-    "¿Puedo desconectar?"
+    "Disconnect {0}?",
+    "¿Desconectar {0}?"
   ],
   "{0} の接続を解除しました": [
     "Disconnected {0}",
-    "Desconectado"
+    "{0} desconectado"
   ],
   "接続解除に失敗しました": [
     "Failed to disconnect",
-    "Failed to disconnect"
+    "No se pudo desconectar"
   ],
   "API設定 - 追加認証": [
     "API settings - Additional verification",
@@ -1081,7 +1081,7 @@
   ],
   "期限切れ": [
     "Expired",
-    "Gastos"
+    "Caducado"
   ],
   "使用:": [
     "Used by:",
@@ -1093,7 +1093,7 @@
   ],
   "トークン更新": [
     "Refresh token",
-    "Token refrescante"
+    "Actualizar token"
   ],
   "接続解除": [
     "Disconnect",
@@ -1101,15 +1101,15 @@
   ],
   "再認証": [
     "Reauthenticate",
-    "Reauthenticate"
+    "Volver a autenticar"
   ],
   "連携する": [
     "Connect",
     "Conectar"
   ],
   "セラーセントラルのAPI認証情報を管理。Amazon自動出荷・請求書ツールで使用。": [
-    "Manage API情報をdentials from Cellar Central. Used with Amazon automatic shipping and billing tools.",
-    "Gestionar API proporcionales de Cellar Central. Usado con las herramientas de envío y facturación automáticas de Amazon."
+    "Manage Seller Central API credentials, used by Amazon fulfillment and invoice tools.",
+    "Gestiona las credenciales de API de Seller Central para las herramientas de envíos de Amazon y facturación."
   ],
   "アカウント追加": [
     "Add account",
@@ -1133,7 +1133,7 @@
   ],
   "リフレッシュトークン *": [
     "Refresh token *",
-    "Refresh token *"
+    "Token de actualización *"
   ],
   "接続確認中...": [
     "Checking connection…",
@@ -1145,7 +1145,7 @@
   ],
   "アカウント編集": [
     "Edit account",
-    "Cuenta de edición"
+    "Editar cuenta"
   ],
   "アカウント名": [
     "Account name",
@@ -1157,19 +1157,19 @@
   ],
   "リフレッシュトークン": [
     "Refresh token",
-    "Token refrescante"
+    "Token de actualización"
   ],
   "エンドポイント": [
     "Endpoint",
-    "Punto final"
+    "Punto de conexión"
   ],
   "更新する": [
     "Update",
-    "Actualización"
+    "Actualizar"
   ],
   "接続中": [
     "Connecting",
-    "Conexión"
+    "Conectando"
   ],
   "セラーID:": [
     "Seller ID:",
@@ -1196,12 +1196,12 @@
     "Integración de canales de ventas"
   ],
   "Shopify・TikTokショップを接続。Amazon自動出荷で使用。": [
-    "Connect Shopify and TikTok Shop. Used on Amazon automatic shipping.",
-    "Connect Shopify y TikTok Shop. Usado en el envío automático de Amazon."
+    "Connect Shopify and TikTok Shop for Amazon automated fulfillment.",
+    "Conecta Shopify y TikTok Shop para los envíos automáticos de Amazon."
   ],
   "Shopify連携": [
     "Connect Shopify",
-    "Connect Shopify"
+    "Conectar Shopify"
   ],
   "TikTok連携": [
     "Connect TikTok",
@@ -1217,23 +1217,23 @@
   ],
   "Shopifyドメイン *": [
     "Shopify domain *",
-    "Shopify domain *"
+    "Dominio de Shopify *"
   ],
   "アクセストークン *": [
     "Access token *",
-    "Acceso a la ficha *"
+    "Token de acceso *"
   ],
   "Shopify管理画面 → 設定 → アプリと販売チャネル → アプリを開発 で取得": [
-    "Shopify Management Screen → Settings → App and Sales Channel → App Development Get",
-    "Tiendaify Management Screen → Configuración → App and Sales Channel → App Development Get"
+    "Get it in Shopify admin → Settings → Apps and sales channels → Develop apps",
+    "Obtenlo en Shopify → Configuración → Aplicaciones y canales de venta → Desarrollar aplicaciones"
   ],
   "アクセストークン": [
     "Access token",
-    "Acceso a la ficha"
+    "Token de acceso"
   ],
   "TikTok Shop Partner Center → アプリ管理 で取得": [
-    "TikTok Shop Partner Center",
-    "TikTok Shop Partner Center"
+    "Get it in TikTok Shop Partner Center → App management",
+    "Obtenlo en TikTok Shop Partner Center → Gestión de aplicaciones"
   ],
   "Gmail連携済み": [
     "Gmail connected",
@@ -1245,7 +1245,7 @@
   ],
   "認証中...": [
     "Authenticating…",
-    "Authenticating..."
+    "Autenticando…"
   ],
   "販売チャネルが未連携です": [
     "No sales channels connected",
@@ -1276,8 +1276,8 @@
     "Cambio"
   ],
   "{0} のキーを削除しますか？": [
-    "Delete keys in {0}?",
-    "Eliminar las llaves en {0}?"
+    "Delete the key for {0}?",
+    "¿Eliminar la clave de {0}?"
   ],
   "{0} を削除しました": [
     "Deleted {0}",
@@ -1289,19 +1289,19 @@
   ],
   "{0} を保存しました": [
     "Saved {0}",
-    "Salvado."
+    "{0} guardado"
   ],
   "保存失敗": [
     "Save failed",
-    "Salvar falló."
+    "No se pudo guardar"
   ],
   "APIキーはAES-256-GCMで暗号化してデータベースに保存されます。環境変数に設定済みのキーはそちらが優先されます。": [
-    "The API key is encrypted with AES-256-GCM and stored in the database. The key set in the environment variable is given priority.",
-    "La clave de API está encriptada con AES-256-GCM y almacenada en la base de datos. El conjunto clave de la variable medio ambiente se da prioridad."
+    "API keys are encrypted with AES-256-GCM and stored in the database. Keys already set in environment variables take priority.",
+    "Las claves de API se guardan cifradas con AES-256-GCM en la base de datos. Tienen prioridad las claves configuradas en variables de entorno."
   ],
   "ヤフオク": [
     "Yahoo! Auctions",
-    "Auctions"
+    "Yahoo! Auctions"
   ],
   "メルカリ": [
     "Mercari",
@@ -1325,63 +1325,63 @@
   ],
   "たった今": [
     "Just now",
-    "Ahora."
+    "Ahora mismo"
   ],
   "{0}分前": [
     "{0} minutes ago",
-    "{0} minutes ago"
+    "Hace {0} minutos"
   ],
   "{0}時間前": [
     "{0} hours ago",
-    "{0} hours ago"
+    "Hace {0} horas"
   ],
   "{0}日前": [
     "{0} days ago",
-    "Hace unos días"
+    "Hace {0} días"
   ],
   "読み込みに失敗しました: {0}": [
-    "failed to read: {0}",
-    "no leyó: {0}"
+    "Failed to load: {0}",
+    "No se pudo cargar: {0}"
   ],
   "取り込みに失敗しました": [
     "Import failed",
     "La importación falló"
   ],
   "{0}\n\n{1}\n\nこのまま作成しますか？": [
-    "{0} {1} Do you create this?",
-    "¿Tú creas esto?"
+    "{0}\n\n{1}\n\nCreate this as shown?",
+    "{0}\n\n{1}\n\n¿Crear con estos datos?"
   ],
   "作成に失敗しました": [
     "Creation failed",
     "La creación falló"
   ],
   "出品を作成しました: {0} / ${1}（写真は別途必要です）": [
-    "Created: {0} / ${1} (Photo is required separately)",
-    "Creado: {0} / ${1} (Foto se requiere por separado)"
+    "Listing created: {0} / ${1} (photos must be provided separately)",
+    "Anuncio creado: {0} / ${1} (debes aportar las fotos por separado)"
   ],
   "在庫あり・利益条件クリア": [
     "In stock and meets profit requirements",
     "En stock y cumple con los requisitos de ganancia"
   ],
   "この出品をeBayから取り下げます。よろしいですか？": [
-    "I'm going to remove this item from eBay. Is it okay?",
-    "Voy a quitar este artículo de eBay. ¿Está bien?"
+    "Remove this listing from eBay?",
+    "¿Retirar este anuncio de eBay?"
   ],
   "eBayの出品を終了しました": [
     "eBay listing ended",
     "eBay listado terminado"
   ],
   "eBay API未接続のため手動で終了してください（{0}）": [
-    ") it manually because eBay API is not connected ({0})",
-    ") manualmente porque eBay API no está conectado ({0})"
+    "End the listing manually because the eBay API is not connected ({0})",
+    "Finaliza el anuncio manualmente: la API de eBay no está conectada ({0})"
   ],
   "設定を保存しました": [
     "Settings saved",
     "Ajustes guardados"
   ],
   "← → で移動 / Esc で閉じる": [
-    "← → Move in / Close with Esc",
-    "← → Entrar / Cerrar con Esc"
+    "← → Navigate / Esc Close",
+    "← → Navegar / Esc Cerrar"
   ],
   "前の画像": [
     "Previous image",
@@ -1392,12 +1392,12 @@
     "Siguiente imagen"
   ],
   "japan_hikari_store / 仕入先を10分ごとに巡回し、在庫が消えた出品を自動で落とします": [
-    "japan_hikari_store / automatically drops the inventory disappeared by traveling every 10 minutes",
-    "japan_hikari_store / automáticamente deja caer el inventario desaparecido viajando cada 10 minutos"
+    "japan_hikari_store / Check suppliers every 10 minutes and automatically remove listings that are out of stock",
+    "japan_hikari_store / Comprueba proveedores cada 10 minutos y retira automáticamente los anuncios sin existencias"
   ],
   "今すぐ取り下げが必要な出品": [
     "Listings requiring immediate removal",
-    "Listings requiring immediate removal"
+    "Anuncios que deben retirarse ahora"
   ],
   "件": [
     "items",
@@ -1413,7 +1413,7 @@
   ],
   "出品中": [
     "Listed",
-    "Listed"
+    "Publicado"
   ],
   "要取り下げ": [
     "Removal required",
@@ -1421,23 +1421,23 @@
   ],
   "未仕入の受注": [
     "Orders awaiting procurement",
-    "Órdenes pendientes de contratación"
+    "Pedidos pendientes de compra"
   ],
   "発送期限超過": [
     "Shipping deadline missed",
-    "Plazo de entrega faltado"
+    "Plazo de envío vencido"
   ],
   "利益◎○の候補": [
     "High-profit candidates",
-    "Solicitantes de alto rendimiento"
+    "Productos con alto potencial de beneficio"
   ],
   "eBay APIが未接続です。環境変数": [
-    "eBay API is unconnected. Environment variable",
-    "eBay API no está conectado."
+    "The eBay API is not connected. Set the environment variable",
+    "La API de eBay no está conectada. Configura la variable de entorno"
   ],
   "を設定すると、在庫消失時に自動で出品を終了できます。 未設定の間は「要取り下げ」として通知するだけなので、取り下げは手動になります。": [
-    "When you set up, you can automatically   the exhibit at the time of stock loss. Since it is only notified as \"reduction\" during the unset, the cancellation will be done manually.",
-    "Cuando se establece, puede automáticamente la exposición en el momento de la pérdida de stock. Ya que sólo se notifica como \"reducción\" durante el unset, la cancelación se hará manualmente."
+    "to automatically end listings when stock runs out. Until configured, listings are flagged for removal and must be ended manually.",
+    "para finalizar automáticamente los anuncios sin existencias. Mientras no esté configurada, solo recibirás avisos para retirarlos manualmente."
   ],
   "在庫追従": [
     "Stock tracking",
@@ -1485,7 +1485,7 @@
   ],
   "eBay 下書き": [
     "eBay: Draft",
-    "eBay: Proyecto"
+    "eBay: Borrador"
   ],
   "仕入れる個体": [
     "Item to purchase",
@@ -1509,7 +1509,7 @@
   ],
   "在庫なし": [
     "Out of stock",
-    "Fuera de existencia"
+    "Sin existencias"
   ],
   "{0} / {1}件 / {2}": [
     "{0} / {1} / {2}",
@@ -1520,24 +1520,24 @@
     "Precio más bajo: {0}"
   ],
   "クリックで検索結果（相場）を開く": [
-    "Click to open the search result.",
-    "Haga clic para abrir el resultado de la búsqueda."
+    "Click to open search results (market prices)",
+    "Haz clic para abrir los resultados de búsqueda (precios de mercado)"
   ],
   "今すぐ巡回": [
     "Check now",
-    "Mira ahora."
+    "Comprobar ahora"
   ],
   "監視に戻す": [
     "Resume monitoring",
-    "Supervisión de los reanudos"
+    "Reanudar seguimiento"
   ],
   "eBayで見る（公開中）": [
     "View on eBay (published)",
     "Vista sobre eBay (publicado)"
   ],
   "eBayの下書きを開く（未公開）": [
-    "Open eBay draft (not published)",
-    "Open eBay draft (no publicado)"
+    "Open eBay draft (unpublished)",
+    "Abrir borrador de eBay (sin publicar)"
   ],
   "出品が登録されていません": [
     "No listings registered",
@@ -1548,8 +1548,8 @@
     "Importación"
   ],
   "現在ヤフオクの商品ページに対応。商品名・価格・状態区分・ジャンル・説明・画像URLを保存し、英語の出品案を生成します。 画像そのものは取り込みません（転載になるため）。出品用の写真は別途用意してください。": [
-    "We support the product page of Yahoo auctions. We save the product name, price, state category, genre, description, and image URL, and generate an English proposal. The image itself is not imported (to be reprinted). Please prepare the photo for the exhibition.",
-    "Apoyamos la página de producto de las subastas de Yahoo. Ahorramos el nombre de producto, precio, categoría de estado, género, descripción y URL de imagen, y generamos una propuesta de Inglés. La imagen en sí no se importa (para ser reimprimido)."
+    "Currently supports Yahoo! Auctions product pages. Saves product name, price, condition, category, description and image URLs to generate an English listing draft. Images themselves are not imported to avoid republishing them. Provide your own listing photos.",
+    "Compatible con páginas de productos de Yahoo! Auctions. Guarda nombre, precio, estado, categoría, descripción y URL de imágenes para generar un borrador de anuncio en inglés. No importa las imágenes para evitar su republicación. Aporta tus propias fotos para el anuncio."
   ],
   "確認してください": [
     "Please check",
@@ -1573,7 +1573,7 @@
   ],
   "終了": [
     "Ended",
-    "Ended"
+    "Finalizado"
   ],
   "ページを開く": [
     "Open page",
@@ -1588,12 +1588,12 @@
     "Imágenes de proveedores"
   ],
   "枚（状態確認用。出品には使えません）": [
-    "(For state confirmation. Cannot be used for exhibiting)",
-    "(Para confirmación del estado. No se puede utilizar para exhibir)"
+    "images (for checking condition; cannot be used in listings)",
+    "imágenes (para comprobar el estado; no pueden usarse en anuncios)"
   ],
   "{0}枚目（クリックで原寸表示）": [
-    "{0}Screen(Click to view the original size)",
-    "{0}Screen(Haga clic para ver el tamaño original)"
+    "Image {0} (click for original size)",
+    "Imagen {0} (haz clic para ver el tamaño original)"
   ],
   "{0}枚目": [
     "Image {0}",
@@ -1601,7 +1601,7 @@
   ],
   "生成した出品案": [
     "Generated listing draft",
-    "Proyecto de inclusión en la Lista"
+    "Borrador de anuncio generado"
   ],
   "英語タイトル": [
     "English title",
@@ -1612,20 +1612,20 @@
     "Precio de venta recomendado"
   ],
   "米国基準・送料無料・利益率20%": [
-    "U.S. Standards, Free Shipping & Profit Ratio 20%",
-    "U.S. Standards, Free Shipping &amp; Profit Ratio 20%"
+    "US market, free shipping, 20% profit margin",
+    "Mercado de EE. UU., envío gratis, margen de beneficio del 20%"
   ],
   "英語の説明文": [
     "English description",
-    "Descripción del inglés"
+    "Descripción en inglés"
   ],
   "取り込み履歴（": [
     "Import history (",
-    "Historial de la importación"
+    "Historial de importaciones ("
   ],
   "件）": [
     "items)",
-    "Temas)"
+    "elementos)"
   ],
   "取り込み": [
     "Import",
@@ -1645,7 +1645,7 @@
   ],
   "まだ取り込みがありません": [
     "No imports yet",
-    "No imports yet"
+    "Aún no hay importaciones"
   ],
   "セット疑い": [
     "Possible bundle",
@@ -1653,19 +1653,19 @@
   ],
   "出品作成済み": [
     "Listing created",
-    "Listing created"
+    "Anuncio creado"
   ],
   "仕入値が取れていないため売価を決められません": [
-    "I can't decide the price because I don't get the purchase.",
-    "No puedo decidir el precio porque no recibo la compra."
+    "Cannot set the selling price because the purchase cost is unavailable",
+    "No se puede fijar el precio de venta porque falta el costo de compra"
   ],
   "出品レコードを作り、在庫追従に載せます": [
-    "Make a record and put it in stock follower",
-    "Hacer un registro y ponerlo en stock seguidor"
+    "Create a listing record and add it to stock tracking",
+    "Crea un registro del anuncio y añádelo al seguimiento de existencias"
   ],
   "下書きを作る": [
     "Create draft",
-    "Crear un proyecto"
+    "Crear borrador"
   ],
   "履歴から削除": [
     "Remove from history",
@@ -1697,7 +1697,7 @@
   ],
   "超過": [
     "Overdue",
-    "Overdue"
+    "Vencido"
   ],
   "未仕入": [
     "Not purchased",
@@ -1713,55 +1713,55 @@
   ],
   "発送済": [
     "Shipped",
-    "Recibido"
+    "Enviado"
   ],
   "受注はまだありません": [
     "No orders yet",
     "Aún no hay órdenes."
   ],
   "国内3サイトの価格を10分ごとに取り直し、eBayのSold相場と突き合わせて利益を再計算します。": [
-    "Reの価格 the price of 3 sites in Japan every 10 minutes, and recal。 the profit with eBay’s sold market.",
-    "Re価 denominar el precio de 3 sitios en Japón cada 10 minutos, y recal. el beneficio con el mercado vendido de eBay."
+    "Refresh prices from 3 Japanese sites every 10 minutes and recalculate profit against eBay sold prices.",
+    "Actualiza los precios de 3 sitios japoneses cada 10 minutos y recalcula el beneficio según los precios de ventas realizadas en eBay."
   ],
   "最安": [
     "Lowest price",
     "Precio más bajo"
   ],
   "は「いま出ている1点で受注をさばけるか」、": [
-    "\"Is it possible to make an order with one point that is out now?\"",
-    "\"¿Es posible hacer una orden con un punto que está fuera ahora?\""
+    "shows whether the currently available item can fulfill an order;",
+    "indica si el artículo disponible ahora permite completar un pedido;"
   ],
   "中央値": [
     "Median",
     "Mediano"
   ],
   "は「その型番を継続的に仕入れ続けられるか」。 判定は中央値で出します（最安だけで判断すると、2個目が仕入れられない型番を出品してしまうため）。": [
-    "\"Is it possible to continue stocking the model number continuously?\" Judgment will be issued with a median value (as if you decide only at the lowest price, you will be able to sell the model number that the second cannot be purchased).",
-    "\"¿Es posible seguir almacenando el número de modelo continuamente?\" El juicio se emitirá con un valor medio (como si usted decide sólo al precio más bajo, usted será capaz de vender el número de modelo que el segundo no se puede comprar)."
+    "shows whether that model can be sourced consistently. Assessments use the median, since the lowest price alone may lead to listings where a second item cannot be sourced.",
+    "indica si se puede comprar ese modelo de forma continua. La evaluación usa la mediana, ya que el precio mínimo puede llevar a publicar modelos sin una segunda unidad disponible."
   ],
   "仕入比率": [
     "Purchase cost ratio",
     "Tasa de gastos de compra"
   ],
   "（国内仕入値÷eBay相場）が": [
-    "(国内 purchase value ÷ eBay market price)",
-    "(aspecto de la compra ÷ eBay precio del mercado)"
+    "(Japanese purchase cost ÷ eBay market price) must be",
+    "(costo de compra en Japón ÷ precio de mercado en eBay) debe ser"
   ],
   "44%以下": [
     "44% or less",
     "44% o menos"
   ],
   "でないと、米国基準・送料無料の価格が相場を超えて売れません。": [
-    "If not, the US standard and free shipping price will not be sold beyond the market price.",
-    "Si no es así, el precio estándar y gratuito de envío no se venderá más allá del precio del mercado."
+    "otherwise the US-market price with free shipping will exceed market prices and prevent sales.",
+    "de lo contrario, el precio para EE. UU. con envío gratis superará el precio de mercado y dificultará las ventas."
   ],
   "採用した商品名も必ず確認してください": [
     "Please check the product name you adopted.",
     "Por favor, compruebe el nombre del producto que adoptó."
   ],
   "（あいまい検索でソフトや周辺機器が混ざることがあります）。 eBay相場が未登録の行は判定を出しません（推測値では埋めません）。 メルカリはクライアント描画のため、駿河屋はアクセス制限のため、サーバーからは取得できず常に「—」になります。AmazonはSP-APIの中古オファーを見るため AMAZON_SP_REFRESH_TOKEN が必要です。": [
-    "(There may be a mix of software and peri al equipment in ambiguous search). Unregistered lines on eBay market will not be judged (not filled with guess values). Mercari will always be \"-\" because of client drawing, Surugaya will not be able to get from the server because of access。. Amazon requires AMAZON_SP_REF。H_TOKEN to see SP-API used offers.",
-    "(Puede haber una mezcla de software y equipo peri al en búsqueda ambigua). Las líneas no registradas en el mercado eBay no serán juzgadas (no llenas de valores de adivinación). Mercari siempre será \"-\" debido al dibujo del cliente, Surugaya no será capaz de obtener del servidor debido al acceso.. Amazon requiere AMAZON_SP_REF.H_TOKEN para ver las ofertas usadas SP-API."
+    "(Fuzzy searches may include software and accessories.) Rows without eBay market prices are not assessed or filled with estimates. Mercari uses client-side rendering and Surugaya restricts access, so server-side results are always \"—\". Amazon used offers via SP-API require AMAZON_SP_REFRESH_TOKEN.",
+    "(La búsqueda aproximada puede incluir software y accesorios.) Las filas sin precios de mercado de eBay no se evalúan ni se rellenan con estimaciones. Mercari usa renderizado del cliente y Surugaya restringe el acceso, por lo que sus resultados desde el servidor son siempre \"—\". Las ofertas de segunda mano de Amazon por SP-API requieren AMAZON_SP_REFRESH_TOKEN."
   ],
   "eBay相場": [
     "eBay market price",
@@ -1792,8 +1792,8 @@
     "→ Ganancia bruta"
   ],
   "国内仕入値 ÷ eBay相場。米国基準・送料無料で出すなら44%以下が必要": [
-    "÷ purchase value ÷ eBay market. 44% or less is required for US standard and free shipping.",
-    "÷ valor de compra ÷ eBay mercado. 44% o menos es requerido para el envío estándar y libre de EE.UU."
+    "Japanese purchase cost ÷ eBay market price. Must be 44% or less for US-market listings with free shipping.",
+    "Costo de compra en Japón ÷ precio de mercado en eBay. Debe ser del 44% o menos para anuncios destinados a EE. UU. con envío gratis."
   ],
   "今すぐ更新": [
     "Update now",
@@ -1805,19 +1805,19 @@
   ],
   "巡回を有効にする": [
     "Enable monitoring",
-    "Permitir la vigilancia"
+    "Activar seguimiento"
   ],
   "OFFにすると10分ごとのcronが何もしません": [
     "Cron does nothing every 10 minutes when turned off",
     "Cron no hace nada cada 10 minutos cuando se apaga"
   ],
   "在庫が消えたらeBay出品を自動で取り下げる": [
-    "Automatically remove eBay exhibits when the inventory disappears",
-    "Eliminar automáticamente las exhibiciones de eBay cuando el inventario desaparece"
+    "Automatically remove eBay listings when supplier stock runs out",
+    "Retirar automáticamente los anuncios de eBay cuando el proveedor se quede sin existencias"
   ],
   "無在庫では「取り下げないまま売れる」ほうが致命的なので、既定でONです。EBAY_OAUTH_TOKEN未設定時は通知のみになります": [
-    "It is ON by default because it is fatal to sell without deducting in stock. If EBAY_OAUTH_TOKEN is not set, notification will be only.",
-    "Es ON por defecto porque es fatal vender sin deducir en stock. Si EBAY_OAUTH_TOKEN no está establecido, la notificación será solamente."
+    "Enabled by default: a sale after supplier stock runs out is a critical risk for dropshipping. Without EBAY_OAUTH_TOKEN, only notifications are sent.",
+    "Activado por defecto: vender después de agotarse el stock del proveedor es un riesgo crítico para dropshipping. Sin EBAY_OAUTH_TOKEN, solo se envían avisos."
   ],
   "利益率の下限(%)": [
     "Minimum profit margin (%)",
@@ -1837,7 +1837,7 @@
   ],
   "1回の巡回件数": [
     "Items per monitoring cycle",
-    "Temas por ciclo de vigilancia"
+    "Artículos por ciclo de seguimiento"
   ],
   "為替の安全率": [
     "Exchange rate safety margin",
@@ -1848,8 +1848,8 @@
     "Derechos de importación de los EE.UU."
   ],
   "DDU（バイヤー負担）に変えるなら0": [
-    "If you change to DDU (Buyer burden), 0",
-    "Si cambias a DDU (cargo del comprador), 0"
+    "Set to 0 for DDU (buyer pays duties)",
+    "Configura 0 para DDU (el comprador paga los aranceles)"
   ],
   "送料 〜1kg(円)": [
     "Shipping up to 1 kg (JPY)",
@@ -1868,20 +1868,20 @@
     "Envío de más de 3 kg (JPY)"
   ],
   "Amazon(SP-API)を巡回に含める": [
-    "Amazon (SP-API)",
-    "Amazon (SP-API)"
+    "Include Amazon (SP-API) in monitoring",
+    "Incluir Amazon (SP-API) en el seguimiento"
   ],
   "1件あたりの所要が最も長く、巡回できる件数がほぼ半分になります。中古カメラ・レトロゲームでは寄与が小さいため既定はOFF": [
-    "It is the longest cost per item, and the number of items that can be patrol is almost half. The default is OFF because it is small contribution in used cameras and retro games.",
-    "Es el costo más largo por artículo, y el número de elementos que pueden ser patrullas es casi la mitad. El valor predeterminado es OFF porque es pequeña contribución en cámaras usadas y juegos retro."
+    "Takes the longest per item and almost halves monitoring capacity. Disabled by default because it contributes little for used cameras and retro games.",
+    "Es la consulta más lenta por artículo y reduce la capacidad de seguimiento casi a la mitad. Desactivada por defecto porque aporta poco para cámaras usadas y juegos retro."
   ],
   "利益が出た型番を自動で取り込む": [
-    "Automatically import the profited model number",
-    "Importación automática del número de modelo de beneficio"
+    "Automatically import profitable models",
+    "Importar automáticamente los modelos rentables"
   ],
   "利益ウォッチが◎/○になったら、そのとき最安で買える個体の商品ページを自動で取り込みます（商品名・説明・ジャンル・画像URL）。同じ個体は二重に取り込みません。仕入先の画像そのものは保存せず、URLのみ控えます": [
-    "When the profit watch is ◎/○, it automatically imports the product page of the individual that can be bought at the cheapest (Product name, description, genre, image URL). The same individual is not imported double. The destination image itself is not saved, and only the URL is not saved.",
-    "Cuando el reloj de ganancia es י/ ::, importa automáticamente la página de producto del individuo que se puede comprar en el más barato (Nombre del producto, descripción, género, URL de la imagen). El mismo individuo no se importa doble. La imagen de destino en sí no se guarda, y sólo la URL no se guarda."
+    "When profit monitoring rates a model ◎/○, automatically import the cheapest available item’s product page (name, description, category and image URLs). Do not import the same item twice. Save only supplier image URLs, not the images themselves.",
+    "Cuando el seguimiento de beneficios califique un modelo como ◎/○, importa la página del artículo disponible más barato (nombre, descripción, categoría y URL de imágenes). Evita importaciones duplicadas. Guarda solo las URL de las imágenes del proveedor, no las imágenes."
   ],
   "Slackに通知する": [
     "Notify in Slack",
@@ -1889,7 +1889,7 @@
   ],
   "下書き": [
     "Draft",
-    "Proyecto"
+    "Borrador"
   ],
   "停止中": [
     "Stopped",
@@ -1897,7 +1897,7 @@
   ],
   "取り下げ済": [
     "Listing removed",
-    "Listing removed"
+    "Anuncio retirado"
   ],
   "お名前・郵便番号・都道府県・住所（番地）は必須です": [
     "Your name, postal code, prefecture, and address are required",
@@ -1908,16 +1908,16 @@
     "Elija tamaño y color"
   ],
   "送信に失敗しました。時間をおいて再度お試しください。": [
-    "You have failed to send. Please try again.",
-    "Por favor, inténtelo de nuevo."
+    "Failed to send. Wait a while and try again.",
+    "No se pudo enviar. Espera un momento e inténtalo de nuevo."
   ],
   "読み込みに失敗しました": [
     "Failed to load",
-    "Failed to load"
+    "No se pudo cargar"
   ],
   "通信状況によることがあります。もう一度お試しください。": [
-    "Please try again.",
-    "Por favor, inténtalo de nuevo."
+    "This may be caused by the connection. Please try again.",
+    "Puede deberse a la conexión. Inténtalo de nuevo."
   ],
   "再読み込み": [
     "Reload",
@@ -1928,8 +1928,8 @@
     "Enlace inválido"
   ],
   "お手数ですが、担当者までご連絡ください。": [
-    "Please contact the person in charge if you have any questions.",
-    "Por favor, contacte con la persona a cargo si tiene alguna pregunta."
+    "Please contact the person in charge.",
+    "Ponte en contacto con la persona responsable."
   ],
   "商品お届け先のご入力": [
     "Enter your delivery address",
@@ -1956,8 +1956,8 @@
     "Prepararemos su envío."
   ],
   "到着まで今しばらくお待ちください。": [
-    "Please wait for a while until you arrive.",
-    "Por favor, espere un rato hasta que llegue."
+    "Please allow some time for delivery.",
+    "Espera un poco hasta la entrega."
   ],
   "このたびは": [
     "Thank you",
@@ -1992,8 +1992,8 @@
     "Taro Yamada"
   ],
   "郵便番号（入力で住所が自動表示）": [
-    "Postal code (Automatic address display by input)",
-    "Código postal (Disección automática por entrada)"
+    "Postal code (address filled automatically)",
+    "Código postal (la dirección se completa automáticamente)"
   ],
   "都道府県": [
     "Prefecture",
@@ -2029,7 +2029,7 @@
   ],
   "リサーチ済": [
     "Researched",
-    "Researched"
+    "Investigado"
   ],
   "選定済": [
     "Selected",
@@ -2045,7 +2045,7 @@
   ],
   "送信済": [
     "Sent",
-    "Sent"
+    "Enviado"
   ],
   "返信あり": [
     "Reply received",
@@ -2053,19 +2053,19 @@
   ],
   "住所待ち": [
     "Awaiting address",
-    "Awaiting address"
+    "Pendiente de dirección"
   ],
   "住所収集済": [
     "Address received",
-    "Discurso recibido"
+    "Dirección recibida"
   ],
   "発送待ち": [
     "Awaiting shipment",
-    "Awaiting shipment"
+    "Pendiente de envío"
   ],
   "辞退": [
     "Declined",
-    "Declind"
+    "Rechazado"
   ],
   "万": [
     "×10,000",
@@ -2073,35 +2073,35 @@
   ],
   "データの取得に失敗しました": [
     "Failed to retrieve data",
-    "Failed to retrieve data"
+    "No se pudieron obtener los datos"
   ],
   "{0}件を採点、{1}件を選定": [
-    "Select {0}, {1}",
-    "Seleccione {0}, {1}"
+    "Scored {0} candidates and selected {1}",
+    "Se evaluaron {0} candidatos y se seleccionaron {1}"
   ],
   "{0}件の提案文を生成": [
     "Generated {0} proposals",
-    "Propuestas generadas"
+    "{0} propuestas generadas"
   ],
   "返信{0}件、住所{1}件を収集": [
-    "Reply {0}, address {1}",
-    "Responder {0}, dirección {1}"
+    "Collected {0} replies and {1} addresses",
+    "Se recopilaron {0} respuestas y {1} direcciones"
   ],
   "追跡確認{0}件・番号取得{1}件": [
-    "{0} {1} {0} {1}",
-    "{0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0}} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0}} {0} {0} {0} {0} {0}} {0}} {0}}}}}} {0}}} {0} {0} {0} {0}}}} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0} {0}}}} {0}} {0} {0} {0} {0} {0} {}} {} {0}}}} {} {0} {0} {0} {0} {0}} {0} {0}}}}}}} {0} {0} {0} {0}}}}}}}}}}}}}}}}}}}}}} {0} {0} {0} {}} {0} {0}} {0} {0}}}} {0} {0} {0} {} {0} {0} {0} {0} {} {} {} {} {} {} {}}} {}}}}}}} {0} {0} {0}}} {} {} {} {} {} {}}}} {} {}}}}}}}} {}}}}}}} {0} {} {} {}}}} {} {}}}}}}}}} {0} {0} {0} {0} {0} {0} {0} {0} {0}} {0} {0} {0} {0} {0} {0} {0} {0}} {} {0} {0} {}} {} {}}}} {0} {} {}}}}}}}}}}}}}}}} {}}}} {} {} {} {} {}}}}"
+    "Checked tracking for {0} shipments; obtained {1} tracking numbers",
+    "Seguimiento comprobado para {0} envíos; {1} números de seguimiento obtenidos"
   ],
   "送信しました": [
     "Sent",
-    "Sent"
+    "Enviado"
   ],
   "発送を準備しました（承認待ち）": [
-    "Disco ed shipping (waiting approval)",
-    "Disco ed shipping (esperando aprobación)"
+    "Shipment prepared (awaiting approval)",
+    "Envío preparado (pendiente de aprobación)"
   ],
   "{0} 宛にFBA(MCF)発送依頼を送信します。よろしいですか？": [
-    "{0} send a mail to FBA (MCF). Is it okay?",
-    "{0} enviar un correo a FBA (MCF). ¿Está bien?"
+    "Submit an FBA (MCF) shipment request for {0}?",
+    "¿Solicitar un envío FBA (MCF) para {0}?"
   ],
   "発送依頼を送信: {0}": [
     "Shipping request sent: {0}",
@@ -2116,20 +2116,20 @@
     "No se puede copiar"
   ],
   "承認待ちのメール {0}件をまとめて送信します。よろしいですか？": [
-    "I'll send an email waiting for approval {0}. Is it okay?",
-    "Enviaré un correo electrónico esperando su aprobación. ¿Está bien?"
+    "Send all {0} emails awaiting approval?",
+    "¿Enviar los {0} correos pendientes de aprobación?"
   ],
   "{0}件送信{1}": [
     "{0} sent{1}",
-    "{0} sent{1}"
+    "{0} enviados{1}"
   ],
   "・{0}件失敗": [
-    " · {0} failed",
-    "Falló."
+    "· {0} failed",
+    "· {0} fallidos"
   ],
   "承認待ちの発送 {0}件をまとめてFBA(MCF)発送します。よろしいですか？": [
-    "Shipping waiting for approval {0} is summarized and FBA (MCF) is shipped. Is it okay?",
-    "La espera de envío para la aprobación {0} se resume y FBA (MCF) se envía. ¿Está bien?"
+    "Submit all {0} shipments awaiting approval to FBA (MCF)?",
+    "¿Solicitar los {0} envíos pendientes de aprobación por FBA (MCF)?"
   ],
   "{0}件発送{1}": [
     "{0} shipped{1}",
@@ -2169,11 +2169,11 @@
   ],
   "ホームに戻る": [
     "Back to home",
-    "Volver a casa"
+    "Volver al inicio"
   ],
   "インフルエンサーへの商品ギフティングを、リサーチ→選定→送信→返信→FBA発送まで半自動化": [
-    "Semi-automation of product gifting to influencers from research, selection, transmission, and reply to FBA shipments",
-    "Semiautomation of product gifting to influencers from research, selection, transmission, and reply to FBA shipments"
+    "Streamline influencer gifting: research → selection → outreach → replies → FBA shipping",
+    "Agiliza los regalos a influencers: investigación → selección → contacto → respuestas → envíos FBA"
   ],
   "候補総数": [
     "Total candidates",
@@ -2197,11 +2197,11 @@
   ],
   "手動トリガー（Cowork連携）": [
     "Manual trigger (Cowork integration)",
-    "Activador manual (Intección del trabajo)"
+    "Ejecución manual (integración con Cowork)"
   ],
   "通常はCowork（AI）が候補を「取込」に流し込みます。ここから各工程を手動でも回せます。": [
-    "Normally, Cowork (AI) pours candidates into \"intake\". You can rotate each process manually from here.",
-    "Normalmente, Cowork (AI) vierte a los candidatos en \"ingesta\". Puede rotar cada proceso manualmente desde aquí."
+    "Cowork (AI) normally imports candidates via the Import tab. You can also run each step manually here.",
+    "Cowork (IA) normalmente incorpora candidatos en la pestaña Importar. Aquí también puedes ejecutar cada paso manualmente."
   ],
   "採点・選定": [
     "Score and select",
@@ -2213,19 +2213,19 @@
   ],
   "返信をチェック": [
     "Check replies",
-    "Respuestas"
+    "Comprobar respuestas"
   ],
   "追跡番号を更新": [
     "Update tracking numbers",
-    "Números de seguimiento de actualización"
+    "Actualizar números de seguimiento"
   ],
   "発送するFBAのSKU（product_sku）が未設定です。「設定」タブで指定してください。": [
     "The SKU (product_sku) of the FBA to be shipped is not set. Specify it in the \"Settings\" tab.",
     "El SKU (product_sku) de la FBA a ser enviado no está fijado. Especifiquelo en la pestaña \"Configuración\"."
   ],
   "候補がありません。「取込」タブからCoworkのリサーチ結果を投入してください。": [
-    "There are no candidates for Cowork research.",
-    "No hay candidatos para la investigación de Cowork."
+    "No candidates. Import Cowork research results from the Import tab.",
+    "No hay candidatos. Importa los resultados de investigación de Cowork desde la pestaña Importar."
   ],
   "スコア": [
     "Score",
@@ -2237,7 +2237,7 @@
   ],
   "✉ メールなし(DM運用)": [
     "✉ No email (direct messages only)",
-    "✉ No email (sólo mensajes directos)"
+    "✉ Sin correo (solo mensajes directos)"
   ],
   "選定": [
     "Selection",
@@ -2249,35 +2249,35 @@
   ],
   "承認待ちのメール": [
     "Emails awaiting approval",
-    "Emails awaiting approval"
+    "Correos pendientes de aprobación"
   ],
   "ワンクリック一括送信": [
     "Send all with one click",
     "Enviar todos con un solo clic"
   ],
   "送信待ちのメールはありません。候補を選定→「提案文を生成」で作成されます。": [
-    "There is no e-mail waiting for sending. It will be created by→ candidates →文rate proposals.",
-    "No hay correo electrónico esperando el envío. Será creado por→ candidatos →ordenadas propuestas."
+    "No emails waiting to be sent. Select candidates and use Generate proposal to create them.",
+    "No hay correos pendientes de envío. Selecciona candidatos y usa Generar propuesta para crearlos."
   ],
   "承認して送信": [
     "Approve and send",
     "Aprobar y enviar"
   ],
   "Instagram DMは規約上、自動送信できません（アカウントBAN回避のため）。下書きを": [
-    "Instagram DM cannot be sent automatically (for avoiding account BAN).",
-    "Instagram DM no puede ser enviado automáticamente (para evitar la cuenta BAN)."
+    "Instagram terms prevent automatic DM sending (to avoid account bans). Copy the draft,",
+    "Las condiciones de Instagram impiden el envío automático de mensajes directos (para evitar bloqueos). Copia el borrador,"
   ],
   "DMを開く": [
     "Open direct message",
-    "Mensaje directo abierto"
+    "Abrir mensaje directo"
   ],
   "→貼り付けて送信、の半自動運用です。相手が受け取りリンクをタップすれば、住所入力→FBA発送準備までは自動で進みます。": [
-    "It is a semi-automatic operation of sending and pasting. If the opponent sends the receiving link, it will proceed automatically until the address input → FBA shipment preparation.",
-    "Es una operación semiautomática de envío y pegado. Si el oponente envía el enlace de recepción, se procederá automáticamente hasta la entrada de la dirección → Preparación de envío FBA."
+    "then paste and send it manually. When the recipient taps the acceptance link, address collection and FBA shipment preparation proceed automatically.",
+    "y pégalo y envíalo manualmente. Cuando la persona pulse el enlace para aceptar, la recogida de dirección y la preparación del envío FBA serán automáticas."
   ],
   "DM下書きはありません。候補を選定→「提案文を生成」で作成されます。": [
-    "There is no DM draft. It is created by→ candidates →文rate proposals.",
-    "No hay un borrador de DM. Es creado por→ candidatos →ordenadas propuestas."
+    "No DM drafts. Select candidates and use Generate proposal to create them.",
+    "No hay borradores de mensajes directos. Selecciona candidatos y usa Generar propuesta para crearlos."
   ],
   "発送通知": [
     "Shipping notification",
@@ -2288,12 +2288,12 @@
     "Mensaje de divulgación"
   ],
   "DMを開く（コピー＆送信済み）": [
-    "Open DM (Copy & Submitted)",
-    "Open DM (Copy &quot; Submitted)"
+    "Open DM (copied and marked as sent)",
+    "Abrir mensaje directo (copiado y marcado como enviado)"
   ],
   "コピーのみ": [
     "Copy only",
-    "Recibido"
+    "Solo copiar"
   ],
   "送信済みのみ": [
     "Sent only",
@@ -2305,11 +2305,11 @@
   ],
   "ワンクリック一括発送": [
     "Ship all with one click",
-    "Nave todo con un clic"
+    "Enviar todos con un clic"
   ],
   "発送レコードはありません。住所収集済みの候補を「発送準備」すると表示されます。": [
-    "There is no shipping record. You will see the address collected candidate \"Shipping Ready\".",
-    "No hay registro de envíos. Usted verá la dirección candidata recolectada \"Shipping Ready\"."
+    "No shipment records. Use Prepare shipment on candidates whose addresses have been collected.",
+    "No hay registros de envío. Usa Preparar envío para los candidatos cuya dirección ya se haya recibido."
   ],
   "発送依頼済": [
     "Shipment requested",
@@ -2321,19 +2321,19 @@
   ],
   "承認して発送": [
     "Approve and ship",
-    "Aprobar y embarcar"
+    "Aprobar y enviar"
   ],
   "候補インフルエンサーを取り込む": [
-    "Capture candidate influencer",
-    "Capture candidata influencer"
+    "Import influencer candidates",
+    "Importar candidatos influencers"
   ],
   "Coworkのリサーチ結果（JSON配列）を貼り付けます。各要素:": [
-    "SON Cowork’s research results (JSON array). Each element:",
-    "Resultados de investigación de SON Cowork (JSON array). Cada elemento:"
+    "Paste Cowork research results as a JSON array. Each element:",
+    "Pega los resultados de investigación de Cowork como un array JSON. Cada elemento:"
   ],
   "[{\"handle\":\"muscle_taro\",\"platform\":\"instagram\",\"email\":\"taro@example.com\",\"full_name\":\"筋トレ太郎\",\"followers\":45000,\"engagement_rate\":3.2,\"niche\":\"筋トレ\",\"bio\":\"...\"}]": [
-    "[{\"handle]muscle_taro]platforminstagraminstagraminstagramemail]taro@example.com.full_name筋mus]tretaro]followers\":45000,\"engagement_rate\":3.2,\"niche筋mus]trebiobio]...\"}",
-    "[{\"handle]muscle_taro]platforminstagraminstagraminstagramemail]taro@example.com.full_name estimulamus]tretaro]sellowers\":45000\",engagement_rate\":3.2\",niche tempranomus]trebiobio]...\"}"
+    "[{\"handle\":\"muscle_taro\",\"platform\":\"instagram\",\"email\":\"taro@example.com\",\"full_name\":\"筋トレ太郎\",\"followers\":45000,\"engagement_rate\":3.2,\"niche\":\"筋トレ\",\"bio\":\"...\"}]",
+    "[{\"handle\":\"muscle_taro\",\"platform\":\"instagram\",\"email\":\"taro@example.com\",\"full_name\":\"筋トレ太郎\",\"followers\":45000,\"engagement_rate\":3.2,\"niche\":\"筋トレ\",\"bio\":\"...\"}]"
   ],
   "取込中...": [
     "Importing…",
@@ -2380,8 +2380,8 @@
     "Productos para enviar (FBA/MCF)"
   ],
   "発送SKU (sellerSku)": [
-    "sellerSku (sellerSku)",
-    "vendedorSku (sellerSku)"
+    "Shipment SKU (sellerSku)",
+    "SKU del envío (sellerSku)"
   ],
   "例: FP-WRISTWRAP-BK": [
     "Example: FP-WRISTWRAP-BK",
@@ -2429,7 +2429,7 @@
   ],
   "最大フォロワー": [
     "Maximum followers",
-    "Adeptos máximos"
+    "Máximo de seguidores"
   ],
   "最小エンゲージ率(%)": [
     "Minimum engagement rate (%)",
@@ -2437,7 +2437,7 @@
   ],
   "狙うニッチ（カンマ区切り）": [
     "Target niches (comma-separated)",
-    "Nichos blancos (separados por la madre)"
+    "Nichos objetivo (separados por comas)"
   ],
   "1日の送信上限": [
     "Daily sending limit",
@@ -2449,7 +2449,7 @@
   ],
   "Yahoo!ショッピング": [
     "Yahoo! Shopping",
-    "¡Yahoo!"
+    "Yahoo! Shopping"
   ],
   "その他サイト": [
     "Other websites",
@@ -2461,27 +2461,27 @@
   ],
   "画像の抽出に失敗しました": [
     "Failed to extract images",
-    "Failed to extract images"
+    "No se pudieron extraer las imágenes"
   ],
   "ZIPの作成に失敗しました": [
     "Failed to create ZIP",
-    "Failed to create ZIP"
+    "No se pudo crear el ZIP"
   ],
   "商品画像 一括ダウンロード": [
     "Bulk product image download",
-    "Descarga de la imagen del producto a granel"
+    "Descarga de imágenes de productos en lote"
   ],
   "商品ページのURL": [
     "Product page URL",
     "Página del producto URL"
   ],
   "ヤフオク・Amazon・楽天・メルカリ・駿河屋などの商品ページに対応": [
-    "Supports product pages such as Yahoo Auctions, Amazon, ten, Mercari, Surugaya, etc.",
-    "Soporta páginas de productos como Yahoo Auctions, Amazon, ten, Mercari, Surugaya, etc."
+    "Supports product pages on Yahoo! Auctions, Amazon, Rakuten, Mercari and Surugaya",
+    "Compatible con páginas de productos de Yahoo! Auctions, Amazon, Rakuten, Mercari y Surugaya"
   ],
   "画像を取得": [
     "Fetch images",
-    "Imagenes de captura"
+    "Obtener imágenes"
   ],
   "枚検出 /": [
     "images found /",
@@ -2525,11 +2525,11 @@
   ],
   "⚪ 在庫未取得": [
     "⚪ Stock not fetched",
-    "⚪ Stock not fetched"
+    "⚪ Existencias sin consultar"
   ],
   "⚫ 廃止（売り切り）": [
     "⚫ Discontinued (sell remaining stock)",
-    "⚫ Discontinued (sell remaining stock)"
+    "⚫ Descontinuado (vender el stock restante)"
   ],
   "要補充": [
     "Replenishment needed",
@@ -2541,15 +2541,15 @@
   ],
   "未入力": [
     "Not entered",
-    "No entró"
+    "Sin introducir"
   ],
   "在庫ダッシュボード": [
     "Inventory dashboard",
-    "Dashboard de inventario"
+    "Panel de inventario"
   ],
   "在庫フロー（ロット）": [
     "Inventory flow (batches)",
-    "Flujo de inventario (batches)"
+    "Flujo de inventario (lotes)"
   ],
   "資材": [
     "Materials",
@@ -2560,8 +2560,8 @@
     "Datos maestros del producto"
   ],
   "Amazon FBA在庫 × たお太郎パイプライン × 資材を一元管理。発注タイミングと二重発注を自動判定": [
-    "Amazon FBA inventory ×tarotaro Pipeline × Material centrally managed. Automatic judgment of order timing and double ordering",
-    "Amazon FBA inventario ×tarotaro Pipeline × Material gestionado centralmente. juicio automático de tiempo de orden y doble orden"
+    "Manage Amazon FBA stock, the Taotaro pipeline and materials in one place. Automatically determine when to reorder and prevent duplicate orders.",
+    "Gestiona el stock FBA de Amazon, el proceso de Taotaro y los materiales en un solo lugar. Determina cuándo comprar y evita pedidos duplicados."
   ],
   "再読込": [
     "Reload",
@@ -2589,11 +2589,11 @@
   ],
   "(なし)": [
     "(None)",
-    "(None)"
+    "(Ninguno)"
   ],
   "（色なし）": [
     "(No color)",
-    "(No color)"
+    "(Sin color)"
   ],
   "すべて開く": [
     "Expand all",
@@ -2601,15 +2601,15 @@
   ],
   "すべて閉じる": [
     "Collapse all",
-    "Collapse all"
+    "Contraer todo"
   ],
   "Amazon在庫を取得しました": [
-    "Get Amazon Stock",
-    "Obtener Amazon Stock"
+    "Amazon stock fetched",
+    "Existencias de Amazon obtenidas"
   ],
   "Amazon在庫を今すぐ取得": [
     "Fetch Amazon stock now",
-    "Etch Amazon stock ahora"
+    "Obtener existencias de Amazon ahora"
   ],
   "販売レポートを要求しました（数分後に反映）": [
     "Requested Sales Report (Reflected after a few minutes)",
@@ -2617,11 +2617,11 @@
   ],
   "販売数を再取得": [
     "Refresh sales quantities",
-    "Cantidades de ventas de reserva"
+    "Actualizar cantidades vendidas"
   ],
   "Amazon在庫の取得：": [
     "Amazon stock fetched:",
-    "Amazon Stocktched:"
+    "Existencias de Amazon obtenidas:"
   ],
   "／販売数の集計終了日：": [
     "/ Sales reporting end date:",
@@ -2629,7 +2629,7 @@
   ],
   "。 判定：総在庫日数 ≤": [
     ". Assessment: total stock coverage ≤",
-    "Evaluación: cobertura total de acciones ≤"
+    ". Evaluación: días de cobertura total ≤"
   ],
   "日 → 今すぐ発注、≤": [
     "days → order now; ≤",
@@ -2641,7 +2641,7 @@
   ],
   "日 − 総在庫（": [
     "days − total stock (",
-    "días - acciones totales ("
+    "días − existencias totales ("
   ],
   "個単位・最低": [
     "unit increments, minimum",
@@ -2665,7 +2665,7 @@
   ],
   "Amazon在庫": [
     "Amazon stock",
-    "Bolsa de Amazon"
+    "Existencias de Amazon"
   ],
   "入庫予定": [
     "Expected arrivals",
@@ -2677,7 +2677,7 @@
   ],
   "Amazon日数": [
     "Amazon stock coverage (days)",
-    "Cobertura de acciones de Amazon (días)"
+    "Cobertura de existencias de Amazon (días)"
   ],
   "輸送中": [
     "In transit",
@@ -2697,7 +2697,7 @@
   ],
   "総在庫": [
     "Total stock",
-    "Total stock"
+    "Existencias totales"
   ],
   "総日数": [
     "Total days",
@@ -2705,7 +2705,7 @@
   ],
   "在庫切れ予定": [
     "Expected stockout date",
-    "Fecha prevista de depósito"
+    "Fecha prevista de agotamiento"
   ],
   "推奨発注": [
     "Recommended order",
@@ -2724,16 +2724,16 @@
     "Sin productos que coincidan"
   ],
   "Amazon日数＝(Amazon在庫＋入庫予定)÷日販。リードタイム（": [
-    "Amazon days = (Amazon inventory + arrival schedule) / daily sales. Lead time (",
-    "Amazon days = (Inventario de Amazon + horario de llegada) / ventas diarias."
+    "Amazon coverage = (Amazon stock + expected arrivals) ÷ daily sales. Lead time (",
+    "Cobertura de Amazon = (existencias + entradas previstas) ÷ ventas diarias. Plazo de entrega ("
   ],
   "日）未満は赤字。総在庫＝Amazon在庫＋入庫予定＋たお太郎側（生産中〜輸送中）。 🔵 は在庫フローに未完了ロット（生産中・検品中・準備完了）があり、追加発注しない。": [
-    "Day) Less than alphanumeric characters. Total inventory = Amazon stock + arrival schedule + Taotaro side (in production - in transportation). 🔵 has unfinished lot in stock flow (in production, in inspection, in preparation), and does not add order.",
-    "Día) Personajes menos alfanuméricos. Inventario total = stock del Amazonas + horario de llegada + lado del Taotaro (en producción - en transporte). 🔵 tiene lote inacabado en flujo de stock (en producción, en inspección, en preparación), y no añade orden."
+    "days): lower coverage is shown in red. Total stock = Amazon stock + expected arrivals + Taotaro stock (production through transit). 🔵 indicates an unfinished batch (production, inspection or ready stock); do not place another order.",
+    "días): una cobertura inferior aparece en rojo. Existencias totales = stock de Amazon + entradas previstas + stock de Taotaro (desde producción hasta transporte). 🔵 indica un lote sin finalizar (producción, inspección o listo); no hagas otro pedido."
   ],
   "ロットを追加（発注確定時に必ず登録 → 二重発注ガードが効く）": [
-    "Add a lot (registration at the time of order confirmation → double order guard is effective)",
-    "Añadir mucho (inscripción en el momento de la confirmación del pedido → guardia de doble orden es eficaz)"
+    "Add a batch (always register confirmed orders to prevent duplicate orders)",
+    "Añadir un lote (registra siempre los pedidos confirmados para evitar duplicados)"
   ],
   "商品を選択": [
     "Select a product",
@@ -2745,7 +2745,7 @@
   ],
   "ロットを追加しました": [
     "Batch added",
-    "Batch agregado"
+    "Lote añadido"
   ],
   "納品済み・キャンセルも表示": [
     "Include delivered and canceled batches",
@@ -2773,7 +2773,7 @@
   ],
   "このロットを削除しますか？": [
     "Delete this batch?",
-    "¿Supir este lote?"
+    "¿Eliminar este lote?"
   ],
   "削除しました": [
     "Deleted",
@@ -2784,12 +2784,12 @@
     "No hay lotes en progreso"
   ],
   "流れ：発注中（生産中）→ 検品・梱包中 → 準備完了在庫 → 輸送中 → Amazon納品済み。ステータス更新はたお太郎の担当者が専用リンクからも行えます（設定タブ）。": [
-    "Flow: during ordering (in production) → under inspection and packing → ready inventory → under transportation → Amazon delivered. You can also update the status from the dedicated link of Taotaro.",
-    "Flujo: durante el pedido (en producción) → bajo inspección y embalaje → inventario listo → bajo transporte → Amazon entregado. También puede actualizar el estado desde el enlace dedicado de Taotaro."
+    "Flow: ordered (in production) → inspection and packing → ready stock → in transit → delivered to Amazon. Taotaro staff can also update status using the dedicated link in Settings.",
+    "Flujo: pedido (en producción) → inspección y embalaje → stock listo → en tránsito → entregado a Amazon. El personal de Taotaro también puede actualizar el estado mediante el enlace de Configuración."
   ],
   "Chatworkで残数を確認する": [
-    "Check residuals in Chatwork",
-    "Compruebe los residuos en Chatwork"
+    "Check remaining quantities in Chatwork",
+    "Consultar cantidades restantes en Chatwork"
   ],
   "定型文と専用リンクをたお太郎のルームに投稿します。返信内容はこの画面か専用リンクから数量に反映。": [
     "Post a fixed sentence and a dedicated link to the room of Taotaro. The contents of the reply are reflected in the quantity from this screen or a dedicated link.",
@@ -2797,27 +2797,27 @@
   ],
   "ルーム一覧": [
     "Rooms",
-    "Habitaciones"
+    "Salas"
   ],
   "ルームを保存しました": [
     "Room saved",
-    "Habitación salvada"
+    "Sala guardada"
   ],
   "ルームを選択": [
     "Select a room",
-    "Seleccione una habitación"
+    "Selecciona una sala"
   ],
   "Chatworkに資材確認メッセージを投稿しますか？": [
     "Would you like to post a material confirmation message to Chatwork?",
     "¿Le gustaría enviar un mensaje de confirmación de material a Chatwork?"
   ],
   "Chatworkに投稿しました": [
-    "Chatwork",
-    "Chatwork"
+    "Posted to Chatwork",
+    "Publicado en Chatwork"
   ],
   "残数を質問する": [
     "Ask about remaining stock",
-    "Preguntar sobre el resto de acciones"
+    "Consultar existencias restantes"
   ],
   "対象商品": [
     "Target product",
@@ -2837,7 +2837,7 @@
   ],
   "過不足": [
     "Surplus / Shortage",
-    "Superplus / Shortage"
+    "Excedente / Faltante"
   ],
   "最終更新": [
     "Last updated",
@@ -2848,16 +2848,16 @@
     "Cantidad guardada"
   ],
   "これから使う数＝「発注中（生産中）」＋「検品・梱包中」の数量×1個あたり使用数。必要合計はそれに安全余裕（": [
-    "The number of products used in the future = the number of products used in the order (in production) + the number of items used in the inspection and packing.",
-    "El número de productos utilizados en el futuro = el número de productos utilizados en el orden (en producción) + el número de artículos utilizados en la inspección y embalaje."
+    "Planned usage = (units in production + units being inspected and packed) × material usage per unit. Add a safety margin of (",
+    "Uso previsto = (unidades en producción + unidades en inspección y embalaje) × material por unidad. Añade un margen de seguridad de ("
   ],
   "個分）を足した数。共通資材は全商品分。": [
-    "Total number of items. All products are common.",
-    "Número total de artículos. Todos los productos son comunes."
+    "units) to get the total required. Shared materials include all products.",
+    "unidades) para obtener el total necesario. Los materiales compartidos incluyen todos los productos."
   ],
   "子ASIN": [
     "Child ASIN",
-    "Child ASIN"
+    "ASIN hijo"
   ],
   "追加しました": [
     "Added",
@@ -2869,19 +2869,19 @@
   ],
   "廃止": [
     "Discontinued",
-    "Descanso"
+    "Descontinuado"
   ],
   "Amazon在庫の取得で見つかった未登録のFITPEAK商品は「未整理」として追加されます（管理対象オフ）。商品名・色・サイズを整えて管理対象をオンにしてください。": [
-    "FITPEAK products found in Amazon inventory are added as \"Un整理ed\" (not managed). Please adjust the product name, color and size and turn on the management target.",
-    "Los productos FITPEAK que se encuentran en el inventario de Amazon se añaden como \"Unstruido\" (no gestionado). Por favor, ajuste el nombre del producto, el color y el tamaño y gire en el objetivo de gestión."
+    "Unregistered FITPEAK products found in Amazon stock are added as Unorganized (not managed). Correct their name, color and size, then enable management.",
+    "Los productos FITPEAK sin registrar detectados en Amazon se añaden como Sin organizar (sin gestionar). Corrige su nombre, color y talla y activa la gestión."
   ],
   "更新しました": [
     "Updated",
     "Actualizado"
   ],
   "削除しますか？（ロットがある商品は削除できません）": [
-    "Is it possible to delete a lot? (You cannot delete the lot.)",
-    "¿Es posible eliminar mucho? (No se puede borrar el lote.)"
+    "Delete this product? Products with batches cannot be deleted.",
+    "¿Eliminar este producto? No se pueden eliminar productos con lotes."
   ],
   "判定パラメータ": [
     "Assessment parameters",
@@ -2889,7 +2889,7 @@
   ],
   "リードタイム（日）": [
     "Lead time (days)",
-    "Tiempo de ejecución (días)"
+    "Plazo de entrega (días)"
   ],
   "発注確定→FBA受領まで": [
     "From confirmed order to FBA receipt",
@@ -2901,7 +2901,7 @@
   ],
   "リードタイムのブレを吸収": [
     "Buffer for lead time variation",
-    "Buffer para la variación del tiempo de plomo"
+    "Margen para variaciones del plazo de entrega"
   ],
   "到着後にカバーする日数": [
     "Coverage after arrival (days)",
@@ -2916,8 +2916,8 @@
     "Buffer de preparación de pedidos (días)"
   ],
   "今すぐ発注のしきい値＋この日数まで「発注準備」": [
-    "Order threshold now + \"Order preparation\" to this number of days",
-    "El umbral del pedido ahora + \"Preparación del pedido\" a este número de días"
+    "Prepare to order up to this many days above the Order now threshold",
+    "Preparar pedido hasta este número de días por encima del umbral de Comprar ahora"
   ],
   "発注ロット（個）": [
     "Order batch size (units)",
@@ -2925,7 +2925,7 @@
   ],
   "推奨数の丸め単位": [
     "Round recommended quantity to this increment",
-    "Cantidad recomendada redonda a este aumento"
+    "Redondear la cantidad recomendada a este múltiplo"
   ],
   "最低発注数（個）": [
     "Minimum order quantity (units)",
@@ -2936,28 +2936,28 @@
     "Margen de seguridad material (unidades)"
   ],
   "色単位の標準ロット（JSON）": [
-    "Standard lot of color unit (JSON)",
-    "Lote de color estándar (JSON)"
+    "Standard batch size by color (JSON)",
+    "Tamaño estándar de lote por color (JSON)"
   ],
   "例：": [
     "Example:",
     "Ejemplo:"
   ],
   "{\"リストラップ|ブラック\":1000}": [
-    "{\"Res\" _ Black\": 1000}",
-    "\"Res\" _ Black\": 1000"
+    "{\"リストラップ|ブラック\":1000}",
+    "{\"リストラップ|ブラック\":1000}"
   ],
   "（同色合計をこの数にそろえる。段階価格の条件）": [
-    "(The same color total can be increased to this number. The condition of the stage price)",
-    "(El mismo color total se puede aumentar a este número. La condición del precio del estadio)"
+    "(Match the total for each color to this quantity to qualify for tiered pricing)",
+    "(Ajusta el total de cada color a esta cantidad para cumplir las condiciones de precios por volumen)"
   ],
   "標準ロットのJSONが不正です": [
-    "JSON of standard lot is illegal",
-    "JSON de lote estándar es ilegal"
+    "Invalid JSON for standard batch sizes",
+    "JSON de tamaños estándar de lote no válido"
   ],
   "たお太郎 担当者用の専用リンク": [
-    "Taotaro dedicated links for s",
-    "Enlaces dedicados de Taotaro para s"
+    "Dedicated link for Taotaro staff",
+    "Enlace exclusivo para el personal de Taotaro"
   ],
   "ログイン不要。ロットのステータス更新と資材数量の入力だけができ、原価・売上は表示されません。": [
     "No login required. You can only update the lot status and input the material quantity, and the price and sales are not displayed.",
@@ -2977,27 +2977,27 @@
   ],
   "キーを再発行しました": [
     "Key reissued",
-    "Key reissued"
+    "Clave regenerada"
   ],
   "キーを再発行（リンクを無効化）": [
-    "Reissue key (Disable link)",
-    "Clave de reedición (enlace deshabilitable)"
+    "Reissue key (invalidate current link)",
+    "Regenerar clave (invalidar enlace actual)"
   ],
   "ルームID": [
     "Room ID",
-    "Identificación de la habitación"
+    "ID de sala"
   ],
   "資材確認の定型文（末尾に専用リンクが付きます）": [
-    "Fixed sentence of material confirmation (with dedicated link at the end)",
-    "Sentencia fija de confirmación de material (con enlace dedicado al final)"
+    "Material stock inquiry template (dedicated link appended)",
+    "Plantilla para consultar materiales (se añade el enlace exclusivo al final)"
   ],
   "Chatwork設定を保存しました": [
-    "Save Chatwork settings",
-    "Guardar configuración de Chatwork"
+    "Chatwork settings saved",
+    "Configuración de Chatwork guardada"
   ],
   "Amazon在庫：1日1回自動取得（10分cron内）。販売数：売上・トラフィックレポートを30日／90日窓で1日1回取得。": [
-    "Amazon Stock: Auto-acquired once a day (within 10 minutes of cron). Sales: Get sales and traffic reports once a day with 30 days/90 days windows.",
-    "Amazon Stock: Auto-acquired once a day (in 10 minutes of cron). Ventas: Obtenga ventas e informes de tráfico una vez al día con 30 días/90 días de ventanas."
+    "Amazon stock: fetched once daily by the 10-minute cron. Sales: sales and traffic reports fetched daily for 30-day and 90-day windows.",
+    "Stock de Amazon: consulta diaria mediante el cron de 10 minutos. Ventas: informes de ventas y tráfico diarios para períodos de 30 y 90 días."
   ],
   "最終取得：在庫": [
     "Last fetched: stock",
@@ -3009,7 +3009,7 @@
   ],
   "不足": [
     "Shortage",
-    "Shortage"
+    "Faltante"
   ],
   "読み込みに失敗しました。再読込してください。": [
     "Read failed. Please reload.",
@@ -3024,8 +3024,8 @@
     "Error"
   ],
   "このリンクは無効です。FITPEAK（宇良）に新しいリンクをご確認ください。": [
-    "This link is invalid. Please check the new link to FITPEAK.",
-    "Este enlace es inválido. Por favor, revise el nuevo enlace a FITPEAK."
+    "This link is invalid. Ask FITPEAK (Ura) for a new link.",
+    "Este enlace no es válido. Solicita un nuevo enlace a FITPEAK (Ura)."
   ],
   "読み込めませんでした": [
     "Unable to load",
@@ -3040,8 +3040,8 @@
     ")"
   ],
   "ロットのステータスと資材の残数を更新してください。更新するとFITPEAK側にすぐ反映されます。": [
-    "Please update the status of the lot and the remaining number of materials. It will be reflected immediately on the FIPEAK side when updating.",
-    "Por favor, actualice el estado del lote y el número restante de materiales. Se reflejará inmediatamente en el lado FIPEAK cuando se actualice."
+    "Update batch statuses and remaining material quantities. Changes appear immediately in FITPEAK.",
+    "Actualiza los estados de los lotes y las cantidades de materiales restantes. Los cambios se reflejan inmediatamente en FITPEAK."
   ],
   "更新者のお名前": [
     "Your name",
@@ -3053,11 +3053,11 @@
   ],
   "1. 在庫の流れ（ロット）": [
     "1. Inventory flow (batches)",
-    "1. Flujo de inventario (batches)"
+    "1. Flujo de inventario (lotes)"
   ],
   "発注中（生産中）→ 検品・梱包中 → 準備完了在庫 → 輸送中（Amazon倉庫へ国際輸送中）→ Amazon納品済み。作業が進んだらステータスを変えてください。数量が分かれた場合は「ロットを追加」で分けてください。": [
-    "Amazoning the order (in production), inspection and packing → Ready inventory → In transit (in international shipping to Amazon warehouse) → Amazon delivered. Please change the status when the work goes on. If the quantity is divided, please separate it by \"Add lot\".",
-    "Amazoning the order (en producción), inspección y embalaje → Listo inventario → En tránsito (en el envío internacional a Amazon almacén) → Amazon entregado. Por favor, cambie el estado cuando el trabajo continúa. Si la cantidad está dividida, por favor separalo por \"Añadir mucho\"."
+    "Ordered (in production) → inspection and packing → ready stock → in transit (international shipping to Amazon) → delivered to Amazon. Update status as work progresses. Use Add batch for split deliveries.",
+    "Pedido (en producción) → inspección y embalaje → stock listo → en tránsito (envío internacional a Amazon) → entregado a Amazon. Actualiza el estado según avance el trabajo. Usa Añadir lote para entregas parciales."
   ],
   "個": [
     "units",
@@ -3065,15 +3065,15 @@
   ],
   "ロット": [
     "Batch",
-    "Batch"
+    "Lote"
   ],
   "追跡番号・備考": [
     "Tracking number / Notes",
     "Número de seguimiento / Notas"
   ],
   "ロットを追加（分納・別便になった場合）": [
-    "Add a lot (in case of payment or separate flight)",
-    "Agregar mucho (en caso de pago o vuelo separado)"
+    "Add a batch (split or separate shipments)",
+    "Añadir lote (entregas parciales o envíos separados)"
   ],
   "2. 資材の残数": [
     "2. Remaining materials",
@@ -3089,11 +3089,11 @@
   ],
   "残数を保存しました": [
     "Remaining quantity saved",
-    "Cantidad restante ahorrada"
+    "Cantidad restante guardada"
   ],
   "FITPEAK（合同会社SVPコーポレーション）在庫管理システム": [
-    "FITPEAK Stock Management System",
-    "Sistema de Gestión de Stock FITPEAK"
+    "FITPEAK (SVP Corporation LLC) inventory management system",
+    "Sistema de inventario de FITPEAK (SVP Corporation LLC)"
   ],
   "請求書作成": [
     "Create invoice",
@@ -3113,7 +3113,7 @@
   ],
   "送信履歴": [
     "Sending history",
-    "Enviando historia"
+    "Historial de envíos"
   ],
   "自動送信設定": [
     "Automatic sending settings",
@@ -3121,7 +3121,7 @@
   ],
   "コンテンツ": [
     "Content",
-    "Índice"
+    "Contenido"
   ],
   "配信": [
     "Messaging",
@@ -3177,11 +3177,11 @@
   ],
   "リッチメニュー": [
     "Rich menus",
-    "Menús ricos"
+    "Menús enriquecidos"
   ],
   "挨拶メッセージ": [
     "Greeting messages",
-    "Mensajes de salud"
+    "Mensajes de bienvenida"
   ],
   "タグ": [
     "Tags",
@@ -3193,7 +3193,7 @@
   ],
   "レビュー管理": [
     "Review management",
-    "Gestión del examen"
+    "Gestión de reseñas"
   ],
   "自動応答": [
     "Automatic replies",
@@ -3205,11 +3205,11 @@
   ],
   "一斉配信": [
     "Broadcast messages",
-    "Mensajes de radio"
+    "Mensajes masivos"
   ],
   "AI自動応答（FITPEAK AI）は既存のFITPEAKアカウント専用の機能のため、このアカウントでは利用できません。": [
-    "AI auto-response (FITPEAK AI) is only for existing FIPEAK accounts, so it is not available for this account.",
-    "La autorespuesta AI (FITPEAK AI) es sólo para las cuentas FIPEAK existentes, por lo que no está disponible para esta cuenta."
+    "AI automatic replies (FITPEAK AI) are exclusive to the existing FITPEAK account and unavailable for this account.",
+    "Las respuestas automáticas con IA (FITPEAK AI) son exclusivas de la cuenta FITPEAK existente y no están disponibles para esta cuenta."
   ],
   "AI設定": [
     "AI settings",
@@ -3217,7 +3217,7 @@
   ],
   "クレアショット専用AI": [
     "Creashot AI assistant",
-    "Creashot AI Assistant"
+    "Asistente de IA de Creashot"
   ],
   "RAGナレッジ": [
     "RAG knowledge base",
@@ -3257,15 +3257,15 @@
   ],
   "案件内容を貼り付け": [
     "Paste project details",
-    "Detalles del proyecto Paste"
+    "Pegar detalles del proyecto"
   ],
   "クラウドワークスの案件タイトル・説明文をここに貼り付けてください...": [
-    "the titles and descriptions of cloudworks projects here...",
-    "los títulos y descripciones de proyectos cloudworks aquí..."
+    "Paste the CrowdWorks project title and description here…",
+    "Pega aquí el título y la descripción del proyecto de CrowdWorks…"
   ],
   "文字": [
     "characters",
-    "personajes"
+    "caracteres"
   ],
   "生成中...": [
     "Generating…",
@@ -3300,8 +3300,8 @@
     "Otros"
   ],
   "判定結果": [
-    "Review result",
-    "Resultado de examen"
+    "Assessment result",
+    "Resultado de evaluación"
   ],
   "承認のみ": [
     "Approved only",
@@ -3317,7 +3317,7 @@
   ],
   "返品": [
     "Return",
-    "Regreso"
+    "Devolución"
   ],
   "交換": [
     "Exchange",
@@ -3349,11 +3349,11 @@
   ],
   "件中": [
     "of",
-    "of of"
+    "de"
   ],
   "審査詳細": [
-    "Review details",
-    "Detalles de la reseña"
+    "Assessment details",
+    "Detalles de evaluación"
   ],
   "お客様名": [
     "Customer name",
@@ -3361,11 +3361,11 @@
   ],
   "返品・返金": [
     "Return and refund",
-    "Regreso y reembolso"
+    "Devolución y reembolso"
   ],
   "返品理由": [
     "Return reason",
-    "Razón de retorno"
+    "Motivo de devolución"
   ],
   "補足説明": [
     "Additional details",
@@ -3397,15 +3397,15 @@
   ],
   "AIフラグ": [
     "AI flags",
-    "Banderas de inteligencia artificial"
+    "Indicadores de IA"
   ],
   "ルールチェック不合格理由": [
-    "Reasons for failing rule checks",
-    "Razones para fallar los controles de reglas"
+    "Reasons rule checks failed",
+    "Motivos por los que fallaron las comprobaciones"
   ],
   "Shopify処理": [
     "Shopify processing",
-    "Shopify processing"
+    "Procesamiento en Shopify"
   ],
   "LINE通知": [
     "LINE notification",
@@ -3417,7 +3417,7 @@
   ],
   "未送信": [
     "Not sent",
-    "No enviado"
+    "Sin enviar"
   ],
   "商品の初期不良（破損・傷など）": [
     "Initial defects of products (such as damages and scratches)",
@@ -3640,32 +3640,32 @@
     "Plantilla de mensaje de rechazo"
   ],
   "日": [
-    "days",
-    "días"
+    "Sun",
+    "dom"
   ],
   "月": [
     "Mon",
-    "Mon"
+    "lun"
   ],
   "火": [
     "Tue",
-    "Tue"
+    "mar"
   ],
   "水": [
     "Wed",
-    "Wed"
+    "mié"
   ],
   "木": [
     "Thu",
-    "Thu"
+    "jue"
   ],
   "金": [
     "Fri",
-    "Fri."
+    "vie"
   ],
   "土": [
     "Sat",
-    "Sat"
+    "sáb"
   ],
   "{0}年{1}月{2}日（{3}）": [
     "{0}year{1}month{2}day({3})",
@@ -4773,7 +4773,7 @@
   ],
   "{0}件": [
     "{0} items",
-    "{0} items"
+    "{0} elementos"
   ],
   "損益計算書サマリー": [
     "Income statement summary",
@@ -7093,23 +7093,23 @@
   ],
   "{会社名}": [
     "{会社名}",
-    "{}"
+    "{会社名}"
   ],
   "{担当者名}": [
     "{担当者名}",
-    "{}"
+    "{担当者名}"
   ],
   "{請求書番号}": [
     "{請求書番号}",
-    "{}"
+    "{請求書番号}"
   ],
   "{請求日}": [
     "{請求日}",
-    "{}"
+    "{請求日}"
   ],
   "{支払期限}": [
     "{支払期限}",
-    "{\\cHFF}"
+    "{支払期限}"
   ],
   "{差出人名}": [
     "{差出人名}",
@@ -7713,11 +7713,11 @@
   ],
   "{合計金額}": [
     "{合計金額}",
-    "{\\cHFF}"
+    "{合計金額}"
   ],
   "{小計}": [
     "{小計}",
-    "{}"
+    "{小計}"
   ],
   "請求書番号": [
     "Invoice number",
@@ -8232,8 +8232,8 @@
     "¿Bloqueas a este amigo?"
   ],
   "画像を読み込めません": [
-    "Cannot load image",
-    "No se puede cargar imagen"
+    "Unable to load image",
+    "No se pudo cargar la imagen"
   ],
   "動画": [
     "Video",
@@ -8669,7 +8669,7 @@
   ],
   "(件名なし)": [
     "(No subject)",
-    "(Ningún tema)"
+    "(Sin asunto)"
   ],
   "お客様のメッセージ": [
     "Customer message",
@@ -12605,7 +12605,7 @@
   ],
   "{0}分": [
     "{0} minutes",
-    "{0} minutes"
+    "{0} minutos"
   ],
   "{0}時間{1}分": [
     "{0} hours {1} minutes",
@@ -12961,7 +12961,7 @@
   ],
   "（件名なし）": [
     "(No subject)",
-    "(Ningún tema)"
+    "(Sin asunto)"
   ],
   "📝 要約": [
     "📝 Summary",
@@ -13298,5 +13298,45 @@
   "年額": [
     "Annual fee",
     "Cuota anual"
+  ],
+  "{0}件中 {1}-{2}件": [
+    "{1}–{2} of {0} items",
+    "{1}–{2} de {0} elementos"
+  ],
+  "日曜日": [
+    "Sunday",
+    "domingo"
+  ],
+  "月曜日": [
+    "Monday",
+    "lunes"
+  ],
+  "火曜日": [
+    "Tuesday",
+    "martes"
+  ],
+  "水曜日": [
+    "Wednesday",
+    "miércoles"
+  ],
+  "木曜日": [
+    "Thursday",
+    "jueves"
+  ],
+  "金曜日": [
+    "Friday",
+    "viernes"
+  ],
+  "土曜日": [
+    "Saturday",
+    "sábado"
+  ],
+  "{0}時間": [
+    "{0} hours",
+    "{0} horas"
+  ],
+  "{0}日": [
+    "{0} days",
+    "{0} días"
   ]
 }

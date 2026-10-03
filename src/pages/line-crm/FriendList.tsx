@@ -176,7 +176,7 @@ export default function FriendList({ onSelectFriend }: FriendListProps) {
                       </span>
                     </div>
                     {friend.status_message && (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
                         {friend.status_message}
                       </p>
                     )}

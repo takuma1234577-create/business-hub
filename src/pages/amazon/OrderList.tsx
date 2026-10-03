@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -61,7 +62,7 @@ function ChannelIcon({ channel }: { channel: Channel }) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString('ja-JP', {
+  return new Date(dateStr).toLocaleString(getLocale(), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

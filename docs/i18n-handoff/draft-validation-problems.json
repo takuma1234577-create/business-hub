@@ -1,0 +1,797 @@
+[
+  {
+    "source": "届いた商品が注文と異なる（誤送品）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "{customerName}様\n\nご注文番号 {orderId} の{requestType}申請が承認されました。\n\n理由: {reason}",
+    "language": "en",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{customerName}様\n\nご注文番号 {orderId} の{requestType}申請が承認されました。\n\n理由: {reason}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{customerName}様\n\nご注文番号 {orderId} の{requestType}申請は承認されませんでした。\n\n理由: {reason}",
+    "language": "en",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{customerName}様\n\nご注文番号 {orderId} の{requestType}申請は承認されませんでした。\n\n理由: {reason}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "最高厳格（confidence 90%以上）",
+    "language": "en",
+    "issue": "Missing number 90"
+  },
+  {
+    "source": "最高厳格（confidence 90%以上）",
+    "language": "es",
+    "issue": "Missing number 90"
+  },
+  {
+    "source": "レビュー投稿後の画面のスクリーンショットを選択してください",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "下書きどおりにAmazonへレビューを投稿し、投稿が反映された画面のスクリーンショットをアップロードしてください。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "投稿後の確認スクリーンショット",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "10月下旬発送予定",
+    "language": "en",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "10月下旬発送予定",
+    "language": "es",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "解約 {0}件",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "webhook登録に失敗しました",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "オフの間、cronは課金を一切行いません（契約の同期・配達の記録は続きます）。 テストが済むまではオフのままにしてください。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "オフの間、cronは課金を一切行いません（契約の同期・配達の記録は続きます）。 テストが済むまではオフのままにしてください。",
+    "language": "es",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "Shopifyの定期プラン（1・3・12ヶ月ごと）は設定済みです",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "Shopifyの定期プラン（1・3・12ヶ月ごと）は設定済みです",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "6バリエーション（1日1本／1日2本 × 1・3・12ヶ月ごと）に、3つの Selling Plan Group を紐づけます。何度押しても同じ結果になります。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "6バリエーション（1日1本／1日2本 × 1・3・12ヶ月ごと）に、3つの Selling Plan Group を紐づけます。何度押しても同じ結果になります。",
+    "language": "en",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "6バリエーション（1日1本／1日2本 × 1・3・12ヶ月ごと）に、3つの Selling Plan Group を紐づけます。何度押しても同じ結果になります。",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "6バリエーション（1日1本／1日2本 × 1・3・12ヶ月ごと）に、3つの Selling Plan Group を紐づけます。何度押しても同じ結果になります。",
+    "language": "es",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "6バリエーション（1日1本／1日2本 × 1・3・12ヶ月ごと）に、3つの Selling Plan Group を紐づけます。何度押しても同じ結果になります。",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "公式LINE 友だち追加URL",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "購入後にLINEで案内（連携済みの人）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "利益率 {0}%",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0}月",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "3月",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "3月",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "4月",
+    "language": "en",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "4月",
+    "language": "es",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "5月",
+    "language": "en",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "5月",
+    "language": "es",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "6月",
+    "language": "en",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "6月",
+    "language": "es",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "7月",
+    "language": "en",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "7月",
+    "language": "es",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "8月",
+    "language": "en",
+    "issue": "Missing number 8"
+  },
+  {
+    "source": "8月",
+    "language": "es",
+    "issue": "Missing number 8"
+  },
+  {
+    "source": "9月",
+    "language": "en",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "9月",
+    "language": "es",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "10月",
+    "language": "en",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "10月",
+    "language": "es",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "11月",
+    "language": "en",
+    "issue": "Missing number 11"
+  },
+  {
+    "source": "11月",
+    "language": "es",
+    "issue": "Missing number 11"
+  },
+  {
+    "source": "12月",
+    "language": "en",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "12月",
+    "language": "es",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "上半期 (1〜6月)",
+    "language": "en",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "上半期 (1〜6月)",
+    "language": "es",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "下半期 (7〜12月)",
+    "language": "en",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "下半期 (7〜12月)",
+    "language": "en",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "下半期 (7〜12月)",
+    "language": "es",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "下半期 (7〜12月)",
+    "language": "es",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "Q1 (1〜3月)",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "Q1 (1〜3月)",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "Q2 (4〜6月)",
+    "language": "en",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "Q2 (4〜6月)",
+    "language": "en",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "Q2 (4〜6月)",
+    "language": "es",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "Q2 (4〜6月)",
+    "language": "es",
+    "issue": "Missing number 6"
+  },
+  {
+    "source": "Q3 (7〜9月)",
+    "language": "en",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "Q3 (7〜9月)",
+    "language": "en",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "Q3 (7〜9月)",
+    "language": "es",
+    "issue": "Missing number 7"
+  },
+  {
+    "source": "Q3 (7〜9月)",
+    "language": "es",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "Q4 (10〜12月)",
+    "language": "en",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "Q4 (10〜12月)",
+    "language": "en",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "Q4 (10〜12月)",
+    "language": "es",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "Q4 (10〜12月)",
+    "language": "es",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "「仕訳入力」または「決算書取り込み」から追加してください",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "· AI信頼度 {0}%",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "en",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "en",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "en",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "es",
+    "issue": "Missing number 3"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "es",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "例: 3月決算なら「3月」、12月決算なら「12月」",
+    "language": "es",
+    "issue": "Missing number 12"
+  },
+  {
+    "source": "請求書・領収書キーワードでメールを検索し、添付ファイルを自動取得",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "請求書・領収書キーワードでメールを検索し、添付ファイルを自動取得",
+    "language": "es",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "Webサイト収集元がまだ登録されていません",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "各銀行・カード会社のWebサイトからダウンロードしたCSVファイルを選択してください。 Shift_JISエンコーディングにも対応しています。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "/ {0}件エラー",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "Shopifyに配送情報を反映しました",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "Shopify一括反映に失敗しました",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "「{0}」を非表示にしますか？（{1}SKU）",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0} を非表示にしました",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0} の監視を停止しますか?",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0}件を一括送信",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "en",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 50"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 50"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 000"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000 は 5%、¥1,000,000〜上限なし は 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 000"
+  },
+  {
+    "source": "請求書作成時にこのクライアントを選択すると、以下の項目が自動入力されます。 成果報酬・広告費%の場合、売上額は請求書作成時に入力してください。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "{差出人名}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{差出人名}",
+    "language": "es",
+    "issue": "Corrupted output"
+  },
+  {
+    "source": "{会社名_差出人}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{会社名_差出人}",
+    "language": "es",
+    "issue": "Corrupted output"
+  },
+  {
+    "source": "¥{0} × 段階制",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "¥{0} × 段階制",
+    "language": "es",
+    "issue": "Corrupted output"
+  },
+  {
+    "source": "{0}です。",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "金額：¥{0}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "AIが解析中...（数十秒かかる場合があります）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "送信日に前月の売上・広告費をSP-APIから取得し、以下の料金ルールで自動計算して請求項目に追加します。 Amazonアカウントは「クライアント管理」→「Amazon連携」で登録してください。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "ルール名（例: Amazonコンサル成果報酬）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "en",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 5"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 50"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 50"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 000"
+  },
+  {
+    "source": "例: 売上 ¥0〜¥1,000,000: 5%、¥1,000,000〜上限なし: 10% → 売上¥1,500,000 の場合: ¥50,000 + ¥50,000 = ¥100,000",
+    "language": "es",
+    "issue": "Missing number 000"
+  },
+  {
+    "source": "{請求項目}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{請求項目}",
+    "language": "es",
+    "issue": "Corrupted output"
+  },
+  {
+    "source": "{品目}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "既存の返信ログをナレッジベースに同期します。数分かかる場合があります。続行しますか？",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "エラー: {0}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "過去の返信ログをナレッジベースに反映",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "アンケート到達ファネル（各画面まで到達したユーザー数）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "追跡型CTAボタン（LINE登録）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "LINE Developers Console → 対象チャネル → チャネル基本設定 で取得できます",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "Webhook URLをコピー",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "このURLをLINE Developers Console → 対象チャネル → Messaging API設定 の Webhook URL に設定してください",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "{0}番目のメッセージ",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0}（動画）の動画URLが未設定です",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "送信: {0}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "この欄には{0}ファイルを指定してください。\n選択されたファイル: {1}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "アップロード中 {0}%",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "選択肢は最大4つまでです（LINE仕様）",
+    "language": "en",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "選択肢は最大4つまでです（LINE仕様）",
+    "language": "es",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "選択肢（最大4つ・タップでタグ付与＆自動返信）",
+    "language": "en",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "選択肢（最大4つ・タップでタグ付与＆自動返信）",
+    "language": "es",
+    "issue": "Corrupted output"
+  },
+  {
+    "source": "選択肢（最大4つ・タップでタグ付与＆自動返信）",
+    "language": "es",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "/ 10（最大）・各カラム最大3ボタン",
+    "language": "en",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "/ 10（最大）・各カラム最大3ボタン",
+    "language": "es",
+    "issue": "Missing number 10"
+  },
+  {
+    "source": "リンク送信後、未回答の人にリマインド",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "未回答者・レビュー未投稿者に自動でリマインドメッセージを送信",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "例: 2026年4月のキャンペーン用",
+    "language": "en",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "例: 2026年4月のキャンペーン用",
+    "language": "es",
+    "issue": "Missing number 4"
+  },
+  {
+    "source": "設定すると、この経路の友だちには全体の挨拶の代わりにこのテンプレを送ります。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "1行1件で「広告ID,日付(YYYY-MM-DD),金額[,広告名]」。広告マネージャの広告IDは utm_content と同じ値。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "1行1件で「広告ID,日付(YYYY-MM-DD),金額[,広告名]」。広告マネージャの広告IDは utm_content と同じ値。",
+    "language": "es",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "発送のお知らせ（配送業者・追跡番号）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "約{0}円",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "注目度 {0}",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "スクリーンショットの撮影に失敗しました：",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "この期間の収益データはまだありません。楽天アフィリエイト・Amazonアソシエイトのレポートから、毎日取り込みます（取り込み前は 0 と表示されます）。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "の直前に貼り付けます。全ページで計測が始まります。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "ページビュー・ユーザー（新規／リピーター）・セッション（30分無操作で区切り）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "Meta広告のLINE登録LPも含める",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "最近の登録（行を押すと、その人がサイトで見たページの順番を表示）",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "最近の登録（行を押すと、その人がサイトで見たページの順番を表示）",
+    "language": "es",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "「訪問と未連携」は、サイト分析の訪問記録と結び付けられなかった登録です（計測タグのないページ、2026年9月26日の連携開始前の一部など）。 公式LINEは友だち追加の確定をもって登録とし、ボタンを押した時点で既に友だちだった人は新規に数えません。 My FITPEAKは、サイトのリンクを押してから3日以内に新しく会員になった人を数えます。",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  },
+  {
+    "source": "「訪問と未連携」は、サイト分析の訪問記録と結び付けられなかった登録です（計測タグのないページ、2026年9月26日の連携開始前の一部など）。 公式LINEは友だち追加の確定をもって登録とし、ボタンを押した時点で既に友だちだった人は新規に数えません。 My FITPEAKは、サイトのリンクを押してから3日以内に新しく会員になった人を数えます。",
+    "language": "en",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "「訪問と未連携」は、サイト分析の訪問記録と結び付けられなかった登録です（計測タグのないページ、2026年9月26日の連携開始前の一部など）。 公式LINEは友だち追加の確定をもって登録とし、ボタンを押した時点で既に友だちだった人は新規に数えません。 My FITPEAKは、サイトのリンクを押してから3日以内に新しく会員になった人を数えます。",
+    "language": "es",
+    "issue": "Missing number 9"
+  },
+  {
+    "source": "{0}秒前",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0}曜 {1}時台：{2} PV",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "{0}/{1} {2}時",
+    "language": "es",
+    "issue": "Placeholder mismatch"
+  },
+  {
+    "source": "議事録のテキストを貼り付けてください...",
+    "language": "en",
+    "issue": "Untranslated Japanese"
+  }
+]

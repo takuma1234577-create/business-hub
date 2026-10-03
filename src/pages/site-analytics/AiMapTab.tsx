@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
 import { saApi } from './api'
@@ -21,8 +22,8 @@ const DELIVERABLE = new Set(['run_end', 'finish', 'proposal', 'decision', 'apply
 const TOOL = new Set(['tool', 'tool_error'])
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
-const hhmmss = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', { hourCycle: 'h23', timeZone: 'Asia/Tokyo' })
-const yen = (usd: number | null) => (usd == null ? '-' : `約${Math.round(usd * 150).toLocaleString('ja-JP')}円`)
+const hhmmss = (iso: string) => new Date(iso).toLocaleTimeString(getLocale(), { hourCycle: 'h23', timeZone: 'Asia/Tokyo' })
+const yen = (usd: number | null) => (usd == null ? '-' : `約${Math.round(usd * 150).toLocaleString(getLocale())}円`)
 
 function useTyped(text: string, key: string | number) {
   const [n, setN] = useState(0)

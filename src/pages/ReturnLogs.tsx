@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { useState, useEffect } from 'react'
 import ToolLayout from '../components/ToolLayout'
 import {
@@ -86,7 +87,7 @@ export default function ReturnLogs() {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
-    return d.toLocaleString('ja-JP', {
+    return d.toLocaleString(getLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -271,8 +272,8 @@ export default function ReturnLogs() {
               </div>
               <div className="px-6 py-4 space-y-3 text-sm">
                 <Row label="申請日時" value={formatDate(selectedLog.created_at)} />
-                <Row label="注文番号" value={selectedLog.order_id} />
-                <Row label="お客様名" value={selectedLog.customer_name} />
+                <Row label="注文番号" raw value={selectedLog.order_id} />
+                <Row label="お客様名" raw value={selectedLog.customer_name} />
                 <Row
                   label="申請タイプ"
                   value={selectedLog.request_type === 'return' ? '返品・返金' : '交換'}
@@ -282,7 +283,7 @@ export default function ReturnLogs() {
                   value={REASON_MAP[selectedLog.reason] || selectedLog.reason}
                 />
                 {selectedLog.reason_detail && (
-                  <Row label="補足説明" value={selectedLog.reason_detail} />
+                  <Row label="補足説明" raw value={selectedLog.reason_detail} />
                 )}
                 <Row label="写真枚数" value={`${selectedLog.image_count}枚`} />
                 <hr className="border-slate-200 dark:border-slate-800" />
@@ -299,9 +300,9 @@ export default function ReturnLogs() {
                   label="AI確信度"
                   value={`${(selectedLog.ai_confidence * 100).toFixed(0)}%`}
                 />
-                <Row label="AI判定理由" value={selectedLog.ai_reason} />
+                <Row label="AI判定理由" raw value={selectedLog.ai_reason} />
                 {selectedLog.ai_flags?.length > 0 && (
-                  <Row label="AIフラグ" value={selectedLog.ai_flags.join(', ')} />
+                  <Row label="AIフラグ" raw value={selectedLog.ai_flags.join(', ')} />
                 )}
                 {selectedLog.rule_fail_reasons?.length > 0 && (
                   <div>
@@ -341,16 +342,19 @@ function Row({
   label,
   value,
   highlight,
+  raw = false,
 }: {
   label: string
   value: string
   highlight?: string
+  raw?: boolean
 }) {
   return (
     <div className="flex justify-between gap-4">
       <span className="text-slate-500 shrink-0">{label}</span>
       <span
-        className={`text-right ${
+        translate={raw ? 'no' : undefined}
+        className={`min-w-0 break-words text-right ${
           highlight === 'approved'
             ? 'text-green-600 dark:text-green-400 font-semibold'
             : highlight === 'denied'

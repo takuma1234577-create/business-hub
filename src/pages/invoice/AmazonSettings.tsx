@@ -345,7 +345,7 @@ export function AmazonSettings({ clientId, clientName, onClose }: Props) {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${r.ruleType === 'sales_performance' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
                         {r.ruleType === 'sales_performance' ? '売上成果報酬' : '広告運用費'}
                       </span>
-                      <span className="font-medium text-sm">{r.description || '（名称なし）'}</span>
+                      <span translate="no" className="font-medium text-sm">{r.description || '（名称なし）'}</span>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleToggleRule(r)} className="text-xs text-blue-600 hover:underline">

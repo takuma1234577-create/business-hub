@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState, useCallback } from 'react'
 import {
@@ -113,15 +114,15 @@ const STATUS_COLOR: Record<string, string> = {
 
 function jst(v: string | null | undefined) {
   if (!v) return '—'
-  return new Date(v).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(v).toLocaleString(getLocale(), { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 function jstDay(v: string | null | undefined) {
   if (!v) return '—'
-  return new Date(v).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
+  return new Date(v).toLocaleDateString(getLocale(), { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 function yen(v: number | null | undefined) {
   if (v === null || v === undefined) return '—'
-  return `¥${Number(v).toLocaleString('ja-JP')}`
+  return `¥${Number(v).toLocaleString(getLocale())}`
 }
 function pct(v: number | null | undefined) {
   if (v === null || v === undefined) return '—'

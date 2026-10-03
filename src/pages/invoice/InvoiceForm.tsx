@@ -427,7 +427,7 @@ export function InvoiceForm() {
                       <p className="text-xs text-gray-500 mb-2">計算結果</p>
                       {calcResult.feeItems.map((fi, i) => (
                         <div key={i} className="flex justify-between text-sm py-1">
-                          <span>{fi.description}</span>
+                          <span translate="no">{fi.description}</span>
                           <span className="font-medium">¥{fi.fee.toLocaleString()}</span>
                         </div>
                       ))}

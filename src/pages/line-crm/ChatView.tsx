@@ -367,7 +367,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
         const elements: React.ReactNode[] = []
         for (const m of obj.messages as Array<Record<string, unknown>>) {
           if (m.type === 'text' && typeof m.text === 'string') {
-            elements.push(<p key={elements.length} className="whitespace-pre-wrap">{m.text}</p>)
+            elements.push(<p translate="no" key={elements.length} className="whitespace-pre-wrap">{m.text}</p>)
           } else if (m.type === 'image') {
             const imgUrl = (m.originalContentUrl || m.previewImageUrl || m.url || '') as string
             if (imgUrl) {
@@ -382,7 +382,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
             }
           } else if (m.type === 'template' && m.template) {
             const tmpl = m.template as Record<string, unknown>
-            if (typeof tmpl.text === 'string') elements.push(<p key={elements.length}>{tmpl.text}</p>)
+            if (typeof tmpl.text === 'string') elements.push(<p translate="no" key={elements.length}>{tmpl.text}</p>)
             if (Array.isArray(tmpl.actions)) {
               const labels = (tmpl.actions as Array<Record<string, unknown>>)
                 .map(a => typeof a.label === 'string' ? `[${a.label}]` : '')

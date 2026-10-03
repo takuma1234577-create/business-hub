@@ -192,7 +192,7 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                   {s.friend?.display_name && <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.friend.display_name}</span>}
-                  {s.product_name && <span className="text-xs text-slate-400">{s.product_name.slice(0, 30)}</span>}
+                  {s.product_name && <span translate="no" className="text-xs text-slate-400">{s.product_name.slice(0, 30)}</span>}
                   {s.review_date && <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">投稿日: {formatJpDate(s.review_date)}</span>}
                   <span className="text-xs text-slate-400 ml-auto">{new Date(s.created_at).toLocaleString('ja-JP')}</span>
                 </div>

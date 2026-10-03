@@ -31,6 +31,6 @@ export function translate(text: string, language: Language): string {
       break
     }
   }
-  if (translated === undefined) return text
+  if (translated === undefined || !translated.length) return text
   return text.slice(0, text.length - text.trimStart().length) + translated + text.slice(text.trimEnd().length)
 }

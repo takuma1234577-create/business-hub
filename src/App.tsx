@@ -1,3 +1,4 @@
+import { useLanguage } from './i18n/store'
 import { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
@@ -39,6 +40,8 @@ window.fetch = function (input, init) {
 }
 
 function App() {
+  // Recompute displayed dates and derived UI labels without remounting forms.
+  useLanguage()
   const [auth, setAuth] = useState<'loading' | 'ok' | 'login'>('loading')
   const isPublicForm = window.location.pathname === '/review-form'
   const isGiftForm = window.location.pathname === '/gift-address'

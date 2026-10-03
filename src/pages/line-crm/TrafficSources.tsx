@@ -311,7 +311,7 @@ export default function TrafficSources() {
                     <h3 className="font-medium text-slate-900 dark:text-white">{source.name}</h3>
                   </div>
                   {source.description && (
-                    <p className="text-sm text-slate-500 mb-2">{source.description}</p>
+                    <p translate="no" className="text-sm text-slate-500 mb-2">{source.description}</p>
                   )}
 
                   {/* Stats row */}
