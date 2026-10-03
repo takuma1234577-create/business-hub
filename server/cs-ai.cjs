@@ -242,6 +242,47 @@ router.post('/line/handoff', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/**
+ * お客様対応の確認（slack_escalations。通知は LINE）に対する、オーナーの返事を実行する。AI組織の /api/owner-reply と /api/answer から呼ばれる。
+ *   instruction: オーナーの文章の指示を解析して実行（Amazon MCFの発送・クーポン発行・メッセージ送信）。時間がかかるので、すぐ 202 を返し、進み具合と結果はLINEで知らせる
+ *   send_draft : AIの返信案を、そのままお客様に送る
+ *   dismiss    : 対応しない（お客様には何も送らない）
+ */
+router.post('/line/escalation-action', async (req, res) => {
+  const { escalation_id: id, action, instruction } = req.body || {};
+  try {
+    if (!['instruction', 'send_draft', 'dismiss'].includes(action)) return res.status(400).json({ error: 'action は instruction / send_draft / dismiss' });
+    const { data: esc } = await supabase.from('slack_escalations').select('*').eq('id', id).maybeSingle();
+    if (!esc) return res.status(404).json({ error: '案件が見つかりません' });
+    if (esc.status !== 'pending') return res.status(409).json({ error: `この案件は処理済みです（${esc.status}）` });
+    const { notifyOwner } = require('./owner-notify.cjs');
+    const lc = require('./line-crm.cjs');
+    const tell = (text) => notifyOwner({ kind: 'info', text: String(text).slice(0, 900) });
+    if (action === 'dismiss') {
+      await supabase.from('slack_escalations').update({ status: 'resolved', resolution_text: '対応しない（オーナーがLINEで判断）', resolved_by: 'owner_line', resolved_at: new Date().toISOString() }).eq('id', id);
+      return res.json({ ok: true });
+    }
+    if (!(esc.channel_type === 'LINE' && esc.line_user_id)) return res.status(409).json({ error: 'LINEのお客様ではない案件です（この経路では実行できません）' });
+    if (action === 'send_draft') {
+      const draft = String(esc.ai_draft || '').trim();
+      if (!draft) return res.status(409).json({ error: '返信案がありません。文章で指示してください' });
+      const bad = checkReplyText(draft); if (bad) return res.status(409).json({ error: `返信案をそのまま送れません（${bad}）。文章で指示してください` });
+      const { data: friend } = await supabase.from('friends').select('id, channel_id').eq('line_user_id', esc.line_user_id).maybeSingle();
+      await lc.pushToCustomer(friend?.channel_id, esc.line_user_id, withFooter(draft));
+      if (friend) await supabase.from('chat_messages').insert({ channel_id: friend.channel_id, friend_id: friend.id, direction: 'outgoing', message_type: 'text', content: { text: draft, source: 'owner_line_send_draft' } });
+      await supabase.from('slack_escalations').update({ status: 'resolved', resolution_text: 'AIの返信案をそのまま送信（オーナーがLINEで承認）', resolved_by: 'owner_line', resolved_at: new Date().toISOString() }).eq('id', id);
+      return res.json({ ok: true });
+    }
+    const text = String(instruction || '').trim();
+    if (!text) return res.status(400).json({ error: '指示が空です' });
+    const job = (async () => {
+      try { await lc.processStaffInstruction({ esc, staffInstruction: text, resolvedBy: 'owner_line', say: tell }); } catch (e) { await tell(`❌ 指示の実行に失敗しました: ${String(e.message || e).slice(0, 200)}`); }
+    })();
+    try { require('@vercel/functions').waitUntil(job); } catch { /* 長く動くサーバーなら、そのまま続く */ }
+    return res.status(202).json({ accepted: true });
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.maskPii = maskPii;
 module.exports.publicEmailLog = publicEmailLog;
