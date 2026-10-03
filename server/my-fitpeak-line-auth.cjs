@@ -191,6 +191,7 @@ async function issueSessionForLineUser({ lineUserId, displayName, email }) {
   if (linkErr) throw new Error(`ログイン用トークンの発行に失敗しました: ${linkErr.message}`);
 
   await admin.from('members').update({ last_seen_at: new Date().toISOString() }).eq('id', member.id);
+  require('./line-welcome-coupon.cjs').onLineLogin({ lineUserId, memberId: member.id });
 
   return {
     tokenHash: link?.properties?.hashed_token,
