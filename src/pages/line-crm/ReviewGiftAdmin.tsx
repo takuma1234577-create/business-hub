@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Gift, Check, X, RefreshCw, ExternalLink, BookOpen, Trash2, Plus, Link2 } from 'lucide-react'
@@ -79,25 +80,25 @@ export default function ReviewGiftAdmin() {
   useEffect(() => { fetchKb() }, [fetchKb])
 
   const approve = async (c: Claim) => {
-    if (!confirm(`${c.friend?.display_name || c.user_id || 'このユーザー'} に「${c.product_name || 'リストラップ'}」を無料発行します。よろしいですか？`)) return
+    if (!confirm(uiText(`${c.friend?.display_name || c.user_id || 'このユーザー'} に「${c.product_name || 'リストラップ'}」を無料発行します。よろしいですか？`))) return
     setBusyId(c.id)
     try {
       const res = await api.post(`/fitpeak/review-gifts/${c.id}/approve`, { by: 'admin' })
-      if (res.data.issueError) alert(`承認しましたが発行に失敗: ${res.data.issueError}`)
+      if (res.data.issueError) alert(uiText(`承認しましたが発行に失敗: ${res.data.issueError}`))
       await fetchClaims(); await fetchCounts()
-    } catch (e) { alert('承認に失敗しました') }
+    } catch (e) { alert(uiText('承認に失敗しました')) }
     setBusyId(null)
   }
 
   const reject = async (c: Claim) => {
-    const reason = prompt('却下の理由を入力してください（AIが誤判定していた場合はこの理由が今後の判定に学習されます）')
+    const reason = prompt(uiText('却下の理由を入力してください（AIが誤判定していた場合はこの理由が今後の判定に学習されます）'))
     if (reason === null) return
-    const addToKb = reason.trim().length > 0 && confirm('この理由を判定ナレッジベースに追加して、今後のAI判定に反映しますか？')
+    const addToKb = reason.trim().length > 0 && confirm(uiText('この理由を判定ナレッジベースに追加して、今後のAI判定に反映しますか？'))
     setBusyId(c.id)
     try {
       await api.post(`/fitpeak/review-gifts/${c.id}/reject`, { reason, by: 'admin', addToKb })
       await fetchClaims(); await fetchCounts(); if (addToKb) fetchKb()
-    } catch { alert('却下に失敗しました') }
+    } catch { alert(uiText('却下に失敗しました')) }
     setBusyId(null)
   }
 
@@ -106,13 +107,13 @@ export default function ReviewGiftAdmin() {
     try { await api.post('/fitpeak/verify-kb', { reason: newKb.trim(), by: 'admin' }); setNewKb(''); fetchKb() } catch { /* ignore */ }
   }
   const toggleKb = async (id: string) => { try { await api.patch(`/fitpeak/verify-kb/${id}/toggle`); fetchKb() } catch { /* ignore */ } }
-  const delKb = async (id: string) => { if (!confirm('削除しますか？')) return; try { await api.delete(`/fitpeak/verify-kb/${id}`); fetchKb() } catch { /* ignore */ } }
+  const delKb = async (id: string) => { if (!confirm(uiText('削除しますか？'))) return; try { await api.delete(`/fitpeak/verify-kb/${id}`); fetchKb() } catch { /* ignore */ } }
 
   const copyUrl = (c: Claim) => {
     const base = 'https://my.fitpeak.co/survey/review-gift'
     const url = c.survey_id ? `${base}?sid=${c.survey_id}` : c.line_user_id ? `${base}?line=${c.line_user_id}` : base
-    const done = () => alert('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url)
-    navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt('このURLをコピーしてLINEで送ってください', url))
+    const done = () => alert(uiText('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url))
+    navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(uiText('このURLをコピーしてLINEで送ってください'), url))
   }
 
   const fmt = (d: string | null) => d ? new Date(d).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2, Copy, Check, QrCode, Users, MousePointerClick, TrendingUp, X, Pencil, Target, Flame } from 'lucide-react'
 import { getChannelId } from './lineAccount'
@@ -116,7 +117,7 @@ export default function TrafficSources() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この流入経路を削除しますか？')) return
+    if (!confirm(uiText('この流入経路を削除しますか？'))) return
     try {
       await fetch(`/api/line-crm/traffic-sources/${id}`, { method: 'DELETE' })
       fetchSources()

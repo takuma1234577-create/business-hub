@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, ArrowLeft, User, MessageCircle, ImagePlus, X, Film, LayoutGrid, ShieldBan, ShieldCheck, Settings, FileText, Music, Download } from 'lucide-react'
 import { chatApi } from './api'
@@ -143,7 +144,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
     const isVideo = file.type.startsWith('video/')
     const isImage = file.type.startsWith('image/')
     if (!isVideo && !isImage) {
-      alert('画像または動画ファイルを選択してください')
+      alert(uiText('画像または動画ファイルを選択してください'))
       return
     }
     const previewUrl = URL.createObjectURL(file)
@@ -183,7 +184,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
     } catch (err) {
       console.error('Failed to send media:', err)
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id))
-      alert('メディアの送信に失敗しました')
+      alert(uiText('メディアの送信に失敗しました'))
     } finally {
       setSending(false)
     }
@@ -213,7 +214,7 @@ export default function ChatView({ friend, onBack, onFriendUpdated, onOpenFriend
   const handleBlock = async () => {
     const isBlocked = currentStatus === 'blocked'
     const msg = isBlocked ? 'この友だちのブロックを解除しますか？' : 'この友だちをブロックしますか？'
-    if (!confirm(msg)) return
+    if (!confirm(uiText(msg))) return
     setBlocking(true)
     try {
       const res = await fetch(`/api/line-crm/friends/${friend.id}/block`, {

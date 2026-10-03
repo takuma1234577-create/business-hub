@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Gift, Link2 } from 'lucide-react'
 import axios from 'axios'
@@ -100,8 +101,8 @@ export default function FitpeakDashboard() {
     const base = 'https://my.fitpeak.co/survey/review-gift'
     const url = surveyId ? `${base}?sid=${surveyId}` : lineUserId ? `${base}?line=${lineUserId}` : base
     navigator.clipboard?.writeText(url)
-      .then(() => alert('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url))
-      .catch(() => window.prompt('URLをコピーしてLINEで送ってください', url))
+      .then(() => alert(uiText('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url)))
+      .catch(() => window.prompt(uiText('URLをコピーしてLINEで送ってください'), url))
   }
 
   const ratingColor = (n: number) => {

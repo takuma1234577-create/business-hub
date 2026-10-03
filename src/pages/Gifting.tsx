@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -220,7 +221,7 @@ export default function Gifting() {
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
   }
   const approveShip = async (s: Shipment) => {
-    if (!confirm(`${s.recipient_name} 宛にFBA(MCF)発送依頼を送信します。よろしいですか？`)) return
+    if (!confirm(uiText(`${s.recipient_name} 宛にFBA(MCF)発送依頼を送信します。よろしいですか？`))) return
     setBusyId(s.id)
     try { const r = await post(`/api/gifting/shipments/${s.id}/approve`); flash('success', `発送依頼を送信: ${r.mcf_order_id}`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
@@ -242,14 +243,14 @@ export default function Gifting() {
   }
   const sendAll = async () => {
     if (pendingEmails.length === 0) return
-    if (!confirm(`承認待ちのメール ${pendingEmails.length}件をまとめて送信します。よろしいですか？`)) return
+    if (!confirm(uiText(`承認待ちのメール ${pendingEmails.length}件をまとめて送信します。よろしいですか？`))) return
     setBusyId('send-all')
     try { const r = await post('/api/gifting/messages/send-all'); flash('success', `${r.sent}件送信${r.failed ? `・${r.failed}件失敗` : ''}`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }
   }
   const approveAllShip = async () => {
     if (pendingShipments.length === 0) return
-    if (!confirm(`承認待ちの発送 ${pendingShipments.length}件をまとめてFBA(MCF)発送します。よろしいですか？`)) return
+    if (!confirm(uiText(`承認待ちの発送 ${pendingShipments.length}件をまとめてFBA(MCF)発送します。よろしいですか？`))) return
     setBusyId('ship-all')
     try { const r = await post('/api/gifting/shipments/approve-all'); flash('success', `${r.submitted}件発送${r.failed ? `・${r.failed}件失敗` : ''}`); await fetchAll() }
     catch (e) { flash('error', (e as Error).message) } finally { setBusyId(null) }

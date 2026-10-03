@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Plus, Pencil, Trash2, Clock, X, ToggleLeft, ToggleRight, Play, MessageCircle, Star, Users, User, CheckCircle, Send } from 'lucide-react'
@@ -168,7 +169,7 @@ export default function SurveyFollowups() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このルールを削除しますか？')) return
+    if (!confirm(uiText('このルールを削除しますか？'))) return
     await api.delete(`/survey-followups/${id}`)
     fetchData()
   }
@@ -182,11 +183,11 @@ export default function SurveyFollowups() {
     setProcessing(true)
     try {
       const res = await api.get('/survey-followups/process')
-      alert(`処理完了: ${res.data.processed || 0}件送信`)
+      alert(uiText(`処理完了: ${res.data.processed || 0}件送信`))
       fetchData()
     } catch (err) {
       console.error('Process failed:', err)
-      alert('処理に失敗しました')
+      alert(uiText('処理に失敗しました'))
     } finally {
       setProcessing(false)
     }

@@ -1,0 +1,35 @@
+User request: Add Japanese / English / Spanish language switching throughout Business-hub.
+User then explicitly requested continuing in Codex/ChatGPT Cloud. Work is INCOMPLETE and NOT deployed.
+Repository: takuma1234577-create/business-hub. Production: https://my.fitpeak.co
+
+Implemented so far:
+- src/i18n/store.ts: persisted ja/en/es selection, document lang/title, storage event sync.
+- src/i18n/LanguageSwitcher.tsx: accessible selector mounted above App, also on login/public pages.
+- Local JSX runtime wraps DOM host elements and React Router Link/NavLink with stable React components that subscribe to language. Translates known visible strings and placeholder/title/aria-label/alt, preserving inputs, refs, events, textarea values, select values. Honors translate=no/contentEditable.
+- tsconfig/vite configured for runtime. Vite post config removes local runtime from React plugin's forced optimizeDeps.include to avoid a duplicate language store in development. Exclusions alone did not work.
+- uiText wraps native alert/confirm/prompt calls in existing pages (automated source edit, original business logic preserved).
+- translate.ts handles exact strings and {0}/{1} template placeholders. Unknown text falls back to Japanese. Must audit placeholder safety.
+- Login 2FA label improved; password show/hide aria-label added.
+
+Translation assets:
+- src/i18n/messages.json contains the small, manually reviewed core dictionary currently used in successful smoke tests.
+- docs/i18n-handoff/messages-draft.json contains 3,000+ draft entries ready for review/merge. Japanese -> English labels of length <=14 (2,417 strings) were manually translated; main homepage, login, common actions manually translated in both languages. Longer Japanese -> English and most remaining English -> Spanish were translated with local Argos models. These machine translations NEED REVIEW. Known poor outputs from raw Argos included Contact Us for unrelated actions, empty strings, corrupted placeholders, untranslated Japanese, omitted numbers/brands. Many short labels were already corrected manually in this draft but do NOT treat the entire draft as production quality.
+- Placeholder tokens such as {会社名} MUST remain literal Japanese tokens, because users use them in message templates. Honorific-only labels may legitimately translate to a single space.
+- scripts/i18n-extract.mjs lists all Japanese source strings (also template expressions) and --check reports missing entries. It intentionally overcollects some internal/static template content, not all entries are UI.
+
+Validation performed:
+- scripts/i18n-smoke.mjs uses the existing puppeteer-core dependency, local Vite server and Chrome (override BROWSER_EXECUTABLE for Cloud). TEST_URL defaults to http://127.0.0.1:5173.
+- Latest smoke run PASSED: ja/en/es login, input preservation, language persistence on reload, document lang, no mobile overflow, all homepage cards/links in Spanish, controlled/uncontrolled input preservation, explicit/implicit option values, textarea values/placeholders, translate=no, conditional insertion/removal, forwarded ref focus, native dialog translations, no React errors.
+- tests/i18n.html and tests/i18n-fixture.tsx are test-only fixtures served by Vite, not linked from production.
+- An early npm run build passed before dictionary expansion. A later build hit a JSON string[] -> tuple type assertion; fixed by typing dictionary as Record<string,string[]>, but final build after all changes still needs to run.
+
+Remaining work:
+1. Review/refine architecture; current nonstandard localized JSX runtime should be judged for compatibility and performance. It avoids direct DOM mutation and remounting the app.
+2. Review and integrate messages-draft.json, filling missing translations and validating all placeholders/numbers. Review Spanish technical vocabulary.
+3. Handle mixed dynamic JSX text (adjacent strings/numbers), dates/month/weekday ambiguities, dynamic agent labels, and any untranslated library-rendered content. Do not translate stored customer messages, AI-generated body content, form values, API payloads or outgoing email/PDF content merely by changing UI language.
+4. Add explicit translate=no for raw content where necessary. Currently exact dictionary matches could affect raw text that coincides with a UI phrase.
+5. Improve responsive layouts for longer English/Spanish text on representative authenticated pages, not only home/login.
+6. Run build, focused lint on new code, smoke tests, dictionary validation and representative page tests. Remove test-only assets from deployment uploads if needed.
+7. Finish with a reviewable PR or deployment according to user's scope; do not claim production deployment until verified.
+
+No credentials, production data, local model weights or node_modules are included. Do not spend time reusing stale translation API keys; no external translation API is required at runtime.

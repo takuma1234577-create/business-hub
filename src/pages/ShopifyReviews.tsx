@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { Star, Check, X, Trash2, Filter, RefreshCw, Plus, ChevronDown, ChevronUp, Download, XCircle } from 'lucide-react'
 import axios from 'axios'
@@ -189,7 +190,7 @@ function ProductCard({ product, stats, reviews, onRefresh }: {
   const productReviews = reviews.filter(r => r.shopify_product_id === product.shopify_product_id)
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return
+    if (!confirm(uiText('削除しますか？'))) return
     await api.delete(`/reviews/${id}`)
     onRefresh()
   }
@@ -325,19 +326,19 @@ export default function ShopifyReviews() {
       await api.post('/install-widget')
       setWidgetInstalled(true)
     } catch (err: any) {
-      alert('インストールエラー: ' + (err.response?.data?.error || err.message))
+      alert(uiText('インストールエラー: ' + (err.response?.data?.error || err.message)))
     }
     setWidgetLoading(false)
   }
 
   const handleUninstallWidget = async () => {
-    if (!confirm('ウィジェットをアンインストールしますか？')) return
+    if (!confirm(uiText('ウィジェットをアンインストールしますか？'))) return
     setWidgetLoading(true)
     try {
       await api.delete('/uninstall-widget')
       setWidgetInstalled(false)
     } catch (err: any) {
-      alert('アンインストールエラー: ' + (err.response?.data?.error || err.message))
+      alert(uiText('アンインストールエラー: ' + (err.response?.data?.error || err.message)))
     }
     setWidgetLoading(false)
   }
@@ -392,7 +393,7 @@ export default function ShopifyReviews() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return
+    if (!confirm(uiText('削除しますか？'))) return
     await api.delete(`/reviews/${id}`)
     fetchReviews()
     fetchStats()

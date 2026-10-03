@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import axios from 'axios'
 import { LayoutGrid, Plus, Pencil, Trash2, X, Upload, CheckCircle } from 'lucide-react'
@@ -237,7 +238,7 @@ export default function RichMenus() {
   }
 
   const handleSave = async () => {
-    if (!name.trim() || areas.length === 0) { alert('名前とエリアを設定してください'); return }
+    if (!name.trim() || areas.length === 0) { alert(uiText('名前とエリアを設定してください')); return }
     setSaving(true)
     try {
       const payload = {
@@ -256,31 +257,31 @@ export default function RichMenus() {
       setShowForm(false)
       fetchMenus()
     } catch (err) {
-      alert('保存失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('保存失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このリッチメニューを削除しますか？\n（LINE側からも削除されます）')) return
+    if (!confirm(uiText('このリッチメニューを削除しますか？\n（LINE側からも削除されます）'))) return
     try {
       await api.delete(`/rich-menus/${id}`)
       fetchMenus()
     } catch (err) {
-      alert('削除失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('削除失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     }
   }
 
   const handleActivate = async (id: string) => {
-    if (!confirm('このリッチメニューをLINEに公開し、デフォルトに設定しますか？')) return
+    if (!confirm(uiText('このリッチメニューをLINEに公開し、デフォルトに設定しますか？'))) return
     setActivatingId(id)
     try {
       await api.post(`/rich-menus/${id}/activate`)
-      alert('公開しました')
+      alert(uiText('公開しました'))
       fetchMenus()
     } catch (err) {
-      alert('公開失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('公開失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     } finally {
       setActivatingId(null)
     }
@@ -613,7 +614,7 @@ function ImageUpload({ value, onChange, targetHeight = 1686 }: { value: string; 
       })
       onChange(r.data.url)
     } catch (err) {
-      alert('アップロード失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err instanceof Error ? err.message : '')))
+      alert(uiText('アップロード失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err instanceof Error ? err.message : ''))))
     } finally {
       setUploading(false)
       setProgress(0)

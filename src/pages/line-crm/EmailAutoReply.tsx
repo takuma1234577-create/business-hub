@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, PenLine, Send, Sparkles, X, RefreshCw } from 'lucide-react'
 import axios from 'axios'
@@ -65,7 +66,7 @@ export default function EmailAutoReply() {
   const [composeResult, setComposeResult] = useState<string | null>(null)
 
   const handleSyncKnowledge = async () => {
-    if (!confirm('既存の返信ログをナレッジベースに同期します。数分かかる場合があります。続行しますか？')) return
+    if (!confirm(uiText('既存の返信ログをナレッジベースに同期します。数分かかる場合があります。続行しますか？'))) return
     setSyncingKnowledge(true)
     try {
       const res = await api.post('/sync-knowledge')

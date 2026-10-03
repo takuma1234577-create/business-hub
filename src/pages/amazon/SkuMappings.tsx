@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import {
   ShoppingBag,
@@ -95,7 +96,7 @@ export default function SkuMappings() {
       }
     }
 
-    if (!confirm(`選択した${parentArr.length}商品を1つに結合しますか？\n(${childAsins.length}バリエーション)`)) return
+    if (!confirm(uiText(`選択した${parentArr.length}商品を1つに結合しますか？\n(${childAsins.length}バリエーション)`))) return
 
     try {
       await groupApi.groupProducts(groupAsin, childAsins)
@@ -110,7 +111,7 @@ export default function SkuMappings() {
 
   const handleHideProduct = async (product: AmazonProduct) => {
     const allSkusInProduct = product.children.flatMap(c => c.skus.map(s => s.sellerSku))
-    if (!confirm(`「${product.productName}」を非表示にしますか？（${allSkusInProduct.length}SKU）`)) return
+    if (!confirm(uiText(`「${product.productName}」を非表示にしますか？（${allSkusInProduct.length}SKU）`))) return
     try {
       await hideApi.hideProduct(allSkusInProduct)
       setMessage({ type: 'success', text: `${product.productName} を非表示にしました` })
@@ -137,7 +138,7 @@ export default function SkuMappings() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この紐付けを解除しますか？')) return
+    if (!confirm(uiText('この紐付けを解除しますか？'))) return
     setDeleting(id)
     try {
       await skuMappingApi.delete(id)

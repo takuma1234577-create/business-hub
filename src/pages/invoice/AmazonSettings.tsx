@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { AmazonAccount, FeeRule, FeeTier } from './types';
 import { amazonApi, feeRuleApi } from './api';
@@ -100,7 +101,7 @@ export function AmazonSettings({ clientId, clientName, onClose }: Props) {
   };
 
   const handleDeleteAccount = async (id: string) => {
-    if (!confirm('このAmazonアカウントを削除しますか？')) return;
+    if (!confirm(uiText('このAmazonアカウントを削除しますか？'))) return;
     await amazonApi.deleteAccount(id);
     load();
   };
@@ -120,7 +121,7 @@ export function AmazonSettings({ clientId, clientName, onClose }: Props) {
   };
 
   const handleDeleteRule = async (id: string) => {
-    if (!confirm('この料金ルールを削除しますか？')) return;
+    if (!confirm(uiText('この料金ルールを削除しますか？'))) return;
     await feeRuleApi.delete(id);
     load();
   };

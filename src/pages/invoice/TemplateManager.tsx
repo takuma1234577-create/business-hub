@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { EmailTemplate } from './types';
 import { templateApi } from './api';
@@ -47,7 +48,7 @@ export function TemplateManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return;
+    if (!confirm(uiText('削除しますか？'))) return;
     try {
       await templateApi.delete(id);
       load();

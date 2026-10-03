@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { documentApi } from './api'
 import type { AccountingDocument, DocumentType } from './types'
@@ -212,7 +213,7 @@ function ManualForm({ onSaved }: { onSaved: () => void }) {
       onSaved()
     } catch (err) {
       console.error(err)
-      alert('保存に失敗しました')
+      alert(uiText('保存に失敗しました'))
     } finally {
       setSaving(false)
     }

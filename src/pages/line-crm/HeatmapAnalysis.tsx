@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Monitor, Smartphone, Sparkles, MousePointerClick, Flame, ExternalLink, Camera, Users, ArrowDown,
@@ -133,7 +134,7 @@ export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose
       })
       const d = await r.json()
       if (r.ok && d.url) setShotUrl(d.url)
-      else { setShotFailed(true); alert('スクショ生成失敗: ' + (d.error || '')) }
+      else { setShotFailed(true); alert(uiText('スクショ生成失敗: ' + (d.error || ''))) }
     } catch (e) {
       setShotFailed(true)
     } finally { setShotLoading(false) }

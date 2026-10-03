@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Smartphone, Monitor, MousePointerClick, ArrowDown, Eye, Flame, RefreshCw } from 'lucide-react'
 import { saApi, type Heatmap, type PageRow, type Preset } from './api'
@@ -177,7 +178,7 @@ export default function HeatmapTab({ preset, path, onChangePath, pages }: {
       setShotUrl(r.data.url); setImgFailed(false)
     } catch (e: unknown) {
       const m = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-      alert('スクリーンショットの撮影に失敗しました：' + (m || ''))
+      alert(uiText('スクリーンショットの撮影に失敗しました：' + (m || '')))
     } finally { setShotBusy(false) }
   }
 

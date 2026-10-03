@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { HistoryItem } from './types';
 import { historyApi } from './api';
@@ -16,7 +17,7 @@ export function HistoryView() {
   useEffect(() => { load(); }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('この履歴を削除しますか？')) return;
+    if (!confirm(uiText('この履歴を削除しますか？'))) return;
     try {
       await historyApi.delete(id);
       load();

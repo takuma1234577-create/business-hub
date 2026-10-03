@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { Client, InvoiceItem, InvoiceItemType } from './types';
 import { clientApi } from './api';
@@ -71,7 +72,7 @@ export function ClientManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return;
+    if (!confirm(uiText('削除しますか？'))) return;
     try {
       await clientApi.delete(id);
       load();

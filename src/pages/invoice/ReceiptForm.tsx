@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import type { ReceiptData, Client, SenderSettings } from './types';
@@ -245,7 +246,7 @@ export function ReceiptForm() {
       setMessage({ type: 'error', text: '宛先メールアドレスがありません' });
       return;
     }
-    if (!window.confirm(`${receipt.client.email} 宛に領収書を送信します。よろしいですか？`)) return;
+    if (!window.confirm(uiText(`${receipt.client.email} 宛に領収書を送信します。よろしいですか？`))) return;
     setLoading(true);
     setMessage(null);
     try {

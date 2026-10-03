@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import axios from 'axios'
 import { createClient } from '@supabase/supabase-js'
@@ -303,7 +304,7 @@ export default function MessageTemplates() {
     if (!testFriendId || blocks.length === 0) return
     const problems = findBlockProblems(blocks)
     if (problems.length > 0) {
-      alert('この内容ではLINEに送信できません。\n\n' + problems.join('\n'))
+      alert(uiText('この内容ではLINEに送信できません。\n\n' + problems.join('\n')))
       return
     }
     setTestSending(true)
@@ -313,10 +314,10 @@ export default function MessageTemplates() {
         messages: blocks,
       })
       const sentTo = res.data?.sent_to || ''
-      alert(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`)
+      alert(uiText(`テスト配信完了${sentTo ? `: ${sentTo} に送信しました` : ''}`))
     } catch (err) {
       const msg = axios.isAxiosError(err) ? (err.response?.data?.error || err.message) : 'テスト配信に失敗しました'
-      alert('テスト配信失敗: ' + msg)
+      alert(uiText('テスト配信失敗: ' + msg))
     } finally {
       setTestSending(false)
     }
@@ -364,7 +365,7 @@ export default function MessageTemplates() {
       setMoveDialogOpen(false)
       fetchTemplates()
     } catch (err) {
-      alert('移動失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('移動失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     }
   }
 
@@ -399,14 +400,14 @@ export default function MessageTemplates() {
       setShowForm(false)
       fetchTemplates()
     } catch (err) {
-      alert('保存失敗: ' + (err instanceof Error ? err.message : ''))
+      alert(uiText('保存失敗: ' + (err instanceof Error ? err.message : '')))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このテンプレートを削除しますか？')) return
+    if (!confirm(uiText('このテンプレートを削除しますか？'))) return
     try {
       await api.delete(`/message-templates/${id}`)
       fetchTemplates()
@@ -417,7 +418,7 @@ export default function MessageTemplates() {
 
   const addBlock = (kind: UIBlockKind) => {
     if (blocks.length >= 5) {
-      alert('1テンプレートは最大5メッセージまでです（LINE仕様）')
+      alert(uiText('1テンプレートは最大5メッセージまでです（LINE仕様）'))
       return
     }
     setBlocks([...blocks, createBlock(kind)])
@@ -428,10 +429,10 @@ export default function MessageTemplates() {
     if (!src) return
     const msgs = src.content?.messages || []
     const remaining = 5 - blocks.length
-    if (remaining <= 0) { alert('すでに5メッセージあります'); return }
+    if (remaining <= 0) { alert(uiText('すでに5メッセージあります')); return }
     const toAdd = msgs.slice(0, remaining)
     if (msgs.length > remaining) {
-      if (!confirm(`"${src.name}" は ${msgs.length} メッセージあります。\n上限超過分は取り込めません。${toAdd.length} メッセージを追加しますか？`)) return
+      if (!confirm(uiText(`"${src.name}" は ${msgs.length} メッセージあります。\n上限超過分は取り込めません。${toAdd.length} メッセージを追加しますか？`))) return
     }
     setBlocks([...blocks, ...toAdd])
     setImportDialogOpen(false)
@@ -1354,7 +1355,7 @@ function DropUpload({
     const cat = accept.includes('video') ? 'video' : accept.includes('audio') ? 'audio' : accept.includes('image') ? 'image' : ''
     if (cat && file.type && !file.type.startsWith(cat + '/')) {
       const jp = cat === 'video' ? '動画' : cat === 'audio' ? '音声' : '画像'
-      alert(`この欄には${jp}ファイルを指定してください。\n選択されたファイル: ${file.type || file.name}`)
+      alert(uiText(`この欄には${jp}ファイルを指定してください。\n選択されたファイル: ${file.type || file.name}`))
       return
     }
     setUploading(true)
@@ -1366,7 +1367,7 @@ function DropUpload({
       onChange(url)
       if (onUploaded) await onUploaded(url, file)
     } catch (err) {
-      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
+      alert(uiText('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー')))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1442,7 +1443,7 @@ function ThumbDropUpload({ value, onChange, aspect = 'rectangle' }: { value: str
       setProgress(100)
       onChange(url)
     } catch (err) {
-      alert('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー'))
+      alert(uiText('アップロード失敗: ' + (err instanceof Error ? err.message : '不明なエラー')))
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1702,7 +1703,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
     updateTmpl({ actions: options.map((a, idx) => (idx === i ? buildAnswerAction(label, tag, reply, tpl) : a)) })
   }
   const addOption = () => {
-    if (options.length >= 4) { alert('選択肢は最大4つまでです（LINE仕様）'); return }
+    if (options.length >= 4) { alert(uiText('選択肢は最大4つまでです（LINE仕様）')); return }
     updateTmpl({ actions: [...options, buildAnswerAction(`選択肢${options.length + 1}`, '', '', '')] })
   }
   const removeOption = (i: number) => {
@@ -1813,7 +1814,7 @@ function CarouselEditor({ block, onChange, templates, tags }: { block: CarouselB
     })
   }
   const addColumn = () => {
-    if (columns.length >= 10) { alert('カルーセルは最大10カラムまでです'); return }
+    if (columns.length >= 10) { alert(uiText('カルーセルは最大10カラムまでです')); return }
     updateColumns([...columns, { title: '', text: '', actions: [{ type: 'message', label: 'ボタン1', text: '' }] }])
   }
   const removeColumn = (i: number) => {

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { sourceApi, fetchLogApi, gmailFetchApi, fiscalYearApi } from './api'
 import type { AccountingSource, AccountingFetchLog } from './types'
@@ -20,13 +21,13 @@ function CompanyProfile() {
   }, [])
 
   const handleSave = async () => {
-    if (!firstStart) return alert('第1期開始日を入力してください')
+    if (!firstStart) return alert(uiText('第1期開始日を入力してください'))
     setSaving(true); setResult(null)
     try {
       const res = await fiscalYearApi.saveProfile({ fiscalEndMonth: endMonth, firstPeriodStart: firstStart })
       setResult(res)
     } catch (err: any) {
-      alert('保存に失敗しました: ' + (err?.response?.data?.error || err.message))
+      alert(uiText('保存に失敗しました: ' + (err?.response?.data?.error || err.message)))
     } finally { setSaving(false) }
   }
 
@@ -103,14 +104,14 @@ export function SourceSettings() {
       const newLogs = await fetchLogApi.list(10)
       setLogs(newLogs)
     } catch (err: any) {
-      alert(err.response?.data?.error || 'スキャン失敗')
+      alert(uiText(err.response?.data?.error || 'スキャン失敗'))
     } finally {
       setScanning(false)
     }
   }
 
   const handleDeleteSource = async (id: string) => {
-    if (!confirm('この収集元を削除しますか？')) return
+    if (!confirm(uiText('この収集元を削除しますか？'))) return
     await sourceApi.delete(id)
     setSources(s => s.filter(x => x.id !== id))
   }
@@ -257,7 +258,7 @@ function SourceForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () =
       } as any)
       onSaved()
     } catch (err) {
-      alert('保存に失敗しました')
+      alert(uiText('保存に失敗しました'))
     } finally {
       setSaving(false)
     }

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { documentApi } from './api'
 import type { AccountingDocument, DocumentType, DocumentStatus } from './types'
@@ -32,7 +33,7 @@ export function DocumentDetail({ documentId, onBack }: Props) {
       setForm(updated)
     } catch (err) {
       console.error(err)
-      alert('保存に失敗しました')
+      alert(uiText('保存に失敗しました'))
     } finally {
       setSaving(false)
     }
@@ -46,7 +47,7 @@ export function DocumentDetail({ documentId, onBack }: Props) {
       setForm(updated)
     } catch (err) {
       console.error(err)
-      alert('AI解析に失敗しました')
+      alert(uiText('AI解析に失敗しました'))
     } finally {
       setAnalyzing(false)
     }
@@ -60,7 +61,7 @@ export function DocumentDetail({ documentId, onBack }: Props) {
       setForm(updated)
     } catch (err) {
       console.error(err)
-      alert('Google Driveへのアップロードに失敗しました。Drive認証が必要な場合は設定画面からログインしてください。')
+      alert(uiText('Google Driveへのアップロードに失敗しました。Drive認証が必要な場合は設定画面からログインしてください。'))
     } finally {
       setUploadingDrive(false)
     }

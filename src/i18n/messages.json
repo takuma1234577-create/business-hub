@@ -1,0 +1,934 @@
+{
+  "業務ツール": [
+    "Business tools",
+    "Herramientas de trabajo"
+  ],
+  "業務効率化・自動化ツール一覧": [
+    "Tools to streamline and automate your business",
+    "Herramientas para optimizar y automatizar tu negocio"
+  ],
+  "API設定": [
+    "API settings",
+    "Configuración de API"
+  ],
+  "FITPEAK サイト分析": [
+    "FITPEAK site analytics",
+    "Analítica web de FITPEAK"
+  ],
+  "請求書ツール": [
+    "Invoices",
+    "Facturas"
+  ],
+  "Amazon自動出荷": [
+    "Amazon automated fulfillment",
+    "Envíos automáticos de Amazon"
+  ],
+  "注文確認（レビュー案件）": [
+    "Order verification (review campaigns)",
+    "Verificación de pedidos (campañas de reseñas)"
+  ],
+  "返品・交換審査システム": [
+    "Returns and exchanges",
+    "Devoluciones y cambios"
+  ],
+  "My FITPEAK（顧客ポータル）": [
+    "My FITPEAK (customer portal)",
+    "My FITPEAK (portal de clientes)"
+  ],
+  "eBay 無在庫管理": [
+    "eBay dropshipping",
+    "eBay: gestión de dropshipping"
+  ],
+  "商品画像 一括DL": [
+    "Product image downloader",
+    "Descarga de imágenes de productos"
+  ],
+  "ギフティング エージェント": [
+    "Gifting agent",
+    "Agente de regalos a influencers"
+  ],
+  "Amazon分析 & 自動化": [
+    "Amazon analytics & automation",
+    "Analítica y automatización de Amazon"
+  ],
+  "商品在庫管理": [
+    "Inventory management",
+    "Gestión de inventario"
+  ],
+  "定期購入（サブスク）": [
+    "Subscriptions",
+    "Suscripciones"
+  ],
+  "Shopifyレビュー管理": [
+    "Shopify reviews",
+    "Reseñas de Shopify"
+  ],
+  "リアルタイム": [
+    "Real time",
+    "Tiempo real"
+  ],
+  "サイト全体": [
+    "Site overview",
+    "Resumen del sitio"
+  ],
+  "ヒートマップ": [
+    "Heatmaps",
+    "Mapas de calor"
+  ],
+  "顧客申請フォーム": [
+    "Customer request form",
+    "Formulario de solicitudes"
+  ],
+  "審査ルール設定": [
+    "Review rules",
+    "Reglas de evaluación"
+  ],
+  "審査ログ一覧": [
+    "Review history",
+    "Historial de evaluaciones"
+  ],
+  "レビューリクエスト": [
+    "Review requests",
+    "Solicitudes de reseñas"
+  ],
+  "レビュー監視": [
+    "Review monitoring",
+    "Seguimiento de reseñas"
+  ],
+  "準備中": [
+    "Coming soon",
+    "Próximamente"
+  ],
+  "ログイン": [
+    "Log in",
+    "Iniciar sesión"
+  ],
+  "ログアウト": [
+    "Log out",
+    "Cerrar sesión"
+  ],
+  "二段階認証": [
+    "Two-factor authentication",
+    "Autenticación en dos pasos"
+  ],
+  "初回セットアップ": [
+    "Initial setup",
+    "Configuración inicial"
+  ],
+  "セットアップ完了！ログインしてください。": [
+    "Setup complete! Please log in.",
+    "¡Configuración completa! Inicia sesión."
+  ],
+  "メールアドレス": [
+    "Email address",
+    "Correo electrónico"
+  ],
+  "パスワード": [
+    "Password",
+    "Contraseña"
+  ],
+  "6文字以上": [
+    "At least 6 characters",
+    "Al menos 6 caracteres"
+  ],
+  "セットアップ": [
+    "Set up",
+    "Configurar"
+  ],
+  "ログイン画面に戻る": [
+    "Back to login",
+    "Volver al inicio de sesión"
+  ],
+  "認証コードを送信しました": [
+    "We sent a verification code.",
+    "Enviamos un código de verificación."
+  ],
+  "6桁の認証コード": [
+    "6-digit verification code",
+    "Código de verificación de 6 dígitos"
+  ],
+  "検証中...": [
+    "Verifying…",
+    "Verificando…"
+  ],
+  "認証する": [
+    "Verify",
+    "Verificar"
+  ],
+  "エラー": [
+    "Error",
+    "Error"
+  ],
+  "保存": [
+    "Save",
+    "Guardar"
+  ],
+  "保存する": [
+    "Save",
+    "Guardar"
+  ],
+  "保存中...": [
+    "Saving…",
+    "Guardando…"
+  ],
+  "保存しました": [
+    "Saved",
+    "Guardado"
+  ],
+  "キャンセル": [
+    "Cancel",
+    "Cancelar"
+  ],
+  "削除": [
+    "Delete",
+    "Eliminar"
+  ],
+  "編集": [
+    "Edit",
+    "Editar"
+  ],
+  "閉じる": [
+    "Close",
+    "Cerrar"
+  ],
+  "追加": [
+    "Add",
+    "Añadir"
+  ],
+  "新規作成": [
+    "Create new",
+    "Crear nuevo"
+  ],
+  "検索": [
+    "Search",
+    "Buscar"
+  ],
+  "検索...": [
+    "Search…",
+    "Buscar…"
+  ],
+  "検索中...": [
+    "Searching…",
+    "Buscando…"
+  ],
+  "読み込み中...": [
+    "Loading…",
+    "Cargando…"
+  ],
+  "読み込み中…": [
+    "Loading…",
+    "Cargando…"
+  ],
+  "更新": [
+    "Refresh",
+    "Actualizar"
+  ],
+  "更新中...": [
+    "Updating…",
+    "Actualizando…"
+  ],
+  "設定": [
+    "Settings",
+    "Configuración"
+  ],
+  "戻る": [
+    "Back",
+    "Volver"
+  ],
+  "次へ": [
+    "Next",
+    "Siguiente"
+  ],
+  "前へ": [
+    "Previous",
+    "Anterior"
+  ],
+  "すべて": [
+    "All",
+    "Todo"
+  ],
+  "全て": [
+    "All",
+    "Todo"
+  ],
+  "未設定": [
+    "Not configured",
+    "Sin configurar"
+  ],
+  "有効": [
+    "Enabled",
+    "Activado"
+  ],
+  "無効": [
+    "Disabled",
+    "Desactivado"
+  ],
+  "はい": [
+    "Yes",
+    "Sí"
+  ],
+  "いいえ": [
+    "No",
+    "No"
+  ],
+  "送信": [
+    "Send",
+    "Enviar"
+  ],
+  "送信する": [
+    "Send",
+    "Enviar"
+  ],
+  "送信中...": [
+    "Sending…",
+    "Enviando…"
+  ],
+  "実行": [
+    "Run",
+    "Ejecutar"
+  ],
+  "実行中...": [
+    "Running…",
+    "Ejecutando…"
+  ],
+  "完了": [
+    "Completed",
+    "Completado"
+  ],
+  "成功": [
+    "Success",
+    "Éxito"
+  ],
+  "失敗": [
+    "Failed",
+    "Error"
+  ],
+  "確認": [
+    "Confirm",
+    "Confirmar"
+  ],
+  "承認": [
+    "Approve",
+    "Aprobar"
+  ],
+  "却下": [
+    "Reject",
+    "Rechazar"
+  ],
+  "詳細": [
+    "Details",
+    "Detalles"
+  ],
+  "ステータス": [
+    "Status",
+    "Estado"
+  ],
+  "アクション": [
+    "Actions",
+    "Acciones"
+  ],
+  "日付": [
+    "Date",
+    "Fecha"
+  ],
+  "名前": [
+    "Name",
+    "Nombre"
+  ],
+  "商品名": [
+    "Product name",
+    "Nombre del producto"
+  ],
+  "金額": [
+    "Amount",
+    "Importe"
+  ],
+  "数量": [
+    "Quantity",
+    "Cantidad"
+  ],
+  "合計": [
+    "Total",
+    "Total"
+  ],
+  "小計": [
+    "Subtotal",
+    "Subtotal"
+  ],
+  "送料": [
+    "Shipping",
+    "Envío"
+  ],
+  "税込": [
+    "Tax included",
+    "Impuestos incluidos"
+  ],
+  "税抜": [
+    "Before tax",
+    "Sin impuestos"
+  ],
+  "在庫": [
+    "Stock",
+    "Existencias"
+  ],
+  "在庫数": [
+    "Stock quantity",
+    "Cantidad en stock"
+  ],
+  "注文": [
+    "Orders",
+    "Pedidos"
+  ],
+  "注文番号": [
+    "Order number",
+    "Número de pedido"
+  ],
+  "顧客": [
+    "Customers",
+    "Clientes"
+  ],
+  "顧客名": [
+    "Customer name",
+    "Nombre del cliente"
+  ],
+  "住所": [
+    "Address",
+    "Dirección"
+  ],
+  "電話番号": [
+    "Phone number",
+    "Número de teléfono"
+  ],
+  "備考": [
+    "Notes",
+    "Notas"
+  ],
+  "説明": [
+    "Description",
+    "Descripción"
+  ],
+  "タイトル": [
+    "Title",
+    "Título"
+  ],
+  "メッセージ": [
+    "Message",
+    "Mensaje"
+  ],
+  "プレビュー": [
+    "Preview",
+    "Vista previa"
+  ],
+  "ダウンロード": [
+    "Download",
+    "Descargar"
+  ],
+  "アップロード": [
+    "Upload",
+    "Subir"
+  ],
+  "コピー": [
+    "Copy",
+    "Copiar"
+  ],
+  "コピーしました": [
+    "Copied",
+    "Copiado"
+  ],
+  "選択": [
+    "Select",
+    "Seleccionar"
+  ],
+  "選択してください": [
+    "Select an option",
+    "Selecciona una opción"
+  ],
+  "必須": [
+    "Required",
+    "Obligatorio"
+  ],
+  "任意": [
+    "Optional",
+    "Opcional"
+  ],
+  "今日": [
+    "Today",
+    "Hoy"
+  ],
+  "昨日": [
+    "Yesterday",
+    "Ayer"
+  ],
+  "過去7日": [
+    "Last 7 days",
+    "Últimos 7 días"
+  ],
+  "過去30日": [
+    "Last 30 days",
+    "Últimos 30 días"
+  ],
+  "今月": [
+    "This month",
+    "Este mes"
+  ],
+  "先月": [
+    "Last month",
+    "Mes pasado"
+  ],
+  "期間": [
+    "Period",
+    "Período"
+  ],
+  "開始日": [
+    "Start date",
+    "Fecha de inicio"
+  ],
+  "終了日": [
+    "End date",
+    "Fecha de fin"
+  ],
+  "売上": [
+    "Revenue",
+    "Ingresos"
+  ],
+  "売上合計": [
+    "Total revenue",
+    "Ingresos totales"
+  ],
+  "利益": [
+    "Profit",
+    "Beneficio"
+  ],
+  "利益率": [
+    "Profit margin",
+    "Margen de beneficio"
+  ],
+  "購入": [
+    "Purchase",
+    "Compra"
+  ],
+  "定期購入": [
+    "Subscriptions",
+    "Suscripciones"
+  ],
+  "解約": [
+    "Cancel subscription",
+    "Cancelar suscripción"
+  ],
+  "一時停止": [
+    "Pause",
+    "Pausar"
+  ],
+  "再開": [
+    "Resume",
+    "Reanudar"
+  ],
+  "停止": [
+    "Stop",
+    "Detener"
+  ],
+  "削除する": [
+    "Delete",
+    "Eliminar"
+  ],
+  "取り消し": [
+    "Cancel",
+    "Cancelar"
+  ],
+  "再試行": [
+    "Retry",
+    "Reintentar"
+  ],
+  "データがありません": [
+    "No data available",
+    "No hay datos disponibles"
+  ],
+  "データなし": [
+    "No data",
+    "Sin datos"
+  ],
+  "該当なし": [
+    "Not applicable",
+    "No corresponde"
+  ],
+  "未取得": [
+    "Not fetched",
+    "Sin obtener"
+  ],
+  "取得中...": [
+    "Fetching…",
+    "Obteniendo…"
+  ],
+  "連携済み": [
+    "Connected",
+    "Conectado"
+  ],
+  "未連携": [
+    "Not connected",
+    "Sin conectar"
+  ],
+  "接続": [
+    "Connect",
+    "Conectar"
+  ],
+  "接続テスト": [
+    "Test connection",
+    "Probar conexión"
+  ],
+  "テスト中...": [
+    "Testing…",
+    "Probando…"
+  ],
+  "同期": [
+    "Sync",
+    "Sincronizar"
+  ],
+  "同期中...": [
+    "Syncing…",
+    "Sincronizando…"
+  ],
+  "自動": [
+    "Automatic",
+    "Automático"
+  ],
+  "手動": [
+    "Manual",
+    "Manual"
+  ],
+  "有効化": [
+    "Enable",
+    "Activar"
+  ],
+  "無効化": [
+    "Disable",
+    "Desactivar"
+  ],
+  "登録": [
+    "Register",
+    "Registrar"
+  ],
+  "登録する": [
+    "Register",
+    "Registrar"
+  ],
+  "未登録": [
+    "Not registered",
+    "Sin registrar"
+  ],
+  "登録済み": [
+    "Registered",
+    "Registrado"
+  ],
+  "通知": [
+    "Notifications",
+    "Notificaciones"
+  ],
+  "一覧": [
+    "List",
+    "Lista"
+  ],
+  "ホーム": [
+    "Home",
+    "Inicio"
+  ],
+  "ダッシュボード": [
+    "Dashboard",
+    "Panel de control"
+  ],
+  "分析": [
+    "Analytics",
+    "Analítica"
+  ],
+  "AIマップ": [
+    "AI map",
+    "Mapa de IA"
+  ],
+  "ページ別": [
+    "By page",
+    "Por página"
+  ],
+  "ページ": [
+    "Page",
+    "Página"
+  ],
+  "訪問者": [
+    "Visitors",
+    "Visitantes"
+  ],
+  "セッション": [
+    "Sessions",
+    "Sesiones"
+  ],
+  "閲覧数": [
+    "Page views",
+    "Páginas vistas"
+  ],
+  "コンバージョン": [
+    "Conversions",
+    "Conversiones"
+  ],
+  "コンバージョン率": [
+    "Conversion rate",
+    "Tasa de conversión"
+  ],
+  "流入元": [
+    "Traffic sources",
+    "Fuentes de tráfico"
+  ],
+  "デバイス": [
+    "Device",
+    "Dispositivo"
+  ],
+  "チャット": [
+    "Chat",
+    "Chat"
+  ],
+  "部門": [
+    "Department",
+    "Departamento"
+  ],
+  "全部門": [
+    "All departments",
+    "Todos los departamentos"
+  ],
+  "クレアショット": [
+    "Creashot",
+    "Creashot"
+  ],
+  "社長": [
+    "President",
+    "Presidente"
+  ],
+  "部長": [
+    "Department head",
+    "Director de departamento"
+  ],
+  "課長": [
+    "Section manager",
+    "Jefe de sección"
+  ],
+  "エージェント": [
+    "Agent",
+    "Agente"
+  ],
+  "承認待ち": [
+    "Pending approval",
+    "Pendiente de aprobación"
+  ],
+  "実行中": [
+    "Running",
+    "En ejecución"
+  ],
+  "待機中": [
+    "Waiting",
+    "En espera"
+  ],
+  "保留": [
+    "On hold",
+    "En espera"
+  ],
+  "スキップ": [
+    "Skip",
+    "Omitir"
+  ],
+  "注意": [
+    "Note",
+    "Aviso"
+  ],
+  "エラーが発生しました": [
+    "An error occurred",
+    "Se produjo un error"
+  ],
+  "取得に失敗しました": [
+    "Failed to load data",
+    "No se pudieron cargar los datos"
+  ],
+  "保存に失敗しました": [
+    "Failed to save",
+    "No se pudo guardar"
+  ],
+  "送信に失敗しました": [
+    "Failed to send",
+    "No se pudo enviar"
+  ],
+  "削除に失敗しました": [
+    "Failed to delete",
+    "No se pudo eliminar"
+  ],
+  "通信エラー": [
+    "Connection error",
+    "Error de conexión"
+  ],
+  "fitpeak.co のアクセス解析。リアルタイムの閲覧状況、サイト全体・ページ別の数値、クリック／スクロール／熟読のヒートマップ。": [
+    "Analytics for fitpeak.co: live activity, site and page metrics, and click, scroll and attention heatmaps.",
+    "Analítica de fitpeak.co: actividad en tiempo real, métricas del sitio y de cada página, y mapas de clics, desplazamiento y atención."
+  ],
+  "請求書の作成・送信・自動化。Amazon売上データ連携、PDF生成、Gmail送信に対応。": [
+    "Create, send and automate invoices with Amazon sales data, PDF generation and Gmail delivery.",
+    "Crea, envía y automatiza facturas con datos de ventas de Amazon, generación de PDF y envío por Gmail."
+  ],
+  "マルチチャネル自動出荷。Shopify・TikTok ShopからAmazon MCFへの自動連携。": [
+    "Automate multichannel fulfillment by connecting Shopify and TikTok Shop to Amazon MCF.",
+    "Automatiza los envíos multicanal conectando Shopify y TikTok Shop con Amazon MCF."
+  ],
+  "LINE公式アカウントの顧客管理。メッセージ配信、セグメント管理。": [
+    "Manage customers, messaging and audience segments for your official LINE account.",
+    "Gestiona clientes, mensajes y segmentos de tu cuenta oficial de LINE."
+  ],
+  "在宅ワーク案件ナビで届く「注文完了スクショ」をAIで解析し、Amazonセラーセントラルで実注文を照合。合致で「注文完了」タグ自動付与＋次工程へ、不一致は再送依頼を自動返信。": [
+    "Use AI to match submitted order screenshots with Amazon Seller Central orders. Matches are tagged as completed and move to the next step; mismatches trigger a request to resubmit.",
+    "La IA coteja las capturas de pedidos recibidas con los pedidos de Amazon Seller Central. Las coincidencias se marcan como completadas y avanzan al siguiente paso; en caso contrario, se solicita un nuevo envío."
+  ],
+  "お客様からの返品・交換申請をAIで自動審査。Shopify返金・LINE通知を自動化。": [
+    "Review return and exchange requests with AI, and automate Shopify refunds and LINE notifications.",
+    "Evalúa solicitudes de devolución y cambio con IA y automatiza reembolsos de Shopify y notificaciones de LINE."
+  ],
+  "仕入先（ヤフオク/メルカリ/駿河屋）を10分ごとに巡回。在庫が消えた出品を自動で取り下げ、受注の仕入進捗と利益候補をリアルタイム監視。": [
+    "Check suppliers (Yahoo! Auctions, Mercari and Surugaya) every 10 minutes. Automatically remove unavailable listings and track procurement and potential profits in real time.",
+    "Consulta proveedores (Yahoo! Auctions, Mercari y Surugaya) cada 10 minutos. Retira anuncios sin existencias y supervisa compras y posibles beneficios en tiempo real."
+  ],
+  "ヤフオク・Amazon・楽天などの商品ページURLを入れるだけで、掲載画像を検出。選んでZIPで一括ダウンロード。仕入れ・出品作業の素材集めに。": [
+    "Enter a product URL from Yahoo! Auctions, Amazon or Rakuten to find its images. Select images and download them together as a ZIP for sourcing and listings.",
+    "Introduce la URL de un producto de Yahoo! Auctions, Amazon o Rakuten para detectar sus imágenes. Selecciónalas y descárgalas en un ZIP para preparar tus compras y anuncios."
+  ],
+  "インフルエンサーへの商品ギフティングを、リサーチ→選定→文面送信→返信対応→FBA(MCF)発送まで半自動化。送信・発送は承認ゲート付き。": [
+    "Streamline influencer gifting from research and selection through outreach, replies and FBA (MCF) shipping. Messages and shipments require approval.",
+    "Agiliza los regalos a influencers: investigación, selección, contacto, respuestas y envíos FBA (MCF). Los mensajes y envíos requieren aprobación."
+  ],
+  "Amazonレビューリクエスト自動送信、売上分析、ランキング追跡。SP-API連携で業務を自動化。": [
+    "Automate Amazon review requests, analyze sales and track rankings using the SP-API integration.",
+    "Automatiza solicitudes de reseñas de Amazon, analiza ventas y sigue las posiciones con la integración SP-API."
+  ],
+  "Amazon FBA在庫（SP-API自動取得）とたお太郎側の生産・検品・輸送中在庫、資材を一元管理。発注タイミングと推奨発注数を自動判定し、二重発注を防止。": [
+    "Manage Amazon FBA stock (via SP-API), Taotaro production, inspection, goods in transit and materials in one place. Get reorder timing and quantity recommendations to prevent duplicate orders.",
+    "Gestiona en un solo lugar el stock FBA de Amazon (vía SP-API), la producción de Taotaro, inspecciones, mercancía en tránsito y materiales. Recibe recomendaciones de fechas y cantidades para evitar pedidos duplicados."
+  ],
+  "到着日を起点に次回課金を組み立てる定期購入。予約販売にも対応。スキップ・解約・継続率分析まで一元管理。": [
+    "Manage subscriptions with billing dates based on delivery, including preorders, skipped deliveries, cancellations and retention analytics.",
+    "Gestiona suscripciones con cobros basados en la fecha de entrega, incluidas preventas, omisiones, cancelaciones y análisis de retención."
+  ],
+  "アンケート・Amazonレビューを自動でShopifyストアに反映。レビュー承認・管理。": [
+    "Automatically publish survey responses and Amazon reviews to Shopify. Approve and manage reviews in one place.",
+    "Publica automáticamente respuestas de encuestas y reseñas de Amazon en Shopify. Aprueba y gestiona las reseñas en un solo lugar."
+  ],
+  "決算書・分析": [
+    "Financial statements & analysis",
+    "Estados financieros y análisis"
+  ],
+  "仕訳帳": [
+    "Journal entries",
+    "Libro diario"
+  ],
+  "取引明細": [
+    "Transactions",
+    "Transacciones"
+  ],
+  "書類一覧": [
+    "Documents",
+    "Documentos"
+  ],
+  "未確認・手動追加": [
+    "Unverified & manual entries",
+    "Sin verificar y entradas manuales"
+  ],
+  "収集設定": [
+    "Collection settings",
+    "Configuración de recopilación"
+  ],
+  "会計書類管理": [
+    "Accounting documents",
+    "Documentos contables"
+  ],
+  "事業年度:": [
+    "Fiscal year:",
+    "Ejercicio fiscal:"
+  ],
+  "全期": [
+    "All periods",
+    "Todos los períodos"
+  ],
+  "全事業年度を合算": [
+    "Combine all fiscal years",
+    "Combinar todos los ejercicios fiscales"
+  ],
+  "注文管理": [
+    "Order management",
+    "Gestión de pedidos"
+  ],
+  "チャネル商品": [
+    "Channel products",
+    "Productos por canal"
+  ],
+  "SKUマッピング": [
+    "SKU mapping",
+    "Asignación de SKU"
+  ],
+  "在庫確認": [
+    "Stock check",
+    "Consulta de existencias"
+  ],
+  "認証コードの送信先:": [
+    "Verification code sent to:",
+    "Código de verificación enviado a:"
+  ],
+  "パスワードを隠す": [
+    "Hide password",
+    "Ocultar contraseña"
+  ],
+  "パスワードを表示": [
+    "Show password",
+    "Mostrar contraseña"
+  ],
+  "表示": [
+    "Show",
+    "Mostrar"
+  ],
+  "非表示": [
+    "Hide",
+    "Ocultar"
+  ],
+  "件": [
+    "items",
+    "elementos"
+  ],
+  "人": [
+    "people",
+    "personas"
+  ],
+  "回": [
+    "imes",
+    "veces"
+  ],
+  "円": [
+    "JPY",
+    "JPY"
+  ],
+  "個": [
+    "units",
+    "unidades"
+  ],
+  "日": [
+    "days",
+    "días"
+  ],
+  "時間": [
+    "hours",
+    "horas"
+  ],
+  "分": [
+    "minutes",
+    "minutos"
+  ],
+  "秒": [
+    "seconds",
+    "segundos"
+  ],
+  "月額": [
+    "Monthly fee",
+    "Cuota mensual"
+  ],
+  "年額": [
+    "Annual fee",
+    "Cuota anual"
+  ]
+}

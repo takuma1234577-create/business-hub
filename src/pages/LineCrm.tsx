@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Users, MessageCircle, Bot, FileText, ExternalLink, TrendingUp, Send, ShieldBan, X, User, Settings, ChevronDown } from 'lucide-react'
@@ -146,7 +147,7 @@ export default function LineCrm() {
   }, [showBlockList])
 
   const handleUnblock = async (id: string) => {
-    if (!confirm('ブロックを解除しますか？')) return
+    if (!confirm(uiText('ブロックを解除しますか？'))) return
     try {
       await fetch(`/api/line-crm/friends/${id}/block`, {
         method: 'PATCH',

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { BookOpen, Search, Trash2, Plus, RefreshCw, Zap, X, Upload } from 'lucide-react'
@@ -73,7 +74,7 @@ export default function KnowledgeChunks() {
   }, [fetchChunks])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このナレッジを削除しますか？')) return
+    if (!confirm(uiText('このナレッジを削除しますか？'))) return
     try {
       await api.delete(`/knowledge-chunks/${id}`)
       fetchChunks()
@@ -91,7 +92,7 @@ export default function KnowledgeChunks() {
       setSearchResults(r.data.results || [])
     } catch (err) {
       console.error('search failed:', err)
-      alert('検索に失敗しました: ' + (err instanceof Error ? err.message : ''))
+      alert(uiText('検索に失敗しました: ' + (err instanceof Error ? err.message : '')))
     } finally {
       setSearching(false)
     }
@@ -107,19 +108,19 @@ export default function KnowledgeChunks() {
 
   const handleBulkUpload = async () => {
     const chunks = bulkPreview
-    if (chunks.length === 0) { alert('テキストを入力してください'); return }
-    if (chunks.length > 64) { alert(`一度に登録できるのは64件までです（${chunks.length}件検出）`); return }
+    if (chunks.length === 0) { alert(uiText('テキストを入力してください')); return }
+    if (chunks.length > 64) { alert(uiText(`一度に登録できるのは64件までです（${chunks.length}件検出）`)); return }
     setBulkUploading(true)
     try {
       const items = chunks.map(c => ({ content: c, category: bulkCategory }))
       const r = await api.post<{ inserted: number }>('/knowledge-chunks/bulk', { items, category: bulkCategory, source: 'manual' })
-      alert(`${r.data.inserted}件 取り込みました`)
+      alert(uiText(`${r.data.inserted}件 取り込みました`))
       setBulkText('')
       setShowBulkForm(false)
       fetchChunks()
       fetchStats()
     } catch (err) {
-      alert('取り込み失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('取り込み失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     } finally {
       setBulkUploading(false)
     }
@@ -135,7 +136,7 @@ export default function KnowledgeChunks() {
       fetchChunks()
       fetchStats()
     } catch (err) {
-      alert('追加失敗: ' + (err instanceof Error ? err.message : ''))
+      alert(uiText('追加失敗: ' + (err instanceof Error ? err.message : '')))
     } finally {
       setAdding(false)
     }

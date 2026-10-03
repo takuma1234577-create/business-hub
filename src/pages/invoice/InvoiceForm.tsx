@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import type { InvoiceData, InvoiceItem, Client, EmailTemplate, InvoiceItemType, SenderSettings, CalculatedFees, FeeTier } from './types';
@@ -292,7 +293,7 @@ export function InvoiceForm() {
       setMessage({ type: 'error', text: 'メールアドレスを入力してください' });
       return;
     }
-    if (!window.confirm(`${invoice.client.email} に送信してよろしいですか？`)) return;
+    if (!window.confirm(uiText(`${invoice.client.email} に送信してよろしいですか？`))) return;
     setLoading(true);
     try {
       const { base64, filename } = await generatePDF();

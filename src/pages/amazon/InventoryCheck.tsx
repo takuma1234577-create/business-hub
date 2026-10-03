@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState } from 'react'
 import { Search, Package, Loader2, RefreshCw } from 'lucide-react'
 import { inventoryApi } from './api'
@@ -13,7 +14,7 @@ export default function InventoryCheck() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const handleSync = async () => {
-    if (!confirm('Amazon FBA在庫をShopifyに同期しますか？')) return
+    if (!confirm(uiText('Amazon FBA在庫をShopifyに同期しますか？'))) return
     setSyncing(true)
     setMessage(null)
     try {

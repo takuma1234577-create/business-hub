@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Gift, RefreshCw, Check, Copy, Package, ExternalLink } from 'lucide-react'
@@ -88,7 +89,7 @@ export default function ReferralAdmin() {
       await Promise.all([fetchRows(), fetchStock()])
     } catch (e) {
       const err = e as { response?: { data?: { error?: string } } }
-      alert(err.response?.data?.error || 'コードの引き当てに失敗しました')
+      alert(uiText(err.response?.data?.error || 'コードの引き当てに失敗しました'))
     }
     setBusyId(null)
   }

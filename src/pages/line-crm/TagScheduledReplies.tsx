@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Plus, Pencil, Trash2, Clock, X, ToggleLeft, ToggleRight, Play, Users, ChevronDown, ChevronUp } from 'lucide-react'
@@ -167,7 +168,7 @@ export default function TagScheduledReplies() {
     if (response_messages.length === 0) return
 
     if (form.reply_mode === 'ai' && !form.ai_knowledge.trim()) {
-      alert('AIに返信させる場合は、根拠となるナレッジベース/配信意図を入力してください')
+      alert(uiText('AIに返信させる場合は、根拠となるナレッジベース/配信意図を入力してください'))
       return
     }
 
@@ -195,7 +196,7 @@ export default function TagScheduledReplies() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このルールを削除しますか？')) return
+    if (!confirm(uiText('このルールを削除しますか？'))) return
     await api.delete(`/tag-scheduled-replies/${id}`)
     fetchData()
   }
@@ -215,11 +216,11 @@ export default function TagScheduledReplies() {
         totalSent += sent
         if (sent === 0) break
       }
-      alert(`処理完了: ${totalSent}件送信`)
+      alert(uiText(`処理完了: ${totalSent}件送信`))
       fetchPending()
     } catch (err) {
       console.error('Process failed:', err)
-      alert('処理に失敗しました')
+      alert(uiText('処理に失敗しました'))
     } finally {
       setProcessing(false)
     }

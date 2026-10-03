@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { profitLossApi } from './api'
 import { useFiscalYear } from '../AccountingTool'
@@ -49,7 +50,7 @@ export function ProfitLoss() {
     setLoading(true)
     profitLossApi.get(fiscalYear.start_date, fiscalYear.end_date)
       .then(setData)
-      .catch(err => { console.error(err); alert('取得に失敗しました') })
+      .catch(err => { console.error(err); alert(uiText('取得に失敗しました')) })
       .finally(() => setLoading(false))
   }, [fiscalYear])
 

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react';
 import type { Schedule, Client, EmailTemplate, InvoiceItem, InvoiceItemType, ScheduleFeeRule, FeeTier } from './types';
 import { scheduleApi, clientApi, templateApi } from './api';
@@ -56,7 +57,7 @@ export function ScheduleManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('削除しますか？')) return;
+    if (!confirm(uiText('削除しますか？'))) return;
     await scheduleApi.delete(id);
     load();
   };

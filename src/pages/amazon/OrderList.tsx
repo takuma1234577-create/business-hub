@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import {
   ShoppingBag,
@@ -271,7 +272,7 @@ export default function OrderList() {
   }
 
   const handleFulfillAll = async () => {
-    if (!confirm('全ての保留中注文をAmazon MCFで一括発送しますか？')) return
+    if (!confirm(uiText('全ての保留中注文をAmazon MCFで一括発送しますか？'))) return
     setFulfillingAll(true)
     try {
       const res = await orderApi.fulfillAll()
@@ -308,7 +309,7 @@ export default function OrderList() {
   }
 
   const handleSyncAllToShopify = async () => {
-    if (!confirm('追跡番号のある全注文をShopifyに反映しますか？')) return
+    if (!confirm(uiText('追跡番号のある全注文をShopifyに反映しますか？'))) return
     setSyncingAllShopify(true)
     try {
       const res = await orderApi.syncAllToShopify()

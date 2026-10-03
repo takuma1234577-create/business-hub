@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -264,7 +265,7 @@ export default function EbayManager() {
       const j = await res.json()
       if (res.status === 409 && j.needs_force) {
         // セット出品の疑いは黙って通さない。人が確認してから作る
-        if (confirm(`${j.error}\n\n${r.title_ja}\n\nこのまま作成しますか？`)) return makeListing(r, true)
+        if (confirm(uiText(`${j.error}\n\n${r.title_ja}\n\nこのまま作成しますか？`))) return makeListing(r, true)
         return
       }
       if (!res.ok) throw new Error(j.error || '作成に失敗しました')
@@ -289,7 +290,7 @@ export default function EbayManager() {
   }
 
   const endOne = async (id: string) => {
-    if (!confirm('この出品をeBayから取り下げます。よろしいですか？')) return
+    if (!confirm(uiText('この出品をeBayから取り下げます。よろしいですか？'))) return
     setBusyId(id)
     try {
       const r = await fetch(`/api/ebay/listings/${id}/end`, { method: 'POST' }).then((x) => x.json())

@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Sparkles, Save, ToggleLeft, ToggleRight, Eye, X } from 'lucide-react'
@@ -74,7 +75,7 @@ export default function GreetingSettings() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
-      alert('保存失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : ''))
+      alert(uiText('保存失敗: ' + (axios.isAxiosError(err) ? err.response?.data?.error || err.message : '')))
     } finally {
       setSaving(false)
     }

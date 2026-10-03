@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState, useCallback } from 'react'
 import {
   RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, X,
@@ -459,7 +460,7 @@ function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               <ActionBtn icon={<RefreshCw size={14} />} label="Shopifyと同期" busy={busy === 'sync'} onClick={() => act('sync', 'sync')} />
               <ActionBtn
                 icon={<Ban size={14} />} label="解約" danger busy={busy === 'cancel'}
-                onClick={() => { if (confirm('この定期購入を解約します。よろしいですか？')) act('cancel', 'cancel', { note: '管理画面から解約' }) }}
+                onClick={() => { if (confirm(uiText('この定期購入を解約します。よろしいですか？'))) act('cancel', 'cancel', { note: '管理画面から解約' }) }}
               />
             </div>
             {msg && <p className="text-sm text-slate-600 dark:text-slate-300">{msg}</p>}

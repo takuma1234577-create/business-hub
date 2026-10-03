@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Tag as TagIcon, Plus, Trash2, X, Check, Users } from 'lucide-react'
 import { tagApi } from './api'
@@ -50,7 +51,7 @@ export default function TagManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このタグを削除しますか？友だちからも外れます。')) return
+    if (!confirm(uiText('このタグを削除しますか？友だちからも外れます。'))) return
     try {
       await tagApi.delete(id)
       fetchTags()

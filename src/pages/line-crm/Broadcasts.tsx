@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Send, Megaphone, X, Clock, CheckCircle, AlertCircle, Radio, Users, Tag as TagIcon, Eye, Filter, Calendar, FileText } from 'lucide-react'
 import axios from 'axios'
@@ -160,14 +161,14 @@ export default function Broadcasts() {
       fetchBroadcasts()
     } catch (err) {
       console.error('Failed to create broadcast:', err)
-      alert('作成に失敗しました。もう一度お試しください。')
+      alert(uiText('作成に失敗しました。もう一度お試しください。'))
     } finally {
       setSending(false)
     }
   }
 
   const handleSend = async (id: string) => {
-    if (!confirm('この一斉配信を送信しますか？')) return
+    if (!confirm(uiText('この一斉配信を送信しますか？'))) return
     try {
       await broadcastApi.send(id)
       fetchBroadcasts()
@@ -177,7 +178,7 @@ export default function Broadcasts() {
   }
 
   const handleCreateAndSend = async () => {
-    if (!confirm('この一斉配信を今すぐ送信しますか？')) return
+    if (!confirm(uiText('この一斉配信を今すぐ送信しますか？'))) return
     setSending(true)
     try {
       const filters = targetType === 'filtered' ? {

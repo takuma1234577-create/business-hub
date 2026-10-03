@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { Folder, FolderOpen, FolderPlus } from 'lucide-react'
 
 interface FolderTabsProps {
@@ -21,7 +22,7 @@ export default function FolderTabs({ folders, selected, onSelect, onCreate, coun
 
   const handleCreate = () => {
     if (!onCreate) return
-    const name = window.prompt('フォルダ名を入力してください')
+    const name = window.prompt(uiText('フォルダ名を入力してください'))
     const trimmed = name?.trim()
     if (trimmed) onCreate(trimmed)
   }

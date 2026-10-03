@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { financialAccountApi, transactionApi, institutionApi } from './api'
 import type { InstitutionSearchResult, BranchSearchResult } from './api'
@@ -266,9 +267,9 @@ export function Transactions() {
   }
 
   const handleCreateAccount = async () => {
-    if (!formInstitution) return alert('金融機関は必須です')
+    if (!formInstitution) return alert(uiText('金融機関は必須です'))
     const name = formAccountName || buildAccountName(formAccountType, formInstitution, formBranch, formAccountCategory, formAccountNumber)
-    if (!name) return alert('口座名を入力してください')
+    if (!name) return alert(uiText('口座名を入力してください'))
     try {
       await financialAccountApi.create({
         accountType: formAccountType,
@@ -283,19 +284,19 @@ export function Transactions() {
       fetchAccounts()
     } catch (err) {
       console.error(err)
-      alert('口座の登録に失敗しました')
+      alert(uiText('口座の登録に失敗しました'))
     }
   }
 
   const handleDeleteAccount = async (id: string) => {
-    if (!confirm('この口座と関連する全取引を削除しますか？')) return
+    if (!confirm(uiText('この口座と関連する全取引を削除しますか？'))) return
     try {
       await financialAccountApi.delete(id)
       if (selectedAccountId === id) setSelectedAccountId('')
       fetchAccounts()
     } catch (err) {
       console.error(err)
-      alert('削除に失敗しました')
+      alert(uiText('削除に失敗しました'))
     }
   }
 
@@ -310,14 +311,14 @@ export function Transactions() {
       fetchAccounts()
     } catch (err) {
       console.error(err)
-      alert('CSV取り込みに失敗しました')
+      alert(uiText('CSV取り込みに失敗しました'))
     } finally {
       setImporting(false)
     }
   }
 
   const handleManualCreate = async () => {
-    if (!selectedAccountId || !manualForm.description || !manualForm.amount) return alert('日付・摘要・金額は必須です')
+    if (!selectedAccountId || !manualForm.description || !manualForm.amount) return alert(uiText('日付・摘要・金額は必須です'))
     try {
       const amount = manualForm.isExpense
         ? -Math.abs(parseFloat(manualForm.amount))
@@ -336,7 +337,7 @@ export function Transactions() {
       fetchTransactions()
     } catch (err) {
       console.error(err)
-      alert('取引の登録に失敗しました')
+      alert(uiText('取引の登録に失敗しました'))
     }
   }
 
@@ -351,7 +352,7 @@ export function Transactions() {
       setSelectedForJournal(new Set(result.results.filter(r => r.confidence >= 0.5).map(r => r.id)))
     } catch (err) {
       console.error(err)
-      alert('AI分類に失敗しました')
+      alert(uiText('AI分類に失敗しました'))
     } finally {
       setClassifying(false)
     }
@@ -372,20 +373,20 @@ export function Transactions() {
       setSelectedForJournal(new Set())
     } catch (err) {
       console.error(err)
-      alert('仕訳作成に失敗しました')
+      alert(uiText('仕訳作成に失敗しました'))
     } finally {
       setCreatingJournal(false)
     }
   }
 
   const handleDeleteTransaction = async (id: string) => {
-    if (!confirm('この取引を削除しますか？')) return
+    if (!confirm(uiText('この取引を削除しますか？'))) return
     try {
       await transactionApi.delete(id)
       fetchTransactions()
     } catch (err) {
       console.error(err)
-      alert('削除に失敗しました')
+      alert(uiText('削除に失敗しました'))
     }
   }
 

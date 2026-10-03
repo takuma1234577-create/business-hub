@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -269,7 +270,7 @@ export default function ApiSettings() {
   }
 
   const handleShopifyOAuth = async () => {
-    const shop = prompt('Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com')
+    const shop = prompt(uiText('Shopifyストアのドメインを入力してください\n例: mystore.myshopify.com'))
     if (!shop) return
     try {
       const { data } = await api.get(`/shopify/login?shop=${encodeURIComponent(shop)}`)
@@ -338,7 +339,7 @@ export default function ApiSettings() {
   }
 
   const handleChannelGmailDisconnect = async (storeId: string) => {
-    if (!confirm('このチャネルのGmail連携を解除しますか？メール自動返信が停止します。')) return
+    if (!confirm(uiText('このチャネルのGmail連携を解除しますか？メール自動返信が停止します。'))) return
     try {
       await api.delete(`/channels/${storeId}/gmail/disconnect`)
       setChannelGmailStatus(prev => { const next = { ...prev }; delete next[storeId]; return next })
@@ -350,7 +351,7 @@ export default function ApiSettings() {
   }
 
   const handleChannelDelete = async (id: string) => {
-    if (!confirm('このチャネルの接続を解除しますか？')) return
+    if (!confirm(uiText('このチャネルの接続を解除しますか？'))) return
     try {
       await api.delete(`/channels/${id}`)
       setMessage({ type: 'success', text: 'チャネルを削除しました' })
@@ -430,7 +431,7 @@ export default function ApiSettings() {
   }
 
   const handleAmazonDelete = async (id: string) => {
-    if (!confirm('このAmazonアカウントの接続を解除しますか？')) return
+    if (!confirm(uiText('このAmazonアカウントの接続を解除しますか？'))) return
     try {
       await api.delete(`/amazon/accounts/${id}`)
       setMessage({ type: 'success', text: 'Amazonアカウントを削除しました' })
@@ -441,7 +442,7 @@ export default function ApiSettings() {
   }
 
   const handleDisconnect = async (id: string) => {
-    if (!confirm(`${id} の接続を解除しますか？`)) return
+    if (!confirm(uiText(`${id} の接続を解除しますか？`))) return
     try {
       await api.delete(`/connections/${id}`)
       setMessage({ type: 'success', text: `${id} の接続を解除しました` })
@@ -976,7 +977,7 @@ export default function ApiSettings() {
                     {key.isSet && key.source === 'database' && (
                       <button
                         onClick={async () => {
-                          if (!confirm(`${key.label} のキーを削除しますか？`)) return
+                          if (!confirm(uiText(`${key.label} のキーを削除しますか？`))) return
                           await api.delete(`/api-keys/${key.id}`)
                           fetchData()
                           setMessage({ type: 'success', text: `${key.label} を削除しました` })

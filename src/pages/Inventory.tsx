@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -358,7 +359,7 @@ function LotsTab({ data, run }: { data: Dashboard; run: Run }) {
                 <td className="px-2 py-2 whitespace-nowrap">{fmtDate(l.status_updated_at)}</td>
                 <td className="px-2 py-2 whitespace-nowrap">{l.updated_by || '—'}</td>
                 <td className="px-2 py-2 text-xs text-gray-500 max-w-xs">{[l.tracking, l.note].filter(Boolean).join(' / ') || '—'}</td>
-                <td className="px-2 py-2"><button title="削除" onClick={() => { if (confirm('このロットを削除しますか？')) run(async () => { await api.delete(`/lots/${l.id}`); await loadLots() }, '削除しました') }} className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button></td>
+                <td className="px-2 py-2"><button title="削除" onClick={() => { if (confirm(uiText('このロットを削除しますか？'))) run(async () => { await api.delete(`/lots/${l.id}`); await loadLots() }, '削除しました') }} className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button></td>
               </tr>
             ))}
             {visible.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-gray-500">進行中のロットはありません</td></tr>}
@@ -393,7 +394,7 @@ function MaterialsTab({ data, run }: { data: Dashboard; run: Run }) {
               )}
             </>
           )}
-          <button disabled={!s.chatwork_room_id} onClick={() => { if (confirm('Chatworkに資材確認メッセージを投稿しますか？')) run(() => api.post('/chatwork/ask-materials'), 'Chatworkに投稿しました') }}
+          <button disabled={!s.chatwork_room_id} onClick={() => { if (confirm(uiText('Chatworkに資材確認メッセージを投稿しますか？'))) run(() => api.post('/chatwork/ask-materials'), 'Chatworkに投稿しました') }}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700 disabled:opacity-40"><Send size={14} /> 残数を質問する</button>
         </div>
       </div>
@@ -471,7 +472,7 @@ function ProductRow({ r, run }: { r: Row; run: Run }) {
       <td className="px-2 py-1"><input className={inp} value={e.note} onChange={x => setE({ ...e, note: x.target.value })} /></td>
       <td className="px-2 py-1 whitespace-nowrap">
         {dirty && <button onClick={() => run(() => api.patch(`/products/${r.id}`, e), '保存しました')} className="px-2 py-1 rounded bg-teal-600 text-white text-xs mr-1">保存</button>}
-        <button onClick={() => { if (confirm('削除しますか？（ロットがある商品は削除できません）')) run(() => api.delete(`/products/${r.id}`), '削除しました') }} className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+        <button onClick={() => { if (confirm(uiText('削除しますか？（ロットがある商品は削除できません）'))) run(() => api.delete(`/products/${r.id}`), '削除しました') }} className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
       </td>
     </tr>
   )
@@ -522,7 +523,7 @@ function SettingsTab({ data, run, notify }: { data: Dashboard; run: Run; notify:
           </div>
           <label className="block text-sm"><span className="text-gray-600 dark:text-gray-400">担当者の表示名</span>
             <input className={inp} value={f.partner_name || ''} onChange={e => setF({ ...f, partner_name: e.target.value })} onBlur={() => run(() => api.patch('/settings', { partner_name: f.partner_name }), '保存しました')} /></label>
-          <button onClick={() => { if (confirm('キーを再発行すると今のリンクは無効になります。よろしいですか？')) run(() => api.patch('/settings', { regenerate_key: true }), 'キーを再発行しました') }} className="text-xs text-red-600 hover:underline">キーを再発行（リンクを無効化）</button>
+          <button onClick={() => { if (confirm(uiText('キーを再発行すると今のリンクは無効になります。よろしいですか？'))) run(() => api.patch('/settings', { regenerate_key: true }), 'キーを再発行しました') }} className="text-xs text-red-600 hover:underline">キーを再発行（リンクを無効化）</button>
         </div>
         <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 space-y-2">
           <h3 className="text-sm font-semibold">Chatwork</h3>

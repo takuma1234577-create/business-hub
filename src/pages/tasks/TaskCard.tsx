@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import type { Task } from './types';
 import { api } from './api';
 
@@ -41,7 +42,7 @@ export default function TaskCard({ task, onUpdate }: Props) {
   };
 
   const deleteTask = async () => {
-    if (!confirm(`「${task.title}」を削除しますか？`)) return;
+    if (!confirm(uiText(`「${task.title}」を削除しますか？`))) return;
     try {
       await api.delete(`/tasks/${task.id}`);
       onUpdate();
