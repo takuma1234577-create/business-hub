@@ -10,6 +10,7 @@
  *   SLACK_WEBHOOK_URL (フォールバック)
  */
 
+const { notifyOwner } = require('./owner-notify.cjs');
 const { getSupabase } = require('./shared.cjs');
 
 function buildBlocks({ channel, customerName, customerMessage, aiDraftReply, reason, context, escalationId }) {
@@ -85,6 +86,11 @@ async function sendSlackEscalation({ channel, customerName, customerMessage, aiD
     console.error('[slack] escalation insert error:', insErr.message);
     return { ok: false, error: insErr.message };
   }
+
+  // まずオーナーのLINEへ（2026-10-03 オーナーの指示: 通知は全部LINE）。LINEに送れなかったときだけ、下のSlackを予備にする
+  const via = await notifyOwner({ kind: 'customer', escalation_id: record.id, channel: channel || 'LINE', customer_name: customerName || '', customer_message: String(customerMessage || '').slice(0, 600), ai_draft: aiDraftReply ? String(aiDraftReply).slice(0, 600) : '', reason: reason || '' });
+  if (via.ok) return { ok: true, id: record.id, via: 'line' };
+  console.error('[escalation] LINE通知に失敗。Slackを予備に使います:', via.error);
 
   const text = `確認が必要な問い合わせ: ${customerName || '不明'} - ${reason || ''}`;
   const blocks = buildBlocks({ channel, customerName, customerMessage, aiDraftReply, reason, context, escalationId: record.id });

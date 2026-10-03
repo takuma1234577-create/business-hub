@@ -3004,6 +3004,272 @@ async function saveEscalationToKnowledge(escalation, staffReply) {
   }
 }
 
+/**
+ * エスカレーション（お客様対応の確認）に対する担当者の指示を、解析して実行し、お客様に返信する。
+ * 指示の入口は、Slackのスレッド、またはオーナーのLINE。say(text) は、担当者に進み具合を知らせる関数（入口ごとに違う）。
+ */
+async function processStaffInstruction({ esc, staffInstruction, say, resolvedBy }) {
+  await say('🤖 指示を分析中...');
+
+  // Claude APIで指示を解析
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const analysisRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': anthropicKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: `あなたはFITPEAKカスタマーサポートの指示解析AIです。
+担当者の指示を分析して、実行すべきアクションをJSON形式で返してください。
+
+利用可能なアクション:
+1. "mcf_ship" - Amazon MCFで商品を発送する（無料交換・追加発送）
+2. "coupon" - Shopifyクーポンを発行する
+3. "message_only" - お客様にメッセージを送るだけ
+
+必ず以下のJSON形式で返してください:
+{
+"action": "mcf_ship" | "coupon" | "message_only",
+"product_name": "商品名（mcf_shipの場合）",
+"size": "サイズ（mcf_shipの場合、S/M/L/2L等）",
+"coupon_amount": 1000（couponの場合、金額）,
+"customer_message": "対応完了後にお客様に送るメッセージ",
+"summary": "実行内容の要約（Slack通知用）"
+}
+
+お客様の元のメッセージと、担当者の指示の両方を考慮してください。`,
+      messages: [{
+        role: 'user',
+        content: `お客様のメッセージ: ${esc.original_message}\n\n担当者の指示: ${staffInstruction}`,
+      }],
+    }),
+  });
+
+  const analysisData = await analysisRes.json();
+  const analysisText = analysisData.content?.[0]?.text || '';
+
+  let action;
+  try {
+    const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+    action = JSON.parse(jsonMatch[0]);
+  } catch {
+    await say(`⚠️ 指示の解析に失敗しました。もう少し具体的に書いてください。\n\n解析結果: ${analysisText.slice(0, 300)}`);
+    return;
+  }
+
+  await say(`📋 解析結果: ${action.summary}\n\nアクション: ${action.action}\n実行中...`);
+
+  // アクション実行
+  let actionResult = '';
+  const { data: friend } = await supabase.from('friends')
+    .select('id, channel_id, display_name').eq('line_user_id', esc.line_user_id).maybeSingle();
+
+  try {
+    if (action.action === 'mcf_ship') {
+      // Amazon MCFで発送
+      const { getAccessToken } = require('./amazon-helpers.cjs');
+      let tokenData;
+      try {
+        // amazon.cjsのgetAccessTokenを直接使えないので、supabaseからSP-API認証情報を取得
+        const { data: spAccount } = await supabase.from('sp_api_accounts').select('*').eq('is_active', true).limit(1).single();
+        const tokenRes = await fetch('https://api.amazon.com/auth/o2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: spAccount.refresh_token,
+            client_id: spAccount.client_id,
+            client_secret: spAccount.client_secret,
+          }).toString(),
+        });
+        const tokenJson = await tokenRes.json();
+        tokenData = { token: tokenJson.access_token, endpoint: spAccount.endpoint || 'https://sellingpartnerapi-fe.amazon.com' };
+      } catch (authErr) {
+        throw new Error(`Amazon認証エラー: ${authErr.message}`);
+      }
+
+      // SKUマッピングから商品を検索
+      const searchTerm = `${action.product_name || ''} ${action.size || ''}`.trim();
+      const { data: mappings } = await supabase.from('sku_mappings')
+        .select('amazon_sku, channel_sku')
+        .eq('channel', 'SHOPIFY')
+        .eq('is_active', true);
+
+      // 顧客の注文履歴から住所を取得
+      const { data: recentOrder } = await supabase.from('orders')
+        .select('*')
+        .eq('channel', 'SHOPIFY')
+        .not('address_line1', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // LINEユーザーIDからShopify注文を探す（友だちの名前で照合）
+      let shippingAddress = null;
+      if (friend && recentOrder) {
+        const friendName = friend.display_name || '';
+        for (const order of recentOrder) {
+          if (order.recipient_name && (order.recipient_name.includes(friendName) || friendName.includes(order.recipient_name))) {
+            shippingAddress = order;
+            break;
+          }
+        }
+      }
+
+      if (!shippingAddress) {
+        // 住所が見つからない場合、お客様に聞く
+        await pushToCustomer(friend?.channel_id, esc.line_user_id, `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。\n\n新しい商品をお送りするため、お届け先のご住所をお教えいただけますか？\n（郵便番号、都道府県、市区町村、番地、お名前）\n\n─────────\nFITPEAK AIより`);
+        await say('📦 お客様の住所が見つからなかったため、LINEで住所を確認中です。住所が届いたら再度指示してください。');
+        return;
+      }
+
+      // Amazon MCF発送
+      let amazonSku = mappings?.[0]?.amazon_sku; // デフォルト
+      // 商品名・サイズでマッピングを探す
+      if (action.product_name) {
+        const { data: products } = await supabase.from('shopify_products')
+          .select('shopify_variant_id, title, variants')
+          .ilike('title', `%${action.product_name}%`);
+
+        if (products && products.length > 0) {
+          const product = products[0];
+          let variantId = product.shopify_variant_id;
+
+          if (action.size && Array.isArray(product.variants)) {
+            const sizeVariant = product.variants.find(v =>
+              v.title && v.title.toLowerCase().includes(action.size.toLowerCase())
+            );
+            if (sizeVariant) variantId = sizeVariant.id;
+          }
+
+          const { data: mapping } = await supabase.from('sku_mappings')
+            .select('amazon_sku')
+            .eq('channel_sku', String(variantId))
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (mapping) amazonSku = mapping.amazon_sku;
+        }
+      }
+
+      if (!amazonSku) {
+        throw new Error('商品のAmazon SKUが見つかりません。SKUマッピングを確認してください。');
+      }
+
+      const mcfOrderId = `MCF-ESC-${esc.id.slice(0, 8)}-${Date.now()}`;
+      await fetch(`${tokenData.endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`, {
+        method: 'POST',
+        headers: { 'x-amz-access-token': tokenData.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sellerFulfillmentOrderId: mcfOrderId,
+          displayableOrderId: `ESC-${esc.id.slice(0, 8)}`,
+          displayableOrderDate: new Date().toISOString(),
+          displayableOrderComment: `エスカレーション対応: ${staffInstruction.slice(0, 100)}`,
+          shippingSpeedCategory: 'Standard',
+          destinationAddress: {
+            name: shippingAddress.recipient_name,
+            addressLine1: shippingAddress.address_line1,
+            addressLine2: shippingAddress.address_line2 || '',
+            city: shippingAddress.city,
+            stateOrRegion: shippingAddress.state_or_region || '',
+            postalCode: shippingAddress.postal_code,
+            countryCode: shippingAddress.country_code || 'JP',
+          },
+          items: [{
+            sellerSku: amazonSku,
+            sellerFulfillmentOrderItemId: `${mcfOrderId}-1`,
+            quantity: 1,
+          }],
+        }),
+      });
+
+      actionResult = `Amazon MCF発送完了 (${mcfOrderId})\nSKU: ${amazonSku}\n宛先: ${shippingAddress.recipient_name}`;
+
+    } else if (action.action === 'coupon') {
+      // Shopifyクーポン発行
+      const { data: store } = await supabase.from('channel_stores')
+        .select('shop_domain, access_token')
+        .eq('channel', 'SHOPIFY').eq('is_active', true).limit(1).single();
+
+      if (store) {
+        const amount = action.coupon_amount || 1000;
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = 'SUPPORT-';
+        for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        await fetch(`https://${store.shop_domain}/admin/api/2025-01/price_rules.json`, {
+          method: 'POST',
+          headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            price_rule: {
+              title: `Support - ${code}`,
+              target_type: 'line_item', target_selection: 'all', allocation_method: 'across',
+              value_type: 'fixed_amount', value: `-${amount}`,
+              customer_selection: 'all',
+              starts_at: new Date().toISOString(), ends_at: expiresAt.toISOString(),
+              usage_limit: 1, once_per_customer: true,
+            },
+          }),
+        }).then(async r => {
+          const priceRule = (await r.json()).price_rule;
+          await fetch(`https://${store.shop_domain}/admin/api/2025-01/price_rules/${priceRule.id}/discount_codes.json`, {
+            method: 'POST',
+            headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discount_code: { code } }),
+          });
+        });
+
+        actionResult = `クーポン発行完了: ${code} (${amount}円OFF)`;
+        if (action.customer_message) {
+          action.customer_message = action.customer_message.replace(/\{code\}/g, code).replace(/\{amount\}/g, String(amount));
+        }
+      }
+
+    } else {
+      actionResult = 'メッセージ送信のみ';
+    }
+  } catch (actionErr) {
+    await say(`❌ アクション実行エラー: ${actionErr.message}`);
+    return;
+  }
+
+  // お客様にメッセージ送信
+  const customerMsg = action.customer_message || `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。ご依頼の件、対応いたしました。ご不明点がございましたらお気軽にお問い合わせください。`;
+  await pushToCustomer(friend?.channel_id, esc.line_user_id, customerMsg + '\n\n─────────\nFITPEAK AIより');
+
+  // chat_messagesに記録
+  if (friend) {
+    await supabase.from('chat_messages').insert({
+      channel_id: friend.channel_id,
+      friend_id: friend.id,
+      direction: 'outgoing',
+      message_type: 'text',
+      content: { text: customerMsg, source: 'slack_escalation_action' },
+      created_at: new Date().toISOString(),
+    });
+    updateFriendChatSummary(friend.id, friend.channel_id).catch(() => {});
+  }
+
+  await say(`✅ 対応完了\n\n${actionResult}\n\nお客様への送信メッセージ:\n${customerMsg}`);
+
+  // エスカレーション完了
+  await supabase.from('slack_escalations').update({
+    status: 'resolved',
+    resolution_text: `指示: ${staffInstruction}\n結果: ${actionResult}`,
+    resolved_by: resolvedBy,
+    resolved_at: new Date().toISOString(),
+  }).eq('id', esc.id);
+
+  // ナレッジベースに保存
+  await saveEscalationToKnowledge({ ...esc, resolution_text: `${staffInstruction} → ${actionResult}` }, customerMsg);
+}
+
 router.post('/slack/events', async (req, res) => {
   const rawBody = typeof req.rawBody === 'string' ? req.rawBody : (req.rawBody?.toString('utf8') || JSON.stringify(req.body || {}));
   const sigTimestamp = req.headers['x-slack-request-timestamp'];
@@ -3050,265 +3316,10 @@ router.post('/slack/events', async (req, res) => {
       return;
     }
 
-    await postSlackThreadReply(event.channel, threadTs, '🤖 指示を分析中...');
-
-    // Claude APIで指示を解析
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    const analysisRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: `あなたはFITPEAKカスタマーサポートの指示解析AIです。
-担当者の指示を分析して、実行すべきアクションをJSON形式で返してください。
-
-利用可能なアクション:
-1. "mcf_ship" - Amazon MCFで商品を発送する（無料交換・追加発送）
-2. "coupon" - Shopifyクーポンを発行する
-3. "message_only" - お客様にメッセージを送るだけ
-
-必ず以下のJSON形式で返してください:
-{
-  "action": "mcf_ship" | "coupon" | "message_only",
-  "product_name": "商品名（mcf_shipの場合）",
-  "size": "サイズ（mcf_shipの場合、S/M/L/2L等）",
-  "coupon_amount": 1000（couponの場合、金額）,
-  "customer_message": "対応完了後にお客様に送るメッセージ",
-  "summary": "実行内容の要約（Slack通知用）"
-}
-
-お客様の元のメッセージと、担当者の指示の両方を考慮してください。`,
-        messages: [{
-          role: 'user',
-          content: `お客様のメッセージ: ${esc.original_message}\n\n担当者の指示: ${staffInstruction}`,
-        }],
-      }),
+    await processStaffInstruction({
+      esc, staffInstruction, resolvedBy: event.user || 'slack_user',
+      say: (text) => postSlackThreadReply(event.channel, threadTs, text),
     });
-
-    const analysisData = await analysisRes.json();
-    const analysisText = analysisData.content?.[0]?.text || '';
-
-    let action;
-    try {
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-      action = JSON.parse(jsonMatch[0]);
-    } catch {
-      await postSlackThreadReply(event.channel, threadTs, `⚠️ 指示の解析に失敗しました。もう少し具体的に書いてください。\n\n解析結果: ${analysisText.slice(0, 300)}`);
-      return;
-    }
-
-    await postSlackThreadReply(event.channel, threadTs, `📋 解析結果: ${action.summary}\n\nアクション: ${action.action}\n実行中...`);
-
-    // アクション実行
-    let actionResult = '';
-    const { data: friend } = await supabase.from('friends')
-      .select('id, channel_id, display_name').eq('line_user_id', esc.line_user_id).maybeSingle();
-
-    try {
-      if (action.action === 'mcf_ship') {
-        // Amazon MCFで発送
-        const { getAccessToken } = require('./amazon-helpers.cjs');
-        let tokenData;
-        try {
-          // amazon.cjsのgetAccessTokenを直接使えないので、supabaseからSP-API認証情報を取得
-          const { data: spAccount } = await supabase.from('sp_api_accounts').select('*').eq('is_active', true).limit(1).single();
-          const tokenRes = await fetch('https://api.amazon.com/auth/o2/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              refresh_token: spAccount.refresh_token,
-              client_id: spAccount.client_id,
-              client_secret: spAccount.client_secret,
-            }).toString(),
-          });
-          const tokenJson = await tokenRes.json();
-          tokenData = { token: tokenJson.access_token, endpoint: spAccount.endpoint || 'https://sellingpartnerapi-fe.amazon.com' };
-        } catch (authErr) {
-          throw new Error(`Amazon認証エラー: ${authErr.message}`);
-        }
-
-        // SKUマッピングから商品を検索
-        const searchTerm = `${action.product_name || ''} ${action.size || ''}`.trim();
-        const { data: mappings } = await supabase.from('sku_mappings')
-          .select('amazon_sku, channel_sku')
-          .eq('channel', 'SHOPIFY')
-          .eq('is_active', true);
-
-        // 顧客の注文履歴から住所を取得
-        const { data: recentOrder } = await supabase.from('orders')
-          .select('*')
-          .eq('channel', 'SHOPIFY')
-          .not('address_line1', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        // LINEユーザーIDからShopify注文を探す（友だちの名前で照合）
-        let shippingAddress = null;
-        if (friend && recentOrder) {
-          const friendName = friend.display_name || '';
-          for (const order of recentOrder) {
-            if (order.recipient_name && (order.recipient_name.includes(friendName) || friendName.includes(order.recipient_name))) {
-              shippingAddress = order;
-              break;
-            }
-          }
-        }
-
-        if (!shippingAddress) {
-          // 住所が見つからない場合、お客様に聞く
-          await pushToCustomer(friend?.channel_id, esc.line_user_id, `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。\n\n新しい商品をお送りするため、お届け先のご住所をお教えいただけますか？\n（郵便番号、都道府県、市区町村、番地、お名前）\n\n─────────\nFITPEAK AIより`);
-          await postSlackThreadReply(event.channel, threadTs, '📦 お客様の住所が見つからなかったため、LINEで住所を確認中です。住所が届いたら再度指示してください。');
-          return;
-        }
-
-        // Amazon MCF発送
-        let amazonSku = mappings?.[0]?.amazon_sku; // デフォルト
-        // 商品名・サイズでマッピングを探す
-        if (action.product_name) {
-          const { data: products } = await supabase.from('shopify_products')
-            .select('shopify_variant_id, title, variants')
-            .ilike('title', `%${action.product_name}%`);
-
-          if (products && products.length > 0) {
-            const product = products[0];
-            let variantId = product.shopify_variant_id;
-
-            if (action.size && Array.isArray(product.variants)) {
-              const sizeVariant = product.variants.find(v =>
-                v.title && v.title.toLowerCase().includes(action.size.toLowerCase())
-              );
-              if (sizeVariant) variantId = sizeVariant.id;
-            }
-
-            const { data: mapping } = await supabase.from('sku_mappings')
-              .select('amazon_sku')
-              .eq('channel_sku', String(variantId))
-              .eq('is_active', true)
-              .maybeSingle();
-
-            if (mapping) amazonSku = mapping.amazon_sku;
-          }
-        }
-
-        if (!amazonSku) {
-          throw new Error('商品のAmazon SKUが見つかりません。SKUマッピングを確認してください。');
-        }
-
-        const mcfOrderId = `MCF-ESC-${esc.id.slice(0, 8)}-${Date.now()}`;
-        await fetch(`${tokenData.endpoint}/fba/outbound/2020-07-01/fulfillmentOrders`, {
-          method: 'POST',
-          headers: { 'x-amz-access-token': tokenData.token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sellerFulfillmentOrderId: mcfOrderId,
-            displayableOrderId: `ESC-${esc.id.slice(0, 8)}`,
-            displayableOrderDate: new Date().toISOString(),
-            displayableOrderComment: `エスカレーション対応: ${staffInstruction.slice(0, 100)}`,
-            shippingSpeedCategory: 'Standard',
-            destinationAddress: {
-              name: shippingAddress.recipient_name,
-              addressLine1: shippingAddress.address_line1,
-              addressLine2: shippingAddress.address_line2 || '',
-              city: shippingAddress.city,
-              stateOrRegion: shippingAddress.state_or_region || '',
-              postalCode: shippingAddress.postal_code,
-              countryCode: shippingAddress.country_code || 'JP',
-            },
-            items: [{
-              sellerSku: amazonSku,
-              sellerFulfillmentOrderItemId: `${mcfOrderId}-1`,
-              quantity: 1,
-            }],
-          }),
-        });
-
-        actionResult = `Amazon MCF発送完了 (${mcfOrderId})\nSKU: ${amazonSku}\n宛先: ${shippingAddress.recipient_name}`;
-
-      } else if (action.action === 'coupon') {
-        // Shopifyクーポン発行
-        const { data: store } = await supabase.from('channel_stores')
-          .select('shop_domain, access_token')
-          .eq('channel', 'SHOPIFY').eq('is_active', true).limit(1).single();
-
-        if (store) {
-          const amount = action.coupon_amount || 1000;
-          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          let code = 'SUPPORT-';
-          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 30);
-
-          await fetch(`https://${store.shop_domain}/admin/api/2025-01/price_rules.json`, {
-            method: 'POST',
-            headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              price_rule: {
-                title: `Support - ${code}`,
-                target_type: 'line_item', target_selection: 'all', allocation_method: 'across',
-                value_type: 'fixed_amount', value: `-${amount}`,
-                customer_selection: 'all',
-                starts_at: new Date().toISOString(), ends_at: expiresAt.toISOString(),
-                usage_limit: 1, once_per_customer: true,
-              },
-            }),
-          }).then(async r => {
-            const priceRule = (await r.json()).price_rule;
-            await fetch(`https://${store.shop_domain}/admin/api/2025-01/price_rules/${priceRule.id}/discount_codes.json`, {
-              method: 'POST',
-              headers: { 'X-Shopify-Access-Token': store.access_token, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ discount_code: { code } }),
-            });
-          });
-
-          actionResult = `クーポン発行完了: ${code} (${amount}円OFF)`;
-          if (action.customer_message) {
-            action.customer_message = action.customer_message.replace(/\{code\}/g, code).replace(/\{amount\}/g, String(amount));
-          }
-        }
-
-      } else {
-        actionResult = 'メッセージ送信のみ';
-      }
-    } catch (actionErr) {
-      await postSlackThreadReply(event.channel, threadTs, `❌ アクション実行エラー: ${actionErr.message}`);
-      return;
-    }
-
-    // お客様にメッセージ送信
-    const customerMsg = action.customer_message || `${friend?.display_name || 'お客様'}、ご対応ありがとうございます。ご依頼の件、対応いたしました。ご不明点がございましたらお気軽にお問い合わせください。`;
-    await pushToCustomer(friend?.channel_id, esc.line_user_id, customerMsg + '\n\n─────────\nFITPEAK AIより');
-
-    // chat_messagesに記録
-    if (friend) {
-      await supabase.from('chat_messages').insert({
-        channel_id: friend.channel_id,
-        friend_id: friend.id,
-        direction: 'outgoing',
-        message_type: 'text',
-        content: { text: customerMsg, source: 'slack_escalation_action' },
-        created_at: new Date().toISOString(),
-      });
-      updateFriendChatSummary(friend.id, friend.channel_id).catch(() => {});
-    }
-
-    await postSlackThreadReply(event.channel, threadTs, `✅ 対応完了\n\n${actionResult}\n\nお客様への送信メッセージ:\n${customerMsg}`);
-
-    // エスカレーション完了
-    await supabase.from('slack_escalations').update({
-      status: 'resolved',
-      resolution_text: `指示: ${staffInstruction}\n結果: ${actionResult}`,
-      resolved_by: event.user || 'slack_user',
-      resolved_at: new Date().toISOString(),
-    }).eq('id', esc.id);
-
-    // ナレッジベースに保存
-    await saveEscalationToKnowledge({ ...esc, resolution_text: `${staffInstruction} → ${actionResult}` }, customerMsg);
   } catch (err) {
     console.error('[slack-events] error:', err.message);
   }
@@ -6337,3 +6348,5 @@ router.get('/creashot-bot/process', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.processStaffInstruction = processStaffInstruction;
+module.exports.pushToCustomer = pushToCustomer;
