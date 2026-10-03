@@ -2935,6 +2935,7 @@ router.get('/knowledge-chunks/stats', async (_req, res) => {
 // ===========================================================================
 const crypto = require('crypto');
 const { generateFITPEAKReply } = require('./fitpeak-rag.cjs');
+const { relayOwnerMessage } = require('./owner-relay.cjs');
 const { postSlackThreadReply } = require('./slack-notify.cjs');
 const { embedText } = require('./fitpeak-rag.cjs');
 
@@ -4316,6 +4317,16 @@ async function processWebhookEvents(channelId, events) {
     // ── テキストメッセージ処理 ──
     if (event?.type !== 'message' || event?.message?.type !== 'text') continue;
     const userMessage = event.message.text;
+
+    // オーナー判定（AI組織）: オーナーの文章は、回答待ちの案件へのコメント／社長への指示として組織が受け取る。
+    // お客様向けの自動返信・受信記録（返信待ち）には流さない。オーナーでない・失敗したときは、そのまま通常の処理へ
+    if (channelId === DEFAULT_CHANNEL_ID && lineUserId) {
+      const own = await relayOwnerMessage({ lineUserId, text: userMessage });
+      if (own.handled) {
+        if (own.reply && event.replyToken) { try { await replyToLine(channelId, event.replyToken, own.reply); } catch (e) { console.error('[owner-relay] reply failed:', e.message); } }
+        continue;
+      }
+    }
 
     // 外部ツール（L Message等）のボタンポストバックデータをスキップ
     if (/^reply=\d+&post_back=/.test(userMessage.trim())) {
