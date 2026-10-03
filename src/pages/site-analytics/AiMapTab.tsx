@@ -55,7 +55,7 @@ function layout(agents: Agent[]) {
 
 
 const DEPTS: { id: string; label: string }[] = [
-  { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }, { id: 'company', label: '全社チャット' },
+  { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }, { id: 'creashot', label: 'クレアショット' }, { id: 'company', label: '全社チャット' },
 ]
 
 // やり取りの種類（指示・報告・日報）。先頭の【…】で見分けて、色をつける
@@ -69,7 +69,7 @@ const kindOf = (body: string) => KINDS.find((k) => body.startsWith(k.tag))
 
 // 部門のグループチャット（AI同士のやり取り）。オーナーが中身を読む
 // オーナーが直接書き込んで指示する欄。宛先を省略すると、社長室・全社は社長、部門はその部門の部長に最優先の仕事として入る
-const ROOM_OPTIONS = [{ id: 'exec', label: '社長室' }, { id: 'company', label: '全社チャット（全員宛て）' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }]
+const ROOM_OPTIONS = [{ id: 'exec', label: '社長室' }, { id: 'company', label: '全社チャット（全員宛て）' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }, { id: 'creashot', label: 'クレアショット' }]
 function ChatComposer({ agents, defaultRoom, onSent }: { agents: Agent[]; defaultRoom: string; onSent: () => void }) {
   const [room, setRoom] = useState(defaultRoom)
   const [to, setTo] = useState('')
