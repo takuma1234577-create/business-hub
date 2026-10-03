@@ -75,7 +75,7 @@ export default function TaskCard({ task, onUpdate }: Props) {
             )}
           </div>
           <h3 className={`font-semibold text-gray-900 ${task.status === 'done' ? 'line-through' : ''}`}>
-            {task.title}
+            <span translate="no">{task.title}</span>
           </h3>
           {task.description && (
             <p translate="no" className="text-sm text-gray-600 mt-1 leading-relaxed">{task.description}</p>

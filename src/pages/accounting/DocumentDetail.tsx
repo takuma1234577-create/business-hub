@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { documentApi } from './api'
@@ -324,11 +325,11 @@ export function DocumentDetail({ documentId, onBack }: Props) {
             <div className="text-sm space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-500">登録日時</span>
-                <span className="text-gray-600">{new Date(doc.createdAt).toLocaleString('ja-JP')}</span>
+                <span className="text-gray-600">{new Date(doc.createdAt).toLocaleString(getLocale())}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">更新日時</span>
-                <span className="text-gray-600">{new Date(doc.updatedAt).toLocaleString('ja-JP')}</span>
+                <span className="text-gray-600">{new Date(doc.updatedAt).toLocaleString(getLocale())}</span>
               </div>
             </div>
           </div>

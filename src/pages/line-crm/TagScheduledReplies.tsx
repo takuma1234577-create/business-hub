@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
@@ -289,7 +290,7 @@ export default function TagScheduledReplies() {
                           className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
                           style={{ backgroundColor: tag.color || '#06C755' }}
                         >
-                          {tag.name}
+                          <span translate="no">{tag.name}</span>
                         </span>
                       )}
                       <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -387,11 +388,11 @@ export default function TagScheduledReplies() {
                         </td>
                         <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{item.rule_name || '-'}</td>
                         <td className="px-4 py-2.5 text-slate-500 text-xs">
-                          {new Date(item.tagged_at).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
+                          {new Date(item.tagged_at).toLocaleString(getLocale(), { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
                         </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-medium ${item.is_overdue ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {new Date(item.scheduled_send_at).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
+                            {new Date(item.scheduled_send_at).toLocaleString(getLocale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-center">
@@ -447,7 +448,7 @@ export default function TagScheduledReplies() {
                 >
                   <option value="">タグを選択</option>
                   {tags.map(tag => (
-                    <option key={tag.id} value={tag.id}>{tag.name}</option>
+                    <option key={tag.id} value={tag.id} translate="no">{tag.name}</option>
                   ))}
                 </select>
               </div>
@@ -526,7 +527,7 @@ export default function TagScheduledReplies() {
                     >
                       <option value="">{editingId ? '変更する場合はテンプレートを選択...' : 'テンプレートを選択'}</option>
                       {templates.map(tpl => (
-                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                        <option translate="no" key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
                   </div>

@@ -1,34 +1,36 @@
-Cloud continuation — 2026-10-03
-Status: INCOMPLETE; do not merge or deploy as full UI localization.
-Started from codex/business-hub-languages-cloud at 62ef35f.
+Cloud implementation review — 2026-10-03
+Status: IMPLEMENTED; ready for code review. No merge or production deployment performed.
+Branch: codex/business-hub-languages-cloud. PR: https://github.com/takuma1234577-create/business-hub/pull/31
 
-Completed in Cloud:
-- Reviewed the first 850 draft entries against Japanese meaning; corrected English and Spanish wording, omitted parameters, shipping states, API/token terminology and inventory calculations.
-- Active dictionary now contains 886 reviewed entries. Non-UI JSON examples excluded; literal Japanese template tokens remain unchanged.
-- Added reviewed-keys.json and i18n-validate.mjs. Active dictionary passes structural and numeric checks. This validation does NOT replace semantic review.
-- Fixed regular-expression escaping in template matching. Adjacent JSX text/counts now form one translatable run; captured names/values stay verbatim.
-- Added explicit original-content boundaries for stored reviews, outreach emails, LINE message bodies, knowledge content, customer messages and AI responses. Return detail rows protect customer name, order ID, request details and AI reason independently of UI labels.
-- App subscribes to language changes to recompute locale-sensitive display dates without remounting forms. Updated display locale helpers on 14 UI files, keeping original timezone options. Weekday grid uses Intl; ambiguous single-character weekday dictionary entries removed. PDF components and outgoing email generation logic were not changed in this Cloud commit.
-- ToolLayout title can wrap on mobile; back button has translated aria-label. Fixed duplicate homepage link keys exposed by console testing.
-- Added npm test:i18n and audit:i18n. Test runner keeps Vite and browser in one network namespace and uses fake configuration only.
+Final behavior:
+- Japanese / English / Spanish selector on internal and public pages; persisted preference, document language and storage-event synchronization.
+- 3,245 reviewed dictionary entries, including source labels, long settings explanations, native dialogs, numeric templates and placeholders. All original {会社名}-style template variables remain literal.
+- Classified 91 original/internal strings in excluded-strings.json: product-search aliases and handles, original mail defaults, PDF wording/filenames, code and JSON examples, legal/personal names. These are deliberately outside UI translation.
+- Source coverage audit: 3,266 extracted candidates, zero unclassified missing translations. The extractor scans Japanese literals/templates under 1,500 characters; it is an audit, not proof of all possible runtime/server content.
+- Reviewed draft batches against Japanese context, correcting accounting debit/credit terms, invoice tier calculations, shipping states, timing descriptions, brands, Gmail query syntax and missing values.
+- Runtime keeps stable React host wrappers and Router links; joins adjacent text/counts for template translation and falls back to translating known fragments. Preserves form values, option values, textarea contents, refs, events and state.
+- Original-content boundaries expanded for customer/review/message/knowledge/AI/task fields, names, product titles and previews. API payloads, outgoing email construction and PDF renderer wording are not switched by UI language.
+- Display dates and weekdays use the selected locale, retaining existing time zone settings. Invoice email template date substitution and PDF dates remain original.
+- Mobile title wrapping, invoice tabs/input shrink behavior, Amazon tabs and eBay headers/tabs corrected after browser checks.
 
-Verification:
-- npm run build: PASS (existing large-bundle warning).
+Validation:
+- npm run build: PASS. Existing large bundle warning remains.
 - npx eslint src/i18n src/components/ToolLayout.tsx: PASS.
-- node scripts/i18n-validate.mjs: PASS (886 entries, zero validation problems).
-- CI=1 BROWSER_EXECUTABLE=<Cloud Chromium path> npm run test:i18n: PASS.
-- Smoke covers login in ja/en/es, reload persistence, language/document state, all home cards, 390px mobile layout, settings security screen, image downloader, populated return history/detail, raw customer/AI content, controlled/uncontrolled inputs, both option-value styles, textarea, refs, conditional nodes, native dialogs, mixed counts, escaped template punctuation, literal template tokens, contentEditable, locale dates, storage events and invalid-language fallback. No browser page errors or React console errors.
-- Browser verification CLI was attempted twice but its daemon could not start in this restricted environment; existing Puppeteer was used successfully. No production API writes or credentials were used.
+- git diff --check: PASS.
+- Dictionary validator: 3,245 entries, zero structural/numeric/placeholder problems.
+- Source audit: zero unclassified missing candidates.
+- npm run test:i18n with Cloud Chromium: PASS. Uses fake config and mocked APIs only.
+- Browser checks: ja/en/es login and reload persistence; all home cards; English/Spanish routes at 390px width: invoice, Amazon, LINE CRM, Amazon analytics, return settings/request, Shopify reviews, gifting, eBay, subscriptions, inventory and site analytics; all 7 invoice tabs; populated return history/detail with original customer/AI fields; input and select value preservation, textarea, refs, native dialogs, numeric templates, literal variables, dates, storage events and no React/page errors.
+- Agent-browser verification CLI was attempted earlier; daemon could not start in this environment. Existing Puppeteer succeeded.
 
-Open completion blockers:
-- Source extractor reports 3270 Japanese string candidates and 2448 without active dictionary entries. It overcollects internal strings, message defaults and PDF contents, so classify each before integration. Actual remaining fixed UI strings must be translated.
-- Draft validator reports 159 structural problems; see draft-validation-problems.json. Semantic issues beyond these automatic checks remain. Do NOT bulk merge this draft.
-- Remaining reviewed dictionary batches, coverage across all nested pages and long English/Spanish responsive layouts are still required. Current detailed tests do not certify the entire application.
-- Raw-content boundaries must be audited across remaining nested pages; stored content must stay original even when equal to a dictionary key.
-- Some library-generated labels, direct DOM fallback messages and agent labels need explicit localization.
-- Production not deployed. Open a draft PR with these blockers; do not label the feature complete.
+Review limits:
+- Browser route sweep uses empty/mock datasets, plus a populated return-detail fixture. External production integrations, actual mail delivery, live AI and end-to-end PDF delivery were not exercised.
+- Server-provided/user-generated text is kept in its original language. Newly introduced fixed UI copy requires adding reviewed dictionary entries and appropriate original-content boundaries.
+- messages-draft.json is an archival working draft and is NOT imported by the application. Excluded non-UI examples can still fail --draft validation; do not bulk promote them.
+- No production credentials, production data writes, merge or deployment.
 
 Original handoff follows for implementation history:
+
 
 User request: Add Japanese / English / Spanish language switching throughout Business-hub.
 User then explicitly requested continuing in Codex/ChatGPT Cloud. Work is INCOMPLETE and NOT deployed.

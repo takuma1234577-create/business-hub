@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, MessageCircle, User, Calendar, Tag as TagIcon, X, Plus, Clock } from 'lucide-react'
 import { friendApi, tagApi } from './api'
@@ -63,7 +64,7 @@ export default function FriendDetail({ friend, onBack, onOpenChat }: FriendDetai
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('ja-JP', {
+    return new Date(dateStr).toLocaleDateString(getLocale(), {
       year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
@@ -115,7 +116,7 @@ export default function FriendDetail({ friend, onBack, onOpenChat }: FriendDetai
             )}
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">{friend.display_name}</h3>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white"><span translate="no">{friend.display_name}</span></h3>
             {friend.status_message && (
               <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{friend.status_message}</p>
             )}
@@ -169,7 +170,7 @@ export default function FriendDetail({ friend, onBack, onOpenChat }: FriendDetai
                 className="text-xs px-3 py-1 rounded-full text-white font-medium"
                 style={{ backgroundColor: tag.color || '#06C755' }}
               >
-                {tag.name}
+                <span translate="no">{tag.name}</span>
               </span>
             ))}
           </div>
@@ -199,7 +200,7 @@ export default function FriendDetail({ friend, onBack, onOpenChat }: FriendDetai
                     }`}
                     style={active ? { backgroundColor: tag.color || '#06C755' } : undefined}
                   >
-                    {active ? '✓ ' : ''}{tag.name}
+                    {active ? '✓ ' : ''}<span translate="no">{tag.name}</span>
                   </button>
                 )
               })}

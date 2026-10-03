@@ -84,7 +84,7 @@ export default function OverviewTab({ preset, device, onOpenPage }: { preset: Pr
                 {pages.slice(0, 50).map((r) => (
                   <tr key={r.path} onClick={() => onOpenPage(r.path)} className="border-b border-slate-50 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer">
                     <td className="px-4 py-2 max-w-[320px]">
-                      <p className="truncate text-slate-900 dark:text-white">{r.title || prettyPath(r.path)}</p>
+                      <p className="truncate text-slate-900 dark:text-white"><span translate="no">{r.title || prettyPath(r.path)}</span></p>
                       <p className="truncate text-slate-400">{prettyPath(r.path)}</p>
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums">{fmtNum(r.pageviews)}</td>

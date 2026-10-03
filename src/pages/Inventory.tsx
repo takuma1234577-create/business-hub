@@ -390,7 +390,7 @@ function MaterialsTab({ data, run }: { data: Dashboard; run: Run }) {
               <button onClick={async () => { const r = await api.get('/chatwork/rooms'); setRooms(r.data.rooms) }} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700">ルーム一覧</button>
               {rooms.length > 0 && (
                 <select className={INP} onChange={e => run(() => api.patch('/settings', { chatwork_room_id: e.target.value }), 'ルームを保存しました')}>
-                  <option value="">ルームを選択</option>{rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.name}</option>)}
+                  <option value="">ルームを選択</option>{rooms.map(r => <option key={r.room_id} value={r.room_id} translate="no">{r.name}</option>)}
                 </select>
               )}
             </>
@@ -534,7 +534,7 @@ function SettingsTab({ data, run, notify }: { data: Dashboard; run: Run; notify:
           </div>
           {rooms.length > 0 && (
             <select className={inp} onChange={e => setF({ ...f, chatwork_room_id: e.target.value })}>
-              <option value="">ルームを選択</option>{rooms.map(r => <option key={r.room_id} value={r.room_id}>{r.name}</option>)}
+              <option value="">ルームを選択</option>{rooms.map(r => <option key={r.room_id} value={r.room_id} translate="no">{r.name}</option>)}
             </select>
           )}
           <label className="block text-sm"><span className="text-gray-600 dark:text-gray-400">資材確認の定型文（末尾に専用リンクが付きます）</span>

@@ -26,7 +26,13 @@ for (const [source, translations] of Object.entries(messages)) {
     // Digits with unit labels and limits must survive translation. Linguistic
     // counters (1日 = daily) are reviewed as semantic equivalents separately.
     const numbers = value => value.replace(/\{[^{}]+\}/g, '').match(/\d+(?:\.\d+)?/g) || []
-    const importantNumbers = numbers(source).filter(n => Number(n) > 2 || ((/%|kg|SKU|AES/i.test(source)) && !/1日1回/.test(source)))
+    const monthNames = [['January','February','March','April','May','June','July','August','September','October','November','December'], ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']]
+    // Month names preserve date semantics even though numeric month digits disappear.
+    const numericSource = source.replace(/(\d{1,2})月/g, (match, month) => {
+      const name = monthNames[index][Number(month) - 1]
+      return name && text.toLowerCase().includes(name.toLowerCase()) ? '' : match
+    })
+    const importantNumbers = numbers(numericSource).filter(n => Number(n) > 2 || ((/%|kg|SKU|AES/i.test(source)) && !/1日1回/.test(source)))
     const targetNumbers = numbers(text)
     for (const number of importantNumbers) {
       const position = targetNumbers.indexOf(number)

@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
@@ -486,7 +487,7 @@ export default function SurveyFollowups() {
                     >
                       <option value="">{editingId ? '変更する場合はテンプレートを選択...' : 'テンプレートを選択'}</option>
                       {templates.map(tpl => (
-                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                        <option translate="no" key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
                     {templates.length === 0 && (
@@ -505,7 +506,7 @@ export default function SurveyFollowups() {
                                 : 'bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                             }`}
                           >
-                            {tpl.name}
+                            <span translate="no">{tpl.name}</span>
                           </button>
                         ))}
                       </div>
@@ -625,7 +626,7 @@ export default function SurveyFollowups() {
                             <div className="w-full h-full flex items-center justify-center"><User size={16} className="text-slate-400" /></div>
                           )}
                         </div>
-                        <span className="text-sm text-slate-900 dark:text-white truncate">{f.display_name}</span>
+                        <span className="text-sm text-slate-900 dark:text-white truncate"><span translate="no">{f.display_name}</span></span>
                         <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">予定</span>
                       </div>
                     ))}
@@ -649,9 +650,9 @@ export default function SurveyFollowups() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm text-slate-900 dark:text-white truncate block">{f.display_name}</span>
+                          <span className="text-sm text-slate-900 dark:text-white truncate block"><span translate="no">{f.display_name}</span></span>
                           <span className="text-[10px] text-slate-400">
-                            {new Date(f.sent_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(f.sent_at).toLocaleDateString(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">送信済</span>

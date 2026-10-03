@@ -32,9 +32,13 @@ function visitDirectory(directory) {
 }
 visitDirectory('src')
 const dictionary = JSON.parse(fs.readFileSync('src/i18n/messages.json', 'utf8'))
-const missing = [...strings].filter(text => !dictionary[text])
+const excluded = JSON.parse(fs.readFileSync('docs/i18n-handoff/excluded-strings.json', 'utf8'))
+for (const [text, reason] of Object.entries(excluded)) {
+  if (!reason.trim() || dictionary[text]) throw new Error(`Invalid exclusion: ${text}`)
+}
+const missing = [...strings].filter(text => !dictionary[text] && !excluded[text])
 if (process.argv.includes('--check')) {
-  console.log(`${strings.size} source strings; ${missing.length} missing translations`)
+  console.log(`${strings.size} source strings; ${Object.keys(excluded).length} classified original/internal strings; ${missing.length} unclassified missing translations`)
   if (missing.length) { console.log(JSON.stringify(missing, null, 2)); process.exitCode = 1 }
 } else {
   console.log(JSON.stringify([...strings], null, 2))

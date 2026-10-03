@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react';
 import { pdf } from '@react-pdf/renderer';
@@ -33,7 +34,7 @@ const PAYMENT_METHODS = ['銀行振込', '現金', 'クレジットカード', '
 
 const fmtDate = (d: string) => {
   const date = new Date(d);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  return new Intl.DateTimeFormat(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
 };
 
 export function ReceiptForm() {
@@ -313,7 +314,7 @@ export function ReceiptForm() {
               <select value={selectedClientId} onChange={e => handleClientSelect(e.target.value)} className={inputCls}>
                 <option value="">-- 手動入力 --</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.companyName}</option>
+                  <option translate="no" key={c.id} value={c.id}>{c.companyName}</option>
                 ))}
               </select>
             </div>

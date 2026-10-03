@@ -561,7 +561,7 @@ export default function MessageTemplates() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-slate-900 dark:text-white">{t.name}</p>
+                      <p className="font-medium text-slate-900 dark:text-white"><span translate="no">{t.name}</span></p>
                       {t.folder && (
                         <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                           📁 {t.folder}
@@ -747,7 +747,7 @@ export default function MessageTemplates() {
                             }}
                             className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer ${f.id === testFriendId ? 'bg-[#06C755]/10 text-[#06C755] font-medium' : 'text-slate-700 dark:text-slate-300'}`}
                           >
-                            {f.display_name}
+                            <span translate="no">{f.display_name}</span>
                           </button>
                         ))
                       ) : friendSearch.trim() ? (
@@ -824,7 +824,7 @@ export default function MessageTemplates() {
                       onClick={() => importFromTemplate(t.id)}
                       className="w-full text-left px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 rounded cursor-pointer"
                     >
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t.name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white"><span translate="no">{t.name}</span></p>
                       <p className="text-xs text-slate-500 mt-0.5">
                         {(t.content?.messages || []).length} メッセージ
                         {t.folder && <span className="ml-2">📁 {t.folder}</span>}
@@ -1099,10 +1099,10 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
                   )}
                   {(c.title || c.text) && (
                     <div className="px-3 py-2">
-                      {c.title && <p className="font-semibold text-sm text-slate-900 mb-0.5 truncate">{c.title}</p>}
+                      {c.title && <p translate="no" className="font-semibold text-sm text-slate-900 mb-0.5 truncate">{c.title}</p>}
                       {c.text && (
                         <p className="text-xs text-slate-700 whitespace-pre-wrap break-words line-clamp-2">
-                          {linkify(c.text)}
+                          <span translate="no">{linkify(c.text)}</span>
                         </p>
                       )}
                     </div>
@@ -1131,10 +1131,10 @@ function PreviewBubble({ block }: { block: MessageBlock }) {
           )}
           {(t.title || t.text) && (
             <div className="px-3 py-2">
-              {t.title && <p className="font-semibold text-sm text-slate-900 mb-0.5">{t.title}</p>}
+              {t.title && <p translate="no" className="font-semibold text-sm text-slate-900 mb-0.5">{t.title}</p>}
               {t.text && (
                 <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">
-                  {linkify(t.text)}
+                  <span translate="no">{linkify(t.text)}</span>
                 </p>
               )}
             </div>
@@ -1642,7 +1642,7 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
                 >
                   <option value="">付与タグ...</option>
                   {tags.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
                 <input
@@ -1670,7 +1670,7 @@ function PanelEditor({ block, onChange, templates, tags }: { block: PanelBlock; 
               >
                 <option value="">テンプレートを選択...</option>
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             )}
@@ -1766,7 +1766,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
                   >
                     <option value="">なし</option>
                     {tags.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                      <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1779,7 +1779,7 @@ function QuestionEditor({ block, onChange, templates, tags }: { block: PanelBloc
                   >
                     <option value="">なし</option>
                     {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                      <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1988,7 +1988,7 @@ function CarouselColumnEditor({
                 className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
               >
                 <option value="">テンプレート選択...</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {templates.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             )}
             {a.type === 'postback' && isAnswerAction(a) && (
@@ -1999,7 +1999,7 @@ function CarouselColumnEditor({
                   className="w-full px-1.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[10px]"
                 >
                   <option value="">付与するタグ...</option>
-                  {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {tags.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
                 <input
                   type="text"

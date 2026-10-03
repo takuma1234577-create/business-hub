@@ -1,3 +1,4 @@
+import { uiText } from '@business-hub/i18n/dialogs'
 import { getLocale } from '../../i18n/store'
 import { useState, useEffect } from 'react';
 import { api } from './api';
@@ -185,7 +186,7 @@ function EmailCard({ email }: { email: GmailMessage }) {
               )}
             </div>
             <p translate="no" className="font-medium text-sm text-gray-900 truncate">
-              {email.subject || '（件名なし）'}
+              <span translate="no">{email.subject || uiText('（件名なし）')}</span>
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
               {email.from_name || email.from_address}

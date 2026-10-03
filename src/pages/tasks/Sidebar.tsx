@@ -57,7 +57,7 @@ export default function Sidebar({ customers }: Props) {
                     }`
                   }
                 >
-                  👤 {c.name}
+                  👤 <span translate="no">{c.name}</span>
                 </NavLink>
               ))}
             </div>

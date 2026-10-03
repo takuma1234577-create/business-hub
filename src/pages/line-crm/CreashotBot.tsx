@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Bot, Save, ToggleLeft, ToggleRight, RefreshCw, Users, Clock } from 'lucide-react'
 import { creashotBotApi, tagApi } from './api'
@@ -178,7 +180,7 @@ export default function CreashotBot() {
               >
                 <option value="">（未設定・ボットは動きません）</option>
                 {tags.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -191,7 +193,7 @@ export default function CreashotBot() {
               >
                 <option value="">（付与しない）</option>
                 {tags.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -335,7 +337,7 @@ export default function CreashotBot() {
                   {queue.map(q => (
                     <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 align-top">
                       <td className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                        {q.friend?.display_name || '(不明)'}
+                        <span translate="no">{q.friend?.display_name || uiText('(不明)')}</span>
                       </td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                         {q.kind === 'opening' ? '初回' : '返信'}
@@ -356,7 +358,7 @@ export default function CreashotBot() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {new Date(q.sent_at || q.scheduled_at).toLocaleString('ja-JP', {
+                        {new Date(q.sent_at || q.scheduled_at).toLocaleString(getLocale(), {
                           month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
                         })}
                       </td>
@@ -436,7 +438,7 @@ export default function CreashotBot() {
                   {profiles.map(p => (
                     <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                        {p.friend?.display_name || '(不明)'}
+                        <span translate="no">{p.friend?.display_name || uiText('(不明)')}</span>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span

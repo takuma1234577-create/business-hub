@@ -97,7 +97,7 @@ export default function Tasks() {
               >
                 <option value="">顧客（任意）</option>
                 {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id} translate="no">{c.name}</option>
                 ))}
               </select>
               <select

@@ -496,15 +496,15 @@ export default function AutoResponses() {
                     >
                       <option value="">{editingId && form.existing_messages.length > 0 ? '現在のメッセージを維持（変更する場合は選択）' : 'テンプレートを選択...'}</option>
                       {templates.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}（{t.content?.messages?.length || 0}件）</option>
+                        <option translate="no" key={t.id} value={t.id}>{uiText(`${t.name}（${t.content?.messages?.length || 0}件）`)}</option>
                       ))}
                     </select>
                     {!form.template_id && editingId && form.existing_messages.length > 0 && (
                       <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                         <p className="font-medium text-slate-500 dark:text-slate-400 mb-1">現在の応答内容:</p>
                         {form.existing_messages.map((m, i) => (
-                          <p translate="no" key={i}>
-                            {m.type === 'text' ? m.text : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
+                          <p key={i}>
+                            {m.type === 'text' ? <span translate="no">{m.text}</span> : m.type === 'image' ? '🖼️ 画像' : m.type === 'video' ? '🎥 動画' : `[${m.type}]`}
                           </p>
                         ))}
                       </div>
@@ -545,7 +545,7 @@ export default function AutoResponses() {
                     >
                       <option value="">タグを選択...</option>
                       {tags.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
+                        <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
                     <button

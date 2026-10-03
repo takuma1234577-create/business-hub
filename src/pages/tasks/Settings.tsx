@@ -158,7 +158,7 @@ export default function Settings() {
               {customers.map(c => (
                 <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{c.name}</p>
+                    <p className="text-sm font-medium text-gray-900"><span translate="no">{c.name}</span></p>
                     <p className="text-xs text-gray-500">
                       {c.contract_type && <span>{c.contract_type}</span>}
                       {c.chatwork_room_id && <span> • Chatwork: {c.chatwork_room_id}</span>}

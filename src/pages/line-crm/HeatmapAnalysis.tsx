@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
@@ -367,7 +368,7 @@ export default function HeatmapAnalysis({ sourceCode, sourceName, lpUrl, onClose
             {!analyzing && analysis && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 p-4">
                 <div className="prose-sm">{renderMarkdown(analysis.result)}</div>
-                <p className="text-[11px] text-slate-400 mt-3">分析日時: {new Date(analysis.created_at).toLocaleString('ja-JP')}</p>
+                <p className="text-[11px] text-slate-400 mt-3">分析日時: {new Date(analysis.created_at).toLocaleString(getLocale())}</p>
               </div>
             )}
             {!analyzing && !analysis && (

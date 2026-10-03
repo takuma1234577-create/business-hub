@@ -114,7 +114,7 @@ function RecentTable({ rows }: { rows: SignupRecent[] }) {
                 </td>
                 <td className="py-2 pr-3 tabular-nums whitespace-nowrap text-slate-600 dark:text-slate-300">{fmtAt(r.at)}</td>
                 <td className="py-2 pr-3"><KindBadge kind={r.kind} isNew={r.is_new} method={r.method} /></td>
-                <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 max-w-[120px] truncate">{r.name || '—'}</td>
+                <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 max-w-[120px] truncate"><span translate="no">{r.name || '—'}</span></td>
                 <td className="py-2 pr-3 max-w-[260px]">
                   <span className="block truncate text-slate-900 dark:text-white">{r.title?.replace(/ – FITPEAK$/, '') || prettyPath(r.path)}</span>
                   <span className="block truncate text-[10px] text-slate-400">{prettyPath(r.path)}</span>

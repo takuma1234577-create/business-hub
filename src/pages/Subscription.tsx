@@ -365,7 +365,7 @@ function Contracts() {
                   <td className="px-4 py-3">
                     <p className="text-slate-900 dark:text-white">{s.email || '（メール未取得）'}</p>
                     <p className="text-xs text-slate-400">
-                      {s.subscription_plans?.display_name || s.subscription_plans?.name || 'プラン未紐づけ'}
+                      <span translate="no">{s.subscription_plans?.display_name || s.subscription_plans?.name || uiText('プラン未紐づけ')}</span>
                       {s.origin === 'preorder' && <span className="ml-2 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">予約</span>}
                     </p>
                   </td>
@@ -670,7 +670,7 @@ function Plans({ onChanged }: { onChanged: () => void }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-medium text-slate-900 dark:text-white">
-                  {p.name}
+                  <span translate="no">{p.name}</span>
                   {p.is_preorder && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">予約販売</span>}
                   {!p.is_active && <span className="ml-2 text-xs text-slate-400">停止中</span>}
                 </p>

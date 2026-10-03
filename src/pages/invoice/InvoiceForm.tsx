@@ -337,7 +337,7 @@ export function InvoiceForm() {
               >
                 <option value="">-- 新規入力 --</option>
                 {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.companyName}</option>
+                  <option translate="no" key={c.id} value={c.id}>{c.companyName}</option>
                 ))}
               </select>
             </div>
@@ -491,7 +491,7 @@ export function InvoiceForm() {
                         type="text"
                         value={item.description}
                         onChange={e => updateItem(item.id, 'description', e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                         placeholder={
                           item.itemType === 'performance' ? 'Amazonコンサル成果報酬' :
                           item.itemType === 'adspend' ? 'Amazon広告運用費' :
@@ -762,7 +762,7 @@ export function InvoiceForm() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option translate="no" key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -823,7 +823,7 @@ export function InvoiceForm() {
             <dl className="space-y-1 text-xs text-blue-700">
               <div className="flex justify-between">
                 <dt>請求先</dt>
-                <dd>{invoice.client.companyName || '-'}</dd>
+                <dd><span translate="no">{invoice.client.companyName || '-'}</span></dd>
               </div>
               <div className="flex justify-between">
                 <dt>請求日</dt>

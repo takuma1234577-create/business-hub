@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -165,7 +166,7 @@ export default function ReviewMonitor() {
 
   const formatDate = (d: string | null) => {
     if (!d) return '-'
-    return new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    return new Date(d).toLocaleDateString(getLocale(), { year: 'numeric', month: '2-digit', day: '2-digit' })
   }
 
   const renderRating = (rating: number | null) => {

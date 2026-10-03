@@ -170,7 +170,7 @@ function AiTaskItem({ task }: { task: ExtractedTask }) {
         <span>{emoji}</span>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm text-gray-900">
-            {task.title}
+            <span translate="no">{task.title}</span>
             {task.customer_name && (
               <span translate="no" className="ml-2 text-xs text-blue-600">（{task.customer_name}）</span>
             )}

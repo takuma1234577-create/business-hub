@@ -154,7 +154,7 @@ function OrderDetail({ order }: { order: Order }) {
                   className="border-t border-slate-100 dark:border-slate-800"
                 >
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                    {item.title || '-'}
+                    <span translate="no">{item.title || '-'}</span>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                     {item.channelSku}

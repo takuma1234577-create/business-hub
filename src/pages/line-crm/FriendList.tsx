@@ -121,7 +121,7 @@ export default function FriendList({ onSelectFriend }: FriendListProps) {
                     className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: tag.color || '#06C755' }}
                   />
-                  {tag.name}
+                  <span translate="no">{tag.name}</span>
                 </button>
               ))}
             </div>
@@ -169,7 +169,7 @@ export default function FriendList({ onSelectFriend }: FriendListProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-900 dark:text-white truncate">
-                        {friend.display_name}
+                        <span translate="no">{friend.display_name}</span>
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>
                         {st.text}
@@ -189,7 +189,7 @@ export default function FriendList({ onSelectFriend }: FriendListProps) {
                             className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
                             style={{ backgroundColor: tag.color || '#06C755' }}
                           >
-                            {tag.name}
+                            <span translate="no">{tag.name}</span>
                           </span>
                         ))}
                         {friend.tags.length > 5 && (

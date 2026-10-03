@@ -134,9 +134,9 @@ export default function GreetingSettings() {
           >
             <option value="">（未設定）</option>
             {templates.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.folder ? `[${t.folder}] ` : ''}{t.name}（{t.content?.messages?.length || 0}件）
-              </option>
+              <option translate="no" key={t.id} value={t.id}>{uiText(`
+                ${t.folder ? `[${t.folder}] ` : ''}${t.name}（${t.content?.messages?.length || 0}件）
+              `)}</option>
             ))}
           </select>
           {templates.length === 0 && (

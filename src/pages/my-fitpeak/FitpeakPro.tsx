@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { Crown, CheckCircle, AlertTriangle } from 'lucide-react'
 import { apiFetch } from './lib/api'
@@ -31,7 +32,7 @@ const LP_URL = 'https://fitpeak.co/products/fitpeak-pro'
 function jpDate(d: string | null) {
   if (!d) return ''
   const [y, m, day] = d.split('-').map(Number)
-  return `${y}年${m}月${day}日`
+  return new Intl.DateTimeFormat(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(y, m - 1, day))
 }
 
 export default function FitpeakPro() {
@@ -126,7 +127,7 @@ export default function FitpeakPro() {
                 <dt className="text-white/40">{sub.in_trial ? '無料期間の終了' : '次回の決済日'}</dt>
                 <dd className="text-white">
                   {jpDate(sub.next_billing_date)}
-                  <span className="block text-xs text-white/40 mt-0.5">この日に ¥{sub.price.toLocaleString('ja-JP')} を決済します</span>
+                  <span className="block text-xs text-white/40 mt-0.5">この日に ¥{sub.price.toLocaleString(getLocale())} を決済します</span>
                 </dd>
               </>
             )}

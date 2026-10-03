@@ -125,7 +125,7 @@ export default function MeetingNotes() {
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">顧客を選択（任意）</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {customers.map(c => <option key={c.id} value={c.id} translate="no">{c.name}</option>)}
               </select>
               <input
                 type="text"
@@ -166,7 +166,7 @@ export default function MeetingNotes() {
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">顧客を選択（任意）</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {customers.map(c => <option key={c.id} value={c.id} translate="no">{c.name}</option>)}
               </select>
               <input
                 type="text"
@@ -301,7 +301,7 @@ function NoteCard({ note }: { note: MeetingNote }) {
                   return (
                     <div key={i} className="flex items-start gap-2 text-sm">
                       <span>{emoji}</span>
-                      <span className="text-gray-700">{item.title}</span>
+                      <span className="text-gray-700"><span translate="no">{item.title}</span></span>
                     </div>
                   );
                 })}

@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect } from 'react'
 import { sourceApi, fetchLogApi, gmailFetchApi, fiscalYearApi } from './api'
@@ -227,7 +228,7 @@ export function SourceSettings() {
                   </span>
                 </div>
                 <span className="text-xs text-gray-400">
-                  {new Date(log.startedAt).toLocaleString('ja-JP')}
+                  {new Date(log.startedAt).toLocaleString(getLocale())}
                 </span>
               </div>
             ))}

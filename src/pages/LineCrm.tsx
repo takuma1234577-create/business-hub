@@ -192,7 +192,7 @@ export default function LineCrm() {
                 onClick={() => setShowAccountMenu((v) => !v)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
-                {currentAccount?.display_name || 'アカウント選択'}
+                <span translate="no">{currentAccount?.display_name || uiText('アカウント選択')}</span>
                 <ChevronDown size={14} />
               </button>
               {showAccountMenu && (
@@ -207,7 +207,7 @@ export default function LineCrm() {
                           a.id === selectedChannelId ? 'text-[#06C755] font-medium' : 'text-slate-700 dark:text-slate-200'
                         }`}
                       >
-                        {a.display_name}
+                        <span translate="no">{a.display_name}</span>
                         {!a.is_active && <span className="ml-2 text-xs text-slate-400">(無効)</span>}
                       </button>
                     ))}
@@ -323,7 +323,7 @@ export default function LineCrm() {
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{f.display_name}</p>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white truncate"><span translate="no">{f.display_name}</span></p>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                                 f.status === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-600'
                               }`}>

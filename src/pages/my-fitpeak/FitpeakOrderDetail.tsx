@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Package, Truck, MapPin, CheckCircle, RotateCcw, ImagePlus, X } from 'lucide-react'
@@ -167,10 +168,10 @@ export default function FitpeakOrderDetail() {
         <div>
           <h1 className="text-xl font-bold text-white">{order.name}</h1>
           <p className="text-xs text-white/30 mt-1">
-            {new Date(order.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+            {new Date(order.date).toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <span className="text-lg font-semibold text-white">¥{Number(order.total || 0).toLocaleString('ja-JP')}</span>
+        <span className="text-lg font-semibold text-white">¥{Number(order.total || 0).toLocaleString(getLocale())}</span>
       </div>
 
       <section className="bg-[#151515] border border-white/10 rounded-xl p-5 mb-4">
@@ -181,7 +182,7 @@ export default function FitpeakOrderDetail() {
           {order.items.map((item, i) => (
             <div key={i} className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white">{item.title}</p>
+                <p className="text-sm text-white"><span translate="no">{item.title}</span></p>
                 {item.variant && <p className="text-xs text-white/40">{item.variant}</p>}
               </div>
               <div className="text-right">
@@ -199,7 +200,7 @@ export default function FitpeakOrderDetail() {
             <MapPin size={16} className="text-blue-400" /> 配送先
           </h2>
           <p className="text-sm text-white/60">
-            {order.shippingAddress.name}<br />
+            <span translate="no">{order.shippingAddress.name}</span><br />
             {order.shippingAddress.zip} {order.shippingAddress.province}{order.shippingAddress.city}{order.shippingAddress.address1}
           </p>
         </section>
@@ -234,7 +235,7 @@ export default function FitpeakOrderDetail() {
                 </a>
               )}
               <p className="text-xs text-white/30">
-                出荷日: {new Date(f.createdAt).toLocaleDateString('ja-JP')}
+                出荷日: {new Date(f.createdAt).toLocaleDateString(getLocale())}
               </p>
             </div>
           ))}
@@ -259,7 +260,7 @@ export default function FitpeakOrderDetail() {
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${order.returnInfo.latest.result === 'approved' ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
               {order.returnInfo.latest.requestType === 'return' ? '返品' : '交換'}・{order.returnInfo.latest.result === 'approved' ? '承認' : '不承認'}
             </span>
-            <span className="text-xs text-white/40 ml-2">{new Date(order.returnInfo.latest.at).toLocaleDateString('ja-JP')}</span>
+            <span className="text-xs text-white/40 ml-2">{new Date(order.returnInfo.latest.at).toLocaleDateString(getLocale())}</span>
             {order.returnInfo.latest.message && <p className="text-xs text-white/50 mt-2">{order.returnInfo.latest.message}</p>}
           </div>
         )}

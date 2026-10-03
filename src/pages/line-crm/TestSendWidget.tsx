@@ -105,7 +105,7 @@ export default function TestSendWidget({ getMessages, label = 'テスト配信' 
                   }}
                   className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer truncate"
                 >
-                  {f.display_name}
+                  <span translate="no">{f.display_name}</span>
                 </button>
               ))
             )}

@@ -17,7 +17,7 @@ function textChildren(children: unknown, language: ReturnType<typeof useLanguage
       if (!run.length) return
       const source = run.join('')
       const translated = translate(source, language)
-      result.push(...(translated === source ? run : [translated]))
+      result.push(...(translated === source ? run.map(part => typeof part === 'string' ? translate(part, language) : part) : [translated]))
       run = []
     }
     for (const child of children) {

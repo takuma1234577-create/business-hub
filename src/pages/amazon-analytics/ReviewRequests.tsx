@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Send, CheckCircle, XCircle, Clock, RefreshCw, Settings, ChevronDown, ChevronUp } from 'lucide-react'
@@ -157,7 +158,7 @@ export default function ReviewRequests() {
   }
 
   const formatDate = (d: string) => {
-    return new Date(d).toLocaleDateString('ja-JP', {
+    return new Date(d).toLocaleDateString(getLocale(), {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     })

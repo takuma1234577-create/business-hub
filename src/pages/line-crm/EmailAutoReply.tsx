@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, PenLine, Send, Sparkles, X, RefreshCw } from 'lucide-react'
@@ -441,7 +442,7 @@ export default function EmailAutoReply() {
                         </div>
                         <div className="flex items-center gap-3 text-xs text-slate-400">
                           <span>{log.customer_email}</span>
-                          <span>{new Date(log.created_at).toLocaleString('ja-JP')}</span>
+                          <span>{new Date(log.created_at).toLocaleString(getLocale())}</span>
                         </div>
                       </div>
                     </button>

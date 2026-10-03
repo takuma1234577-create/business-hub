@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Gift, Link2 } from 'lucide-react'
@@ -92,7 +93,7 @@ export default function FitpeakDashboard() {
 
   const formatDate = (d: string | null) => {
     if (!d) return '-'
-    return new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return new Date(d).toLocaleDateString(getLocale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)

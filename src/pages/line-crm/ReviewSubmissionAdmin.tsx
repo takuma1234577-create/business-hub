@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { RefreshCw, X, Star, Check, Ban, MessageSquareText, Image as ImageIcon, FileText } from 'lucide-react'
@@ -57,8 +58,7 @@ const STATUS_TABS = [
 function formatJpDate(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso + 'T00:00:00')
-  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`
+  return new Intl.DateTimeFormat(getLocale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(d)
 }
 
 export default function ReviewSubmissionAdmin({ channelId }: { channelId: string }) {
@@ -194,7 +194,7 @@ export default function ReviewSubmissionAdmin({ channelId }: { channelId: string
                   {s.friend?.display_name && <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.friend.display_name}</span>}
                   {s.product_name && <span translate="no" className="text-xs text-slate-400">{s.product_name.slice(0, 30)}</span>}
                   {s.review_date && <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">投稿日: {formatJpDate(s.review_date)}</span>}
-                  <span className="text-xs text-slate-400 ml-auto">{new Date(s.created_at).toLocaleString('ja-JP')}</span>
+                  <span className="text-xs text-slate-400 ml-auto">{new Date(s.created_at).toLocaleString(getLocale())}</span>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
