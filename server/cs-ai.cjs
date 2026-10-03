@@ -283,12 +283,60 @@ router.post('/line/escalation-action', async (req, res) => {
   } catch (e) { return res.status(500).json({ error: e.message }); }
 });
 
+// ---- レビューの状況（Amazonレビューの悪化・苦情の兆候・レビュー依頼の送信状況）----
+const round1 = (n) => Math.round(n * 10) / 10;
+/** 商品ごとの評価の推移と警告、レビュー依頼の送信状況、苦情の兆候（直近14日）をまとめる */
+function summarizeReviews({ products = [], snapshots = [], solicitations = [], signals = [], autoSend = null, now = new Date() }) {
+  const since30 = now - 30 * 86400000; const since14 = now - 14 * 86400000;
+  const out = products.map((p) => {
+    const snaps = snapshots.filter((x) => x.asin === p.asin).sort((a, b) => new Date(b.checked_at) - new Date(a.checked_at));
+    const latest = snaps[0]; const old = snaps.find((x) => now - new Date(x.checked_at) >= 6 * 86400000);
+    const noData = p.average_rating == null;
+    const delta = !noData && p.previous_rating != null ? round1(Number(p.average_rating) - Number(p.previous_rating)) : null;
+    const lowNow = latest ? (latest.star_1 || 0) + (latest.star_2 || 0) : null;
+    const lowThen = old ? (old.star_1 || 0) + (old.star_2 || 0) : null;
+    const lowInc = lowNow != null && lowThen != null ? lowNow - lowThen : null;
+    let alert = null;
+    if (noData) alert = 'no_data'; else if (delta != null && delta <= -0.1) alert = 'rating_drop'; else if (lowInc != null && lowInc >= 2) alert = 'new_low_stars';
+    return { asin: p.asin, title: p.title, average_rating: p.average_rating == null ? null : Number(p.average_rating), rating_count: p.rating_count, previous_rating: p.previous_rating == null ? null : Number(p.previous_rating),
+      delta_avg: delta, new_ratings: p.rating_count != null && p.previous_count != null ? p.rating_count - p.previous_count : null,
+      star_distribution: latest ? { 1: latest.star_1, 2: latest.star_2, 3: latest.star_3, 4: latest.star_4, 5: latest.star_5 } : null, low_star_increase: lowInc, alert };
+  });
+  const recent = solicitations.filter((x) => new Date(x.sent_at || x.created_at) >= since30);
+  const sent = recent.filter((x) => x.status === 'sent'); const failed = recent.filter((x) => x.status === 'failed' || x.status === 'error');
+  const errors = [...new Set(failed.map((x) => String(x.error_message || '').slice(0, 120)).filter(Boolean))].slice(0, 3);
+  const last = sent.map((x) => x.sent_at).filter(Boolean).sort().pop() || null;
+  return {
+    products: out,
+    alerts: out.filter((p) => p.alert).map((p) => ({ asin: p.asin, title: p.title, alert: p.alert })),
+    solicitations: { window_days: 30, sent_30d: sent.length, failed_30d: failed.length, last_sent_at: last, errors, auto_send: autoSend && autoSend.enabled ? { enabled: true, delayDays: autoSend.delayDays, maxPerDay: autoSend.maxPerDay } : { enabled: false } },
+    signals: signals.filter((x) => new Date(x.created_at) >= since14).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20)
+      .map((x) => ({ source: x.source, category: x.category, urgency: x.urgency_score, needs_human_response: x.needs_human_response, refund_or_complaint: x.refund_or_complaint, at: x.created_at })),
+  };
+}
+
+router.get('/reviews', async (_req, res) => {
+  try {
+    const since = new Date(Date.now() - 45 * 86400000).toISOString();
+    const [p, sn, so, sg, st] = await Promise.all([
+      supabase.from('amazon_review_products').select('asin,title,average_rating,rating_count,previous_rating,previous_count').eq('is_active', true),
+      supabase.from('amazon_review_snapshots').select('asin,star_1,star_2,star_3,star_4,star_5,rating_count,average_rating,checked_at').gte('checked_at', since).limit(2000),
+      supabase.from('amazon_review_solicitations').select('status,error_message,sent_at,created_at').gte('created_at', since).limit(2000),
+      supabase.from('review_signals').select('source,category,urgency_score,needs_human_response,refund_or_complaint,created_at').gte('created_at', since).limit(500),
+      supabase.from('amazon_analytics_settings').select('value').eq('key', 'review_auto_send').maybeSingle(),
+    ]);
+    res.json({ ...summarizeReviews({ products: p.data || [], snapshots: sn.data || [], solicitations: so.data || [], signals: sg.data || [], autoSend: st.data?.value || null }),
+      note: 'Amazonのレビュー監視の商品は、評価が取れるまで no_data。レビュー依頼はAmazon公式の「レビュー依頼」（購入者1人1回）。個人を特定できる情報は含まない' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.maskPii = maskPii;
 module.exports.publicEmailLog = publicEmailLog;
 module.exports.publicChunk = publicChunk;
 module.exports.slugOf = slugOf;
 module.exports.checkKnowledge = checkKnowledge;
+module.exports.summarizeReviews = summarizeReviews;
 module.exports.checkReplyText = checkReplyText;
 module.exports.pendingThreads = pendingThreads;
 module.exports.textOf = textOf;
