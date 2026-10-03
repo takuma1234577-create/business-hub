@@ -55,8 +55,17 @@ function layout(agents: Agent[]) {
 
 
 const DEPTS: { id: string; label: string }[] = [
-  { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' },
+  { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'company', label: '全社チャット' },
 ]
+
+// やり取りの種類（指示・報告・日報）。先頭の【…】で見分けて、色をつける
+const KINDS: { tag: string; cls: string }[] = [
+  { tag: '【指示】', cls: 'bg-amber-500/20 text-amber-200 border-amber-500/40' },
+  { tag: '【報告】', cls: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40' },
+  { tag: '【日報】', cls: 'bg-violet-500/20 text-violet-200 border-violet-500/40' },
+  { tag: '【オーナーへの日報】', cls: 'bg-rose-500/20 text-rose-200 border-rose-500/40' },
+]
+const kindOf = (body: string) => KINDS.find((k) => body.startsWith(k.tag))
 
 // 部門のグループチャット（AI同士のやり取り）。オーナーが中身を読む
 function ChatPanel({ name }: { name: (id: string | null) => string }) {
@@ -96,7 +105,7 @@ function ChatPanel({ name }: { name: (id: string | null) => string }) {
           {[...msgs].reverse().map((m) => (
             <li key={m.id} className="text-sm">
               <div className="text-[11px] text-slate-500">{hhmmss(m.created_at)} ／ {DEPTS.find((d) => d.id === m.dept)?.label || m.dept}</div>
-              <div className="break-words"><b className="text-sky-300">{name(m.from_agent)}</b>{m.to_agent ? <span className="text-slate-400"> → {name(m.to_agent)}</span> : <span className="text-slate-500"> → 全員</span>}<span className="text-slate-200">：{m.body}</span></div>
+              <div className="break-words"><b className="text-sky-300">{name(m.from_agent)}</b>{m.to_agent ? <span className="text-slate-400"> → {name(m.to_agent)}</span> : <span className="text-slate-500"> → 全員</span>}{(() => { const k = kindOf(m.body); return <><span className="text-slate-400">：</span>{k && <span className={`mr-1 px-1.5 py-0.5 rounded border text-[10px] align-middle ${k.cls}`}>{k.tag.replace(/[【】]/g, '')}</span>}<span className="text-slate-200 whitespace-pre-wrap">{k ? m.body.slice(k.tag.length) : m.body}</span></> })()}</div>
             </li>
           ))}
         </ul>
