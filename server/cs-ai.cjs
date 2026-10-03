@@ -50,6 +50,48 @@ function checkKnowledge({ title, content, category }) {
 const kbBody = (i) => ({ slug: slugOf(i.title), title: String(i.title).trim(), content: String(i.content).trim(), category: i.category || 'faq' });
 const kbHash = (i) => approvalHash({ service: 'cs_kb', method: 'POST', path: '/knowledge', body: kbBody(i) });
 
+
+// ---- LINE返信（エージェントが読み、決まりの範囲で自動送信し、迷ったら人に回す）----
+const FOOTER = '\n\n─────────\nFITPEAK AIより';
+const withFooter = (t) => (String(t).endsWith(FOOTER) ? String(t) : `${t}${FOOTER}`);
+const AI_SOURCES = new Set(['fitpeak_rag', 'fitpeak_rag_instant', 'creashot_bot', 'creashot_bot_opening', 'tag_scheduled_ai_reply', 'ai_org_agent']);
+const OK_URL = /^https?:\/\/(?:fitpeak\.co|[\w-]+\.fitpeak\.co|www\.amazon\.co\.jp|amazon\.co\.jp|amzn\.asia|lin\.ee)(?:[/?#]\S*)?$/;
+const CLAIMS = /(筋肉(が|を)?(増え(る|ます|ま)|つき(ます|ま)|付き)|痩せ(る|ます|ま)|やせ(る|ます)|治(る|ります|り)|疲労(が|を)?回復|(絶対|必ず|確実に)(効|痩|増|治))/;
+function checkReplyText(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return '返信文が空です';
+  if (t.length > 900) return '返信文が長すぎます（900字まで）';
+  if (maskPii(t) !== t) return '個人情報（メール・電話・住所・注文番号）が含まれています';
+  for (const u of t.match(/https?:\/\/\S+/g) || []) if (!OK_URL.test(u)) return `許可されていないURLです: ${u.slice(0, 60)}`;
+  if (KB_FORBIDDEN.test(t)) return '原価・利益の数字は、お客様への返信に入れられません';
+  if (CLAIMS.test(t)) return '効能効果の断定になりうる表現です（言い換えるか、人に回す）';
+  return null;
+}
+function textOf(content) {
+  if (!content) return '';
+  if (typeof content.text === 'string') return content.text;
+  if (Array.isArray(content.messages)) return content.messages.filter((m) => m && m.type === 'text' && m.text).map((m) => m.text).join('\n');
+  return '';
+}
+/** 受信箱: 友だちごとに、最後が受信で、その後に返信がなく、処理済みでなく、人が最近返信していないもの。rows は古い順でも新しい順でもよい */
+function pendingThreads(rows, { handled = new Set(), excludeFriends = new Set(), humanWindowMs = 24 * 3600000, aiCountsAsAnswer = true, now = new Date() } = {}) {
+  const by = new Map();
+  for (const r of rows) { if (!by.has(r.friend_id)) by.set(r.friend_id, []); by.get(r.friend_id).push(r); }
+  const out = [];
+  for (const [friend, list] of by) {
+    if (excludeFriends.has(friend)) continue;
+    list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const lastIn = [...list].reverse().find((r) => r.direction === 'incoming'); if (!lastIn || handled.has(lastIn.id)) continue;
+    const after = list.filter((r) => r.direction !== 'incoming' && new Date(r.created_at) >= new Date(lastIn.created_at));
+    if (after.some((r) => aiCountsAsAnswer || !AI_SOURCES.has(r.content?.source))) continue;
+    const humanRecent = list.some((r) => r.direction !== 'incoming' && !AI_SOURCES.has(r.content?.source) && (r.content?.source === 'crm_ui' || !r.content?.source) && now - new Date(r.created_at) < humanWindowMs);
+    if (humanRecent) continue;
+    const history = list.filter((r) => r.id !== lastIn.id && new Date(r.created_at) <= new Date(lastIn.created_at)).slice(-6).map((r) => ({ who: r.direction === 'incoming' ? 'お客様' : (AI_SOURCES.has(r.content?.source) ? 'AI' : '担当者'), text: clip(textOf(r.content), 400) }));
+    out.push({ thread: friend, incoming_id: lastIn.id, at: lastIn.created_at, text: clip(textOf(lastIn.content), 800), history });
+  }
+  return out.sort((a, b) => new Date(a.at) - new Date(b.at));
+}
+
 router.use((req, res, next) => {
   const key = process.env.CS_AI_KEY || '';
   const given = (req.headers.authorization || '').replace(/^Bearer /, '');
@@ -116,9 +158,98 @@ router.post('/knowledge', express.json({ limit: '100kb' }), async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ---- LINE: 受信箱・返信・人に回す ----
+const SHADOW = () => process.env.CS_LINE_SEND !== 'live';   // live 以外は「シャドー」: 返信案を記録するだけで、送らない
+async function creashotFriends() {
+  const { data: set } = await supabase.from('creashot_bot_settings').select('tag_id').limit(1).maybeSingle();
+  if (!set?.tag_id) return new Set();
+  const { data } = await supabase.from('friend_tags').select('friend_id').eq('tag_id', set.tag_id).limit(5000);
+  return new Set((data || []).map((r) => r.friend_id));
+}
+router.get('/line/inbox', async (req, res) => {
+  try {
+    const { DEFAULT_CHANNEL_ID } = require('./shared.cjs');
+    const since = new Date(Date.now() - 24 * 3600000).toISOString();
+    const { data: rows, error } = await supabase.from('chat_messages').select('id,friend_id,direction,content,created_at').eq('channel_id', DEFAULT_CHANNEL_ID).gte('created_at', since).order('created_at', { ascending: false }).limit(1500);
+    if (error) return res.status(500).json({ error: error.message });
+    const { data: done } = await supabase.from('cs_line_handled').select('incoming_message_id').gte('at', since).limit(2000);
+    const minAge = Number.parseInt(req.query.min_age_minutes, 10); const cutoff = Date.now() - (Number.isFinite(minAge) ? minAge : 2) * 60000;
+    const threads = pendingThreads((rows || []).filter((r) => new Date(r.created_at).getTime() <= cutoff || r.direction !== 'incoming'), { handled: new Set((done || []).map((d) => d.incoming_message_id)), excludeFriends: await creashotFriends(), aiCountsAsAnswer: !SHADOW() }).slice(0, 10);
+    res.json({ mode: SHADOW() ? 'shadow' : 'live', count: threads.length, threads, note: 'クレアショット専用ボットの対象者は含まれない（次の段階）。お客様の名前は返さない' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+async function loadIncoming(id) {
+  const { DEFAULT_CHANNEL_ID } = require('./shared.cjs');
+  const { data: m } = await supabase.from('chat_messages').select('id,friend_id,channel_id,direction,created_at,content').eq('id', id).maybeSingle();
+  if (!m || m.direction !== 'incoming' || m.channel_id !== DEFAULT_CHANNEL_ID) return { error: '対象の受信メッセージがありません' };
+  if (Date.now() - new Date(m.created_at).getTime() > 24 * 3600000) return { error: '24時間を過ぎた受信です（人が対応）' };
+  const { data: done } = await supabase.from('cs_line_handled').select('incoming_message_id').eq('incoming_message_id', id).maybeSingle();
+  if (done) return { error: 'この受信は、すでに処理済みです' };
+  if ((await creashotFriends()).has(m.friend_id)) return { error: 'クレアショット専用ボットの対象者です（別の仕組み）' };
+  return { m };
+}
+
+/** 決まりを満たす返信を自動送信する（シャドーの間は、記録だけ）。1日の上限と、1人あたりの上限あり */
+router.post('/line/reply', async (req, res) => {
+  const { incoming_id: id, text, reason } = req.body || {};
+  const base = { caller: 'cs-ai', service: 'cs_line', op: `POST /line/reply ${String(id).slice(0, 36)}` };
+  try {
+    const bad = checkReplyText(text); if (bad) return res.status(400).json({ error: bad });
+    const { m, error } = await loadIncoming(id); if (error) return res.status(409).json({ error });
+    const shadow = SHADOW();
+    if (!shadow) {
+      const { count: after } = await supabase.from('chat_messages').select('id', { count: 'exact', head: true }).eq('friend_id', m.friend_id).in('direction', ['outgoing', 'outbound']).gte('created_at', m.created_at);
+      if (after) return res.status(409).json({ error: 'この受信には、すでに返信があります（二重返信を防止）' });
+      const dayAgo = new Date(Date.now() - 24 * 3600000).toISOString();
+      const { count: today } = await supabase.from('cs_line_handled').select('incoming_message_id', { count: 'exact', head: true }).eq('outcome', 'replied').gte('at', dayAgo);
+      if ((today || 0) >= 120) return res.status(429).json({ error: '1日の自動返信の上限（120通）に達しました' });
+    }
+    const full = withFooter(String(text).trim());
+    if (shadow) {
+      await supabase.from('cs_line_handled').insert({ incoming_message_id: id, friend_id: m.friend_id, outcome: 'shadow', draft: full, reason: String(reason || '').slice(0, 300) });
+      await supabase.from('broker_audit').insert({ ...base, ok: true, http: 200, note: 'shadow' });
+      return res.json({ sent: false, shadow: true, note: 'シャドー中のため、送信していません（返信案を記録しました）' });
+    }
+    const { getLineCredentials } = require('./shared.cjs');
+    const { data: fr } = await supabase.from('friends').select('line_user_id,channel_id').eq('id', m.friend_id).maybeSingle();
+    const { accessToken } = await getLineCredentials(m.channel_id);
+    if (!fr?.line_user_id || !accessToken) return res.status(500).json({ error: 'LINEの送信先・認証情報がありません' });
+    const r = await fetch('https://api.line.me/v2/bot/message/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ to: fr.line_user_id, messages: [{ type: 'text', text: full }] }), signal: AbortSignal.timeout(20000) });
+    if (!r.ok) { await supabase.from('broker_audit').insert({ ...base, ok: false, http: r.status, note: (await r.text().catch(() => '')).slice(0, 150) }); return res.status(502).json({ error: `LINEへの送信に失敗しました（${r.status}）` }); }
+    await supabase.from('chat_messages').insert({ channel_id: m.channel_id, friend_id: m.friend_id, direction: 'outgoing', message_type: 'text', content: { text: full, source: 'ai_org_agent' } });
+    await supabase.from('cs_line_handled').insert({ incoming_message_id: id, friend_id: m.friend_id, outcome: 'replied', draft: full, reason: String(reason || '').slice(0, 300) });
+    await supabase.from('broker_audit').insert({ ...base, ok: true, http: 200 });
+    res.json({ sent: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** 返信しない（スタンプ・お礼・対応不要）または人に回す（Slackに確認依頼。担当者がスレッドで指示すれば、既存の仕組みで返信される） */
+router.post('/line/handoff', async (req, res) => {
+  const { incoming_id: id, outcome = 'handoff', reason, draft } = req.body || {};
+  try {
+    if (!['handoff', 'skip'].includes(outcome)) return res.status(400).json({ error: 'outcome は handoff / skip' });
+    if (outcome === 'handoff' && String(reason || '').trim().length < 4) return res.status(400).json({ error: '人に回す理由を書いてください' });
+    const { m, error } = await loadIncoming(id); if (error) return res.status(409).json({ error });
+    let slack = null;
+    if (outcome === 'handoff') {
+      const { data: fr } = await supabase.from('friends').select('line_user_id,display_name').eq('id', m.friend_id).maybeSingle();
+      slack = await require('./slack-notify.cjs').sendSlackEscalation({ channel: 'LINE', customerName: fr?.display_name || '', customerMessage: textOf(m.content), aiDraftReply: draft ? String(draft).slice(0, 900) : null, reason: `AI担当（カスタマーサービス）が人に回す: ${String(reason).slice(0, 200)}`, lineUserId: fr?.line_user_id });
+    }
+    await supabase.from('cs_line_handled').insert({ incoming_message_id: id, friend_id: m.friend_id, outcome, draft: draft ? String(draft).slice(0, 900) : null, reason: String(reason || '').slice(0, 300) });
+    res.json({ ok: true, outcome, slack: slack ? { ok: !!slack.ok } : null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.maskPii = maskPii;
 module.exports.publicEmailLog = publicEmailLog;
 module.exports.publicChunk = publicChunk;
 module.exports.slugOf = slugOf;
 module.exports.checkKnowledge = checkKnowledge;
+module.exports.checkReplyText = checkReplyText;
+module.exports.pendingThreads = pendingThreads;
+module.exports.textOf = textOf;
+module.exports.withFooter = withFooter;
+module.exports.FOOTER = FOOTER;
