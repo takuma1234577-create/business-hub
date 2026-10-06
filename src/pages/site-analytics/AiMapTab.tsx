@@ -34,7 +34,7 @@ function useTyped(text: string, key: string | number) {
   return text.slice(0, n)
 }
 
-interface Node { a: Agent; x: number; y: number }
+interface Node { a: Agent; x: number; y: number; dy: number }
 
 function layout(agents: Agent[]) {
   const byLayer = new Map<number, Agent[]>()
@@ -42,15 +42,15 @@ function layout(agents: Agent[]) {
   const layers = [...byLayer.keys()].sort((p, q) => p - q)
   const pos = new Map<string, Node>()
   const order = new Map<string, number>()
-  const W = Math.max(720, Math.max(...layers.map((l) => byLayer.get(l)!.length), 1) * 92)
+  const W = Math.max(720, Math.max(...layers.map((l) => byLayer.get(l)!.length), 1) * 104)
   layers.forEach((l, li) => {
     const row = [...byLayer.get(l)!].sort((p, q) => (order.get(p.parent_id || '') ?? -1) - (order.get(q.parent_id || '') ?? -1) || p.id.localeCompare(q.id))
     row.forEach((a, i) => {
       order.set(a.id, i + li * 1000)
-      pos.set(a.id, { a, x: ((i + 0.5) / row.length) * W, y: 54 + li * 108 })
+      pos.set(a.id, { a, x: ((i + 0.5) / row.length) * W, y: 54 + li * 108, dy: row.length > 6 && i % 2 === 1 ? 45 : 31 })
     })
   })
-  return { pos, W, H: 54 + Math.max(layers.length - 1, 0) * 108 + 62 }
+  return { pos, W, H: 54 + Math.max(layers.length - 1, 0) * 108 + 78 }
 }
 
 
@@ -168,7 +168,9 @@ export default function AiMapTab() {
   const [now, setNow] = useState(() => Date.now())
   const lastId = useRef(0)
   const mapBox = useRef<HTMLDivElement>(null)
-  const centered = useRef(false)
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 })
+  const ptrs = useRef(new Map<number, { x: number; y: number }>())
+  const gesture = useRef<{ moved: boolean; dist: number }>({ moved: false, dist: 0 })
 
   const load = useCallback(async () => {
     if (document.hidden) return
@@ -199,11 +201,56 @@ export default function AiMapTab() {
   }, [load])
 
   const { pos, W, H } = useMemo(() => layout(agents), [agents])
-  // 狭い画面では、最初に地図の中央（上司の列）が見える位置にそろえる
+  // ズーム・移動。座標は viewBox の単位で持つ（k=倍率, x/y=ずれ）
+  const MIN_K = 0.6, MAX_K = 5
+  const scaleOf = () => {
+    const r = mapBox.current?.getBoundingClientRect()
+    return r ? { r, s: Math.min(r.width / W, r.height / H) || 1 } : null
+  }
+  const zoomAt = (factor: number, cx?: number, cy?: number) => {
+    const m = scaleOf()
+    setView((v) => {
+      const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor))
+      if (!m) return { ...v, k }
+      const ux = ((cx ?? m.r.left + m.r.width / 2) - (m.r.left + m.r.width / 2)) / m.s + W / 2
+      const uy = ((cy ?? m.r.top + m.r.height / 2) - (m.r.top + m.r.height / 2)) / m.s + H / 2
+      const px = (ux - v.x) / v.k, py = (uy - v.y) / v.k
+      return { k, x: ux - px * k, y: uy - py * k }
+    })
+  }
   useEffect(() => {
     const el = mapBox.current
-    if (el && agents.length && !centered.current) { centered.current = true; el.scrollLeft = Math.max(0, (W - el.clientWidth) / 2) }
-  }, [agents, W])
+    if (!el) return
+    const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY) }
+    el.addEventListener('wheel', wheel, { passive: false })
+    return () => el.removeEventListener('wheel', wheel)
+  })
+  const onDown = (e: React.PointerEvent) => {
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    gesture.current = { moved: false, dist: 0 }
+    if (ptrs.current.size === 2) { const [a, b] = [...ptrs.current.values()]; gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y) }
+  }
+  const onMove = (e: React.PointerEvent) => {
+    const prev = ptrs.current.get(e.pointerId)
+    if (!prev) return
+    const cur = { x: e.clientX, y: e.clientY }
+    const m = scaleOf()
+    if (ptrs.current.size === 1 && m) {
+      const dx = cur.x - prev.x, dy = cur.y - prev.y
+      if (Math.abs(dx) + Math.abs(dy) > 0) {
+        if (!gesture.current.moved) { gesture.current.moved = true; mapBox.current?.setPointerCapture(e.pointerId) }
+        setView((v) => ({ ...v, x: v.x + dx / m.s, y: v.y + dy / m.s }))
+      }
+    } else if (ptrs.current.size === 2) {
+      ptrs.current.set(e.pointerId, cur)
+      const [a, b] = [...ptrs.current.values()]
+      const d = Math.hypot(a.x - b.x, a.y - b.y)
+      if (gesture.current.dist > 0 && d > 0) { gesture.current.moved = true; zoomAt(d / gesture.current.dist, (a.x + b.x) / 2, (a.y + b.y) / 2) }
+      gesture.current.dist = d
+    }
+    ptrs.current.set(e.pointerId, cur)
+  }
+  const onUp = (e: React.PointerEvent) => { ptrs.current.delete(e.pointerId) }
   const name = useCallback((id: string | null) => (id ? agents.find((a) => a.id === id)?.role_title || id : 'システム'), [agents])
   const running = useMemo(() => new Set((status?.running || []).map((r) => r.agent_id)), [status])
   const lastEv = useMemo(() => {
@@ -267,17 +314,24 @@ export default function AiMapTab() {
 
       <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
         <div className="px-3 py-2 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-800">
-          <span>組織マップ（担当を押すと、その担当だけを下に表示）</span>
+          <span>組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小・担当を押すとその担当だけを下に表示）</span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {sel && <button onClick={() => setSel(null)} className="underline cursor-pointer text-cyan-300">全員に戻す</button>}
+            <span className="inline-flex items-center gap-1">
+              <button onClick={() => zoomAt(1 / 1.3)} aria-label="縮小" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">−</button>
+              <span className="w-10 text-center tabular-nums">{Math.round(view.k * 100)}%</span>
+              <button onClick={() => zoomAt(1.3)} aria-label="拡大" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">＋</button>
+              <button onClick={() => setView({ k: 1, x: 0, y: 0 })} className="px-2 h-7 rounded border border-slate-700 text-slate-200 cursor-pointer hover:bg-slate-800">全体</button>
+            </span>
             {([['run', '作業中'], ['warm', '直近'], ['idle', '待機'], ['err', '失敗']] as const).map(([k, l]) => (
               <span key={k} className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2 rounded-full" style={{ background: COLOR[k] }} />{l}</span>
             ))}
           </span>
         </div>
-        <div className="overflow-x-auto" ref={mapBox}>
+        <div ref={mapBox} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="overflow-hidden h-[460px] sm:h-[540px] cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
           {agents.length === 0 ? <div className="p-8 text-center text-slate-500 text-sm">{err ? '取得できていません' : '読み込み中…'}</div> : (
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ minWidth: W, width: '100%', display: 'block' }} role="img" aria-label="AI組織のマップ">
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }} role="img" aria-label="AI組織のマップ">
+              <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
               {[...pos.values()].map(({ a, x, y }) => {
                 const p = a.parent_id ? pos.get(a.parent_id) : null
                 if (!p) return null
@@ -294,18 +348,20 @@ export default function AiMapTab() {
                   </g>
                 )
               })}
-              {[...pos.values()].map(({ a, x, y }) => {
+              {[...pos.values()].map(({ a, x, y, dy }) => {
                 const st = state(a.id, a.enabled)
                 const on = sel === a.id
                 return (
-                  <g key={a.id} onClick={() => setSel(on ? null : a.id)} style={{ cursor: 'pointer' }} role="button" aria-label={`${a.role_title}を表示`}>
+                  <g key={a.id} onClick={() => { if (!gesture.current.moved) setSel(on ? null : a.id) }} style={{ cursor: 'pointer' }} role="button" aria-label={`${a.role_title}を表示`}>
                     {st === 'run' && <circle cx={x} cy={y} r="15" fill="none" stroke={COLOR.run} strokeWidth="2" className="aim-ring" />}
                     <circle cx={x} cy={y} r="15" fill="#0f172a" stroke={COLOR[st]} strokeWidth={on ? 4 : 2} />
                     <circle cx={x} cy={y} r="5" fill={COLOR[st]} />
-                    <text x={x} y={y + 31} textAnchor="middle" fontSize="10.5" fill={on ? '#fff' : '#cbd5e1'}>{clip(a.role_title, 9)}</text>
+                    {dy > 31 && <line x1={x} y1={y + 15} x2={x} y2={y + dy - 11} stroke="#334155" strokeWidth="0.8" />}
+                    <text x={x} y={y + dy} textAnchor="middle" fontSize="10.5" fill={on ? '#fff' : '#cbd5e1'}>{clip(a.role_title, 9)}</text>
                   </g>
                 )
               })}
+              </g>
             </svg>
           )}
         </div>
