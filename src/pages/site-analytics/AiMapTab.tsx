@@ -34,25 +34,54 @@ function useTyped(text: string, key: string | number) {
   return text.slice(0, n)
 }
 
-interface Node { a: Agent; x: number; y: number; dy: number }
+interface Row { a: Agent; y: number; indent: number; head: boolean }
+interface Box { id: string; label: string; x: number; y: number; w: number; h: number; rows: Row[] }
 
-function layout(agents: Agent[]) {
-  const byLayer = new Map<number, Agent[]>()
-  for (const a of agents) byLayer.set(a.layer, [...(byLayer.get(a.layer) || []), a])
-  const layers = [...byLayer.keys()].sort((p, q) => p - q)
-  const pos = new Map<string, Node>()
-  const order = new Map<string, number>()
-  const W = Math.max(720, Math.max(...layers.map((l) => byLayer.get(l)!.length), 1) * 104)
-  layers.forEach((l, li) => {
-    const row = [...byLayer.get(l)!].sort((p, q) => (order.get(p.parent_id || '') ?? -1) - (order.get(q.parent_id || '') ?? -1) || p.id.localeCompare(q.id))
-    row.forEach((a, i) => {
-      order.set(a.id, i + li * 1000)
-      pos.set(a.id, { a, x: ((i + 0.5) / row.length) * W, y: 54 + li * 108, dy: row.length > 6 && i % 2 === 1 ? 45 : 31 })
-    })
-  })
-  return { pos, W, H: 54 + Math.max(layers.length - 1, 0) * 108 + 78 }
+const BOX_W = 208, ROW = 24, HEAD = 34, GAP = 20
+
+// 部門ごとの箱を格子状（列ごとに、いちばん低い列へ積む）に並べる。横に広がらず、正方形に近くなる
+function layout(agents: Agent[], order: string[]) {
+  const by = new Map<string, Agent[]>()
+  for (const a of agents) { const d = a.dept || (a.layer <= 2 ? 'exec' : 'other'); by.set(d, [...(by.get(d) || []), a]) }
+  const rank = (k: string) => (order.indexOf(k) < 0 ? 99 : order.indexOf(k))
+  const keys = [...by.keys()].sort((p, q) => rank(p) - rank(q))
+  const mk = (k: string, x: number, y: number): Box => {
+    const list = [...by.get(k)!].sort((p, q) => p.layer - q.layer || p.id.localeCompare(q.id))
+    const min = list[0]?.layer ?? 0
+    return { id: k, label: '', x, y, w: BOX_W, h: HEAD + list.length * ROW + 8, rows: list.map((a, i) => ({ a, y: HEAD + i * ROW, indent: Math.min(a.layer - min, 3) * 10, head: a.layer === min })) }
+  }
+  const rest = keys.filter((k) => k !== 'exec')
+  const cols = Math.max(2, Math.min(4, Math.round(Math.sqrt(rest.length * 1.3))))
+  const W = cols * BOX_W + (cols - 1) * GAP
+  const boxes: Box[] = []
+  const links: { x1: number; y1: number; x2: number; y2: number }[] = []
+  let top = 0
+  if (by.has('exec')) {
+    const e = mk('exec', (W - BOX_W) / 2, 0)
+    boxes.push(e)
+    top = e.h + 28
+  }
+  const heights = new Array(cols).fill(top)
+  const lastBox: (Box | null)[] = new Array(cols).fill(null)
+  const firstX: number[] = []
+  for (const k of rest) {
+    let c = 0
+    for (let i = 1; i < cols; i++) if (heights[i] < heights[c]) c = i
+    const b = mk(k, c * (BOX_W + GAP), heights[c])
+    if (lastBox[c]) links.push({ x1: b.x + BOX_W / 2, y1: lastBox[c]!.y + lastBox[c]!.h, x2: b.x + BOX_W / 2, y2: b.y })
+    else firstX.push(b.x + BOX_W / 2)
+    lastBox[c] = b
+    heights[c] = b.y + b.h + GAP
+    boxes.push(b)
+  }
+  if (boxes[0]?.id === 'exec' && firstX.length) {
+    const e = boxes[0], bus = e.h + 14
+    links.push({ x1: W / 2, y1: e.h, x2: W / 2, y2: bus })
+    links.push({ x1: Math.min(...firstX), y1: bus, x2: Math.max(...firstX), y2: bus })
+    for (const x of firstX) links.push({ x1: x, y1: bus, x2: x, y2: top })
+  }
+  return { boxes, links, W, H: Math.max(...heights, top) }
 }
-
 
 const DEPTS: { id: string; label: string }[] = [
   { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }, { id: 'creashot', label: 'クレアショット' }, { id: 'company', label: '全社チャット' },
@@ -202,7 +231,7 @@ export default function AiMapTab() {
     return () => { clearTimeout(first); clearInterval(t); clearInterval(tick) }
   }, [load])
 
-  const { pos, W, H } = useMemo(() => layout(agents), [agents])
+  const { boxes, links, W, H } = useMemo(() => layout(agents, DEPTS.map((d) => d.id)), [agents])
   // ズーム・移動。座標は viewBox の単位で持つ（k=倍率, x/y=ずれ）
   const MIN_K = 0.6, MAX_K = 5
   const scaleOf = () => {
@@ -309,6 +338,8 @@ export default function AiMapTab() {
         @keyframes aimFlash { 0% { background: rgba(34,211,238,.55) } 100% { background: transparent } }
         @keyframes aimIn { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: none } }
         .aim-ring { animation: aimPulse 1.6s ease-out infinite }
+        @keyframes aimPulseS { 0% { r: 4; opacity: .8 } 100% { r: 10; opacity: 0 } }
+        .aim-ring-s { animation: aimPulseS 1.4s ease-out infinite }
         .aim-flash { animation: aimFlash 1.8s ease-out 1 }
         .aim-in { animation: aimIn .35s ease-out 1 }
         .aim-cursor::after { content: '▍'; animation: aimBlink 1s steps(2) infinite }
@@ -416,39 +447,35 @@ export default function AiMapTab() {
             })}
           </div>
         )}
-        {mode === 'tree' && <div ref={mapBox} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="overflow-hidden h-[460px] sm:h-[540px] cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
+        {mode === 'tree' && <div ref={mapBox} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="overflow-hidden h-[520px] sm:h-[640px] cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
           {agents.length === 0 ? <div className="p-8 text-center text-slate-500 text-sm">{err ? '取得できていません' : '読み込み中…'}</div> : (
             <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }} role="img" aria-label="AI組織のマップ">
               <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
-              {[...pos.values()].map(({ a, x, y }) => {
-                const p = a.parent_id ? pos.get(a.parent_id) : null
-                if (!p) return null
-                const st = state(a.id, a.enabled)
-                const hot = st === 'run' || st === 'warm'
-                return (
-                  <g key={`e-${a.id}`}>
-                    <line x1={p.x} y1={p.y} x2={x} y2={y} stroke={hot ? COLOR[st] : '#1e293b'} strokeWidth={hot ? 1.6 : 1} opacity={hot ? 0.8 : 1} />
-                    {st === 'run' && (
-                      <circle r="3.5" fill={COLOR.run}>
-                        <animateMotion dur="1.6s" repeatCount="indefinite" path={`M${p.x},${p.y} L${x},${y}`} />
-                      </circle>
-                    )}
-                  </g>
-                )
-              })}
-              {[...pos.values()].map(({ a, x, y, dy }) => {
-                const st = state(a.id, a.enabled)
-                const on = sel === a.id
-                return (
-                  <g key={a.id} onClick={() => { if (!gesture.current.moved) setSel(on ? null : a.id) }} style={{ cursor: 'pointer' }} role="button" aria-label={`${a.role_title}を表示`}>
-                    {st === 'run' && <circle cx={x} cy={y} r="15" fill="none" stroke={COLOR.run} strokeWidth="2" className="aim-ring" />}
-                    <circle cx={x} cy={y} r="15" fill="#0f172a" stroke={COLOR[st]} strokeWidth={on ? 4 : 2} />
-                    <circle cx={x} cy={y} r="5" fill={COLOR[st]} />
-                    {dy > 31 && <line x1={x} y1={y + 15} x2={x} y2={y + dy - 11} stroke="#334155" strokeWidth="0.8" />}
-                    <text x={x} y={y + dy} textAnchor="middle" fontSize="10.5" fill={on ? '#fff' : '#cbd5e1'}>{clip(a.role_title, 9)}</text>
-                  </g>
-                )
-              })}
+                {links.map((l, i) => <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#334155" strokeWidth="1.5" />)}
+                {boxes.map((b) => {
+                  const hot = b.rows.some((r) => state(r.a.id, r.a.enabled) === 'run')
+                  const bad = b.rows.some((r) => state(r.a.id, r.a.enabled) === 'err')
+                  const label = DEPTS.find((d) => d.id === b.id)?.label || (b.id === 'other' ? 'その他' : b.id)
+                  return (
+                    <g key={b.id} transform={`translate(${b.x} ${b.y})`}>
+                      <rect width={b.w} height={b.h} rx="9" fill="#0b1220" stroke={bad ? COLOR.err : hot ? COLOR.run : '#1e293b'} strokeWidth={hot || bad ? 1.6 : 1} />
+                      <text x="12" y="21" fontSize="13" fontWeight="700" fill="#e2e8f0">{label}</text>
+                      <text x={b.w - 12} y="21" fontSize="11" textAnchor="end" fill="#64748b">{b.rows.length}体</text>
+                      {b.rows.map((r) => {
+                        const st = state(r.a.id, r.a.enabled)
+                        const on = sel === r.a.id
+                        return (
+                          <g key={r.a.id} transform={`translate(0 ${r.y})`} onClick={() => { if (!gesture.current.moved) setSel(on ? null : r.a.id) }} style={{ cursor: 'pointer' }} role="button" aria-label={`${r.a.role_title}を表示`}>
+                            <rect x="4" y="0" width={b.w - 8} height={ROW - 2} rx="5" fill={on ? 'rgba(34,211,238,.22)' : st === 'run' ? 'rgba(34,211,238,.10)' : st === 'err' ? 'rgba(248,113,113,.16)' : 'transparent'} />
+                            {st === 'run' && <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill="none" stroke={COLOR.run} strokeWidth="1.5" className="aim-ring-s" />}
+                            <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill={COLOR[st]} />
+                            <text x={28 + r.indent} y={(ROW - 2) / 2 + 4} fontSize="12" fontWeight={r.head ? 700 : 400} fill={st === 'off' ? '#475569' : on ? '#fff' : r.head ? '#f1f5f9' : '#cbd5e1'}>{clip(r.a.role_title, 13 - Math.floor(r.indent / 10))}</text>
+                          </g>
+                        )
+                      })}
+                    </g>
+                  )
+                })}
               </g>
             </svg>
           )}
