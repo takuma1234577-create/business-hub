@@ -36,10 +36,10 @@ function useTyped(text: string, key: string | number) {
   return text.slice(0, n)
 }
 
-interface Row { a: Agent; y: number; indent: number; head: boolean; depth: number; parent: number }
+interface Row { a: Agent; y: number; indent: number; head: boolean; depth: number; parent: number; kids: boolean }
 interface Box { id: string; label: string; x: number; y: number; w: number; h: number; rows: Row[] }
 
-const BOX_W = 208, ROW = 24, HEAD = 34, GAP = 20
+const BOX_W = 240, ROW = 24, HEAD = 34, GAP = 20
 
 // 部門ごとの箱を格子状（列ごとに、いちばん低い列へ積む）に並べる。横に広がらず、正方形に近くなる
 function layout(agents: Agent[], order: string[]) {
@@ -60,7 +60,7 @@ function layout(agents: Agent[], order: string[]) {
     }
     for (const r of kids(null)) walk(r, 0, -1)
     const w = k === 'exec' ? 280 : BOX_W
-    return { id: k, label: '', x, y, w, h: HEAD + ordered.length * ROW + 8, rows: ordered.map((o, i) => ({ a: o.a, y: HEAD + i * ROW, indent: Math.min(o.depth, 4) * 16, head: o.depth === 0, depth: o.depth, parent: o.parent })) }
+    return { id: k, label: '', x, y, w, h: HEAD + ordered.length * ROW + 8, rows: ordered.map((o, i) => ({ a: o.a, y: HEAD + i * ROW, indent: Math.min(o.depth, 4) * 16, head: o.depth === 0, depth: o.depth, parent: o.parent, kids: kids(o.a.id).length > 0 })) }
   }
   const rest = keys.filter((k) => k !== 'exec')
   const W = Math.max(Math.max(rest.length, 1) * BOX_W + Math.max(rest.length - 1, 0) * GAP, 300)
@@ -264,7 +264,7 @@ export default function AiMapTab() {
   useEffect(() => {
     const el = mapBox.current
     if (!el) return
-    const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY) }
+    const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * (e.ctrlKey ? 0.004 : 0.0008)), e.clientX, e.clientY) }
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
   })
@@ -288,7 +288,7 @@ export default function AiMapTab() {
       ptrs.current.set(e.pointerId, cur)
       const [a, b] = [...ptrs.current.values()]
       const d = Math.hypot(a.x - b.x, a.y - b.y)
-      if (gesture.current.dist > 0 && d > 0) { gesture.current.moved = true; zoomAt(d / gesture.current.dist, (a.x + b.x) / 2, (a.y + b.y) / 2) }
+      if (gesture.current.dist > 0 && d > 0) { gesture.current.moved = true; zoomAt(Math.pow(d / gesture.current.dist, 0.5), (a.x + b.x) / 2, (a.y + b.y) / 2) }
       gesture.current.dist = d
     }
     ptrs.current.set(e.pointerId, cur)
@@ -380,9 +380,9 @@ export default function AiMapTab() {
               ))}
             </span>
             {mode === 'tree' && <span className="inline-flex items-center gap-1">
-              <button onClick={() => zoomAt(1 / 1.3)} aria-label="縮小" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">−</button>
+              <button onClick={() => zoomAt(1 / 1.2)} aria-label="縮小" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">−</button>
               <span className="w-10 text-center tabular-nums">{Math.round(view.k * 100)}%</span>
-              <button onClick={() => zoomAt(1.3)} aria-label="拡大" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">＋</button>
+              <button onClick={() => zoomAt(1.2)} aria-label="拡大" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">＋</button>
               <button onClick={() => setView({ k: 1, x: 0, y: 0 })} className="px-2 h-7 rounded border border-slate-700 text-slate-200 cursor-pointer hover:bg-slate-800">全体</button>
             </span>}
             {([['run', '作業中'], ['warm', '直近'], ['idle', '待機'], ['err', '失敗']] as const).map(([k, l]) => (
@@ -487,10 +487,14 @@ export default function AiMapTab() {
                         const on = sel === r.a.id
                         return (
                           <g key={r.a.id} transform={`translate(0 ${r.y})`} onClick={() => { if (!gesture.current.moved) setSel(on ? null : r.a.id) }} style={{ cursor: 'pointer' }} role="button" aria-label={`${r.a.role_title}を表示`}>
-                            <rect x="4" y="0" width={b.w - 8} height={ROW - 2} rx="5" fill={on ? 'rgba(34,211,238,.22)' : st === 'run' ? 'rgba(34,211,238,.10)' : st === 'err' ? 'rgba(248,113,113,.16)' : 'transparent'} />
+                            <rect x="4" y="0" width={b.w - 8} height={ROW - 2} rx="5" fill={on ? 'rgba(34,211,238,.22)' : st === 'run' ? 'rgba(34,211,238,.10)' : st === 'err' ? 'rgba(248,113,113,.16)' : r.depth === 0 && b.id !== 'exec' ? 'rgba(251,191,36,.10)' : 'transparent'} />
+                            {b.id !== 'exec' && (() => {
+                              const [t, c] = r.depth === 0 ? ['部長', '#fbbf24'] : r.kids ? ['課長', '#38bdf8'] : ['社員', '#94a3b8']
+                              return <g><rect x={b.w - 44} y="3" width="36" height={ROW - 8} rx="4" fill="none" stroke={c} strokeWidth="1" opacity=".8" /><text x={b.w - 26} y={(ROW - 2) / 2 + 3.5} textAnchor="middle" fontSize="10" fill={c}>{t}</text></g>
+                            })()}
                             {st === 'run' && <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill="none" stroke={COLOR.run} strokeWidth="1.5" className="aim-ring-s" />}
                             <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill={COLOR[st]} />
-                            <text x={28 + r.indent} y={(ROW - 2) / 2 + 4} fontSize={r.depth === 0 ? 13 : 12} fontWeight={r.depth <= 1 ? 700 : 400} fill={st === 'off' ? '#475569' : on ? '#fff' : r.head ? '#f1f5f9' : '#cbd5e1'}>{clip(uiText(r.a.role_title), (b.w === 280 ? 18 : 13) - Math.floor(r.indent / 12))}</text>
+                            <text x={28 + r.indent} y={(ROW - 2) / 2 + 4} fontSize={r.depth === 0 ? 13 : 12} fontWeight={r.depth <= 1 ? 700 : 400} fill={st === 'off' ? '#475569' : on ? '#fff' : r.head ? '#f1f5f9' : '#cbd5e1'}>{clip(uiText(r.a.role_title), b.id === 'exec' ? 18 : 12 - Math.floor(r.indent / 8))}</text>
                           </g>
                         )
                       })}
