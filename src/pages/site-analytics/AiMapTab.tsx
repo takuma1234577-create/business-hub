@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
 import { saApi } from './api'
 
 // AIエージェント管理マップ。fitpeak-ai-org の出来事（org_events）を3秒ごとに差分で取り、
@@ -169,6 +169,7 @@ export default function AiMapTab() {
   const lastId = useRef(0)
   const mapBox = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<'dept' | 'tree'>('dept')
+  const [closed, setClosed] = useState<Set<string>>(new Set())
   const [view, setView] = useState({ k: 1, x: 0, y: 0 })
   const ptrs = useRef(new Map<number, { x: number; y: number }>())
   const gesture = useRef<{ moved: boolean; dist: number }>({ moved: false, dist: 0 })
@@ -346,33 +347,70 @@ export default function AiMapTab() {
             ))}
           </span>
         </div>
+        {mode === 'dept' && (() => {
+          const hot = agents.filter((a) => { const st = state(a.id, a.enabled); return st === 'run' || st === 'err' })
+          return (
+            <div className="px-3 pt-3 space-y-2">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5">
+                <div className="text-xs text-slate-400 mb-1.5">いま動いている・失敗している担当</div>
+                {hot.length === 0 ? <div className="text-xs text-slate-500">いまは動いている担当も、失敗している担当もいません</div> : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {hot.map((a) => {
+                      const st = state(a.id, a.enabled)
+                      const t = taskOf.get(a.id)
+                      return (
+                        <button key={a.id} onClick={() => setSel(sel === a.id ? null : a.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs cursor-pointer max-w-full ${st === 'err' ? 'border-red-500/60 bg-red-500/15 text-red-200' : 'border-cyan-500/50 bg-cyan-500/10 text-cyan-100'}`}>
+                          <i className={`shrink-0 w-2 h-2 rounded-full ${st === 'run' ? 'animate-pulse' : ''}`} style={{ background: COLOR[st] }} />
+                          <b className="font-semibold shrink-0">{a.role_title}</b>
+                          <span className="truncate opacity-80">{st === 'err' ? '失敗' : t ? clip(t.task, 24) : ''}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 text-xs">
+                <button onClick={() => setClosed(new Set())} className="px-2.5 h-7 rounded border border-slate-700 text-slate-300 cursor-pointer hover:bg-slate-800">すべて開く</button>
+                <button onClick={() => setClosed(new Set(groups.map((g) => g.id)))} className="px-2.5 h-7 rounded border border-slate-700 text-slate-300 cursor-pointer hover:bg-slate-800">すべて閉じる</button>
+              </div>
+            </div>
+          )
+        })()}
         {mode === 'dept' && (
           <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {agents.length === 0 && <div className="col-span-full p-8 text-center text-slate-500 text-sm">{err ? '取得できていません' : '読み込み中…'}</div>}
             {groups.map((g) => {
               const busy = g.list.filter((a) => state(a.id, a.enabled) === 'run').length
+              const bad = g.list.filter((a) => state(a.id, a.enabled) === 'err').length
+              const shut = closed.has(g.id)
               return (
                 <section key={g.id} className="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 min-w-0">
-                  <h4 className="flex items-center justify-between text-sm font-semibold mb-1.5">
-                    <span>{g.label}<span className="ml-1.5 text-xs font-normal text-slate-500">{g.list.length}体</span></span>
-                    {busy > 0 && <span className="text-[11px] font-normal text-cyan-300">作業中 {busy}</span>}
+                  <h4 className="text-sm font-semibold">
+                    <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n })} aria-expanded={!shut} className="w-full flex items-center justify-between gap-2 cursor-pointer text-left">
+                      <span className="flex items-center gap-1">{shut ? <ChevronRight size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}{g.label}<span className="ml-1 text-xs font-normal text-slate-500">{g.list.length}体</span></span>
+                      <span className="flex gap-2 text-[11px] font-normal">
+                        {bad > 0 && <span className="text-red-300">失敗 {bad}</span>}
+                        {busy > 0 && <span className="text-cyan-300">作業中 {busy}</span>}
+                      </span>
+                    </button>
                   </h4>
-                  <ul className="space-y-0.5">
+                  {!shut && <ul className="space-y-0.5 mt-1.5">
                     {g.list.map((a) => {
                       const st = state(a.id, a.enabled)
                       const on = sel === a.id
                       const t = taskOf.get(a.id)
                       return (
                         <li key={a.id}>
-                          <button onClick={() => setSel(on ? null : a.id)} style={{ paddingLeft: 8 + Math.min(a.layer - g.minLayer, 3) * 14 }} className={`w-full text-left flex items-center gap-2 rounded pr-2 py-1.5 text-[13px] cursor-pointer ${on ? 'bg-cyan-500/20 ring-1 ring-cyan-400' : 'hover:bg-slate-800'} ${st === 'off' ? 'opacity-50' : ''}`}>
+                          <button onClick={() => setSel(on ? null : a.id)} style={{ paddingLeft: 8 + Math.min(a.layer - g.minLayer, 3) * 14 }} className={`w-full text-left flex items-center gap-2 rounded pr-2 py-1.5 text-[13px] cursor-pointer ${on ? 'bg-cyan-500/20 ring-1 ring-cyan-400' : st === 'err' ? 'bg-red-500/15 ring-1 ring-red-500/50' : 'hover:bg-slate-800'} ${st === 'off' ? 'opacity-50' : ''}`}>
                             <i className={`shrink-0 w-2.5 h-2.5 rounded-full ${st === 'run' ? 'animate-pulse' : ''}`} style={{ background: COLOR[st] }} />
                             <span className={`truncate ${a.layer === g.minLayer ? 'font-semibold text-slate-100' : 'text-slate-300'}`}>{a.role_title}</span>
+                            {st === 'err' && <span className="ml-auto text-[11px] text-red-300">失敗</span>}
                             {t && <span className="ml-auto text-[11px] text-cyan-300 truncate max-w-[45%]">{clip(t.task, 22)}</span>}
                           </button>
                         </li>
                       )
                     })}
-                  </ul>
+                  </ul>}
                 </section>
               )
             })}
