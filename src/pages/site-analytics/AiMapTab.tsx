@@ -53,36 +53,36 @@ function layout(agents: Agent[], order: string[]) {
     return { id: k, label: '', x, y, w: BOX_W, h: HEAD + list.length * ROW + 8, rows: list.map((a, i) => ({ a, y: HEAD + i * ROW, indent: Math.min(a.layer - min, 3) * 10, head: a.layer === min })) }
   }
   const rest = keys.filter((k) => k !== 'exec')
-  const cols = Math.max(2, Math.min(4, Math.round(Math.sqrt(rest.length * 1.3))))
-  const W = cols * BOX_W + (cols - 1) * GAP
+  const W = Math.max(rest.length, 1) * BOX_W + Math.max(rest.length - 1, 0) * GAP
   const boxes: Box[] = []
   const links: { x1: number; y1: number; x2: number; y2: number }[] = []
-  let top = 0
+  // 最上段: 最終意思決定者（オーナー）→ 社長室 → 各部門（すべて社長室の直属。横一列）
+  const OW = 260, OH = 40
+  boxes.push({ id: 'owner', label: '最終意思決定者（Taku）', x: (W - OW) / 2, y: 0, w: OW, h: OH, rows: [] })
+  let y = OH + 26
+  let execBottom = y
   if (by.has('exec')) {
-    const e = mk('exec', (W - BOX_W) / 2, 0)
+    const e = mk('exec', (W - BOX_W) / 2, y)
     boxes.push(e)
-    top = e.h + 28
+    links.push({ x1: W / 2, y1: OH, x2: W / 2, y2: y })
+    execBottom = y + e.h
+    y = execBottom + 30
   }
-  const heights = new Array(cols).fill(top)
-  const lastBox: (Box | null)[] = new Array(cols).fill(null)
-  const firstX: number[] = []
-  for (const k of rest) {
-    let c = 0
-    for (let i = 1; i < cols; i++) if (heights[i] < heights[c]) c = i
-    const b = mk(k, c * (BOX_W + GAP), heights[c])
-    if (lastBox[c]) links.push({ x1: b.x + BOX_W / 2, y1: lastBox[c]!.y + lastBox[c]!.h, x2: b.x + BOX_W / 2, y2: b.y })
-    else firstX.push(b.x + BOX_W / 2)
-    lastBox[c] = b
-    heights[c] = b.y + b.h + GAP
+  const xs: number[] = []
+  let H = y
+  rest.forEach((k, i) => {
+    const b = mk(k, i * (BOX_W + GAP), y)
+    xs.push(b.x + BOX_W / 2)
     boxes.push(b)
+    H = Math.max(H, b.y + b.h)
+  })
+  if (xs.length) {
+    const bus = execBottom + 15
+    links.push({ x1: W / 2, y1: execBottom, x2: W / 2, y2: bus })
+    links.push({ x1: Math.min(...xs, W / 2), y1: bus, x2: Math.max(...xs, W / 2), y2: bus })
+    for (const x of xs) links.push({ x1: x, y1: bus, x2: x, y2: y })
   }
-  if (boxes[0]?.id === 'exec' && firstX.length) {
-    const e = boxes[0], bus = e.h + 14
-    links.push({ x1: W / 2, y1: e.h, x2: W / 2, y2: bus })
-    links.push({ x1: Math.min(...firstX), y1: bus, x2: Math.max(...firstX), y2: bus })
-    for (const x of firstX) links.push({ x1: x, y1: bus, x2: x, y2: top })
-  }
-  return { boxes, links, W, H: Math.max(...heights, top) }
+  return { boxes, links, W, H }
 }
 
 const DEPTS: { id: string; label: string }[] = [
@@ -455,6 +455,12 @@ export default function AiMapTab() {
               <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
                 {links.map((l, i) => <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#334155" strokeWidth="1.5" />)}
                 {boxes.map((b) => {
+                  if (b.id === 'owner') return (
+                    <g key="owner" transform={`translate(${b.x} ${b.y})`}>
+                      <rect width={b.w} height={b.h} rx="10" fill="#1e293b" stroke="#f59e0b" strokeWidth="1.8" />
+                      <text x={b.w / 2} y={b.h / 2 + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="#fde68a">{b.label}</text>
+                    </g>
+                  )
                   const hot = b.rows.some((r) => state(r.a.id, r.a.enabled) === 'run')
                   const bad = b.rows.some((r) => state(r.a.id, r.a.enabled) === 'err')
                   const label = DEPTS.find((d) => d.id === b.id)?.label || (b.id === 'other' ? 'その他' : b.id)
