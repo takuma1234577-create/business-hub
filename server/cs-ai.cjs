@@ -57,6 +57,8 @@ const withFooter = (t) => (String(t).endsWith(FOOTER) ? String(t) : `${t}${FOOTE
 const AI_SOURCES = new Set(['fitpeak_rag', 'fitpeak_rag_instant', 'creashot_bot', 'creashot_bot_opening', 'tag_scheduled_ai_reply', 'ai_org_agent']);
 const OK_URL = /^https?:\/\/(?:fitpeak\.co|[\w-]+\.fitpeak\.co|www\.amazon\.co\.jp|amazon\.co\.jp|amzn\.asia|lin\.ee)(?:[/?#]\S*)?$/;
 const CLAIMS = /(筋肉(が|を)?(増え(る|ます|ま)|つき(ます|ま)|付き)|痩せ(る|ます|ま)|やせ(る|ます)|治(る|ります|り)|疲労(が|を)?回復|(絶対|必ず|確実に)(効|痩|増|治))/;
+// 人が動く約束・期限の約束（2026-10-06: 「責任者から必ず連絡」を繰り返して未履行になり、お客様が激怒した）
+const PROMISES = /((担当者?|責任者|スタッフ|上長).{0,12}(連絡|ご連絡|対応|確認のうえ|お電話)|折り返|(本日|今日|明日|明後日|今週|[0-9０-９]+日|[0-9０-９]+時間)(中|内|以内|までに|まで)に?.{0,12}(連絡|ご連絡|発送|返金|対応|お送り|ご報告)|(必ず|責任をもって).{0,6}(連絡|ご連絡|対応|発送|返金))/;
 function checkReplyText(text) {
   const t = String(text ?? '').trim();
   if (!t) return '返信文が空です';
@@ -65,6 +67,7 @@ function checkReplyText(text) {
   for (const u of t.match(/https?:\/\/\S+/g) || []) if (!OK_URL.test(u)) return `許可されていないURLです: ${u.slice(0, 60)}`;
   if (KB_FORBIDDEN.test(t)) return '原価・利益の数字は、お客様への返信に入れられません';
   if (CLAIMS.test(t)) return '効能効果の断定になりうる表現です（言い換えるか、人に回す）';
+  if (PROMISES.test(t)) return '人の対応・時期の約束になりうる表現です。「内容を確認のうえ、このLINEでお知らせします。お時間をいただく場合があります」にしてください';
   return null;
 }
 function textOf(content) {
