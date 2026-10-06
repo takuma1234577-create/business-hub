@@ -5,13 +5,13 @@ import * as THREE from 'three'
 
 export interface CityAgent { id: string; parent_id: string | null; layer: number; label: string; enabled: boolean; dept: string }
 export type CityState = 'run' | 'warm' | 'err' | 'idle' | 'off'
-export interface CityStateInfo { st: CityState; task?: string }
+export interface CityStateInfo { st: CityState; task?: string; wait?: number }
 export interface CityCallbacks {
   onPickAgent: (id: string | null) => void
   onPickDept: (id: string) => void
   onZoom: (k: number) => void
 }
-export interface DeptStat { busy: number; bad: number; total: number }
+export interface DeptStat { busy: number; bad: number; total: number; wait: number }
 
 const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",system-ui,sans-serif'
 const ACCENT: Record<string, number> = { exec: 0xf5b942, site: 0x7c8cff, sns: 0xf472b6, gear: 0xfb923c, cs: 0x34d399, amazon: 0xfacc15, creashot: 0xa78bfa, other: 0x94a3b8 }
@@ -564,11 +564,13 @@ export class CityScene {
       const off = o.info.st === 'off'
       o.body.opacity = off ? 0.35 : 1
       o.head.opacity = off ? 0.35 : 1
-      const run = o.info.st === 'run', err = o.info.st === 'err'
+      const wait = !!o.info.wait
+      const run = o.info.st === 'run' && !wait, err = o.info.st === 'err' || wait
       o.screen.emissive.set(run ? 0x22d3ee : err ? 0xf87171 : 0x000000)
       o.screen.color.set(run ? 0x67e8f9 : err ? 0xfca5a5 : off ? 0x475569 : 0x1e293b)
-      o.ringMat.color.set(STATE_COLOR[o.info.st])
+      o.ringMat.color.set(err ? STATE_COLOR.err : STATE_COLOR[o.info.st])
       o.warn.sprite.visible = err
+      o.warn.set(wait ? '判断待ち' : '!')
       const showBubble = run && !!o.info.task
       o.bubble.sprite.visible = showBubble
       if (showBubble) o.bubble.set(clip(o.info.task || '', 18))
@@ -576,8 +578,8 @@ export class CityScene {
     for (const [k, d] of this.deptObjs) {
       const s = this.deptStats.get(k)
       const label = this.labelOf(k)
-      d.sign.set(s && (s.busy || s.bad) ? `${label}  ${s.busy ? `作業中 ${s.busy}` : ''}${s.bad ? ` 失敗 ${s.bad}` : ''}`.trim() : `${label}  ${s?.total ?? 0}体`)
-      d.glowMat.color.set(s?.bad ? STATE_COLOR.err : STATE_COLOR.run)
+      d.sign.set(s && (s.busy || s.bad || s.wait) ? `${label}  ${s.busy ? `作業中 ${s.busy}` : ''}${s.bad ? ` 失敗 ${s.bad}` : ''}${s.wait ? ` 判断待ち ${s.wait}` : ''}`.trim() : `${label}  ${s?.total ?? 0}体`)
+      d.glowMat.color.set(s?.bad || s?.wait ? STATE_COLOR.err : STATE_COLOR.run)
     }
     this.updateLabels()
   }
@@ -796,7 +798,7 @@ export class CityScene {
     if (Math.abs(this.zoom - this.lastZoomReport) > 0.002) { this.lastZoomReport = this.zoom; this.cb.onZoom(this.zoom / (this.fitZoom || 1)); this.updateLabels() }
 
     for (const o of this.agentObjs.values()) {
-      const st = o.info.st
+      const st = o.info.wait ? 'err' : o.info.st
       const ph = o.seed
       if (st === 'run') {
         o.fig.position.y = Math.abs(Math.sin(t * 7 + ph)) * 0.035
@@ -823,7 +825,7 @@ export class CityScene {
     }
     for (const [k2, d] of this.deptObjs) {
       const s = this.deptStats.get(k2)
-      const want = s && (s.busy || s.bad) ? 0.18 + Math.sin(t * 3) * 0.07 : 0
+      const want = s && (s.busy || s.bad || s.wait) ? 0.18 + Math.sin(t * (s.wait ? 5 : 3)) * 0.07 : 0
       d.glowMat.opacity += (want - d.glowMat.opacity) * 0.1
     }
     // 歩く人

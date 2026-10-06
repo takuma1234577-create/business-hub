@@ -7,6 +7,7 @@ import { CityScene, type CityAgent, type CityState, type CityStateInfo, type Dep
 
 export interface MapAgent { id: string; parent_id: string | null; layer: number; role_title: string; enabled: boolean; dept?: string | null; model?: string | null }
 export interface MapEvent { id: number; at: string; agent_id: string | null; kind: string; level: string; title: string; detail: string | null }
+export interface PendingItem { id: string; agent_id: string; kind: string; urgency: string; headline: string; detail: string; options: string[] | null; ref: string | null; created_at: string }
 export interface MapRunning { run_id: string; agent_id: string; started_at: string; task: string; last: { title: string; at: string } | null }
 
 interface Props {
@@ -20,6 +21,9 @@ interface Props {
   sel: string | null
   onSel: (id: string | null) => void
   now: number
+  pending: Map<string, PendingItem[]>
+  onAnswer: (id: string, action: 'approve' | 'reject') => Promise<{ ok: boolean; message: string }>
+  onComment: (agentId: string, text: string) => Promise<{ ok: boolean; message: string }>
 }
 
 const STATE_LABEL: Record<CityState, string> = { run: '作業中', warm: '直前まで作業', err: '失敗', idle: '待機中', off: '停止中' }
@@ -30,7 +34,7 @@ const KIND_LABEL: Record<string, string> = {
 }
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-export default function CityView({ agents, deptOrder, deptLabels, events, running, stateOf, titleOf, sel, onSel, now }: Props) {
+export default function CityView({ agents, deptOrder, deptLabels, events, running, stateOf, titleOf, sel, onSel, now, pending, onAnswer, onComment }: Props) {
   const holder = useRef<HTMLDivElement>(null)
   const engine = useRef<CityScene | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
@@ -77,22 +81,23 @@ export default function CityView({ agents, deptOrder, deptLabels, events, runnin
     const out: Record<string, DeptStat> = {}
     for (const a of agents) {
       const k = deptOf(a)
-      const s = (out[k] ||= { busy: 0, bad: 0, total: 0 })
+      const s = (out[k] ||= { busy: 0, bad: 0, total: 0, wait: 0 })
       const st = stateOf(a.id, a.enabled)
       s.total++
       if (st === 'run') s.busy++
       if (st === 'err') s.bad++
+      if (pending.get(a.id)?.length) s.wait++
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, stateOf, now])
+  }, [agents, stateOf, now, pending])
 
   // 毎秒の状態を3Dへ渡す
   useEffect(() => {
     const states: Record<string, CityStateInfo> = {}
-    for (const a of agents) states[a.id] = { st: stateOf(a.id, a.enabled), task: running.get(a.id)?.task }
+    for (const a of agents) states[a.id] = { st: stateOf(a.id, a.enabled), task: running.get(a.id)?.task, wait: pending.get(a.id)?.length || 0 }
     engine.current?.setStates(states, stats)
-  }, [agents, stateOf, running, stats])
+  }, [agents, stateOf, running, stats, pending])
 
   useEffect(() => { engine.current?.setSelected(sel) }, [sel])
   useEffect(() => {
@@ -142,9 +147,10 @@ export default function CityView({ agents, deptOrder, deptLabels, events, runnin
           const on = focus === k
           return (
             <button key={k} onClick={() => { setFocus(k); engine.current?.focus(k) }} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 h-8 text-xs shadow-sm cursor-pointer ${on ? 'bg-[#5b4be0] border-[#5b4be0] text-white' : 'bg-white/95 border-indigo-100 text-slate-700 hover:bg-white'}`}>
-              <i className={`w-2 h-2 rounded-full ${s?.bad ? 'bg-red-400' : s?.busy ? 'bg-cyan-400 animate-pulse' : 'bg-slate-300'}`} />
+              <i className={`w-2 h-2 rounded-full ${s?.wait ? 'bg-red-500 animate-pulse' : s?.bad ? 'bg-red-400' : s?.busy ? 'bg-cyan-400 animate-pulse' : 'bg-slate-300'}`} />
               <b className="font-semibold">{deptLabels[k] || (k === 'other' ? 'その他' : k)}</b>
               <span className={on ? 'text-indigo-100' : 'text-slate-400'}>{s?.busy ? `作業中 ${s.busy}` : `${s?.total ?? 0}体`}</span>
+              {s?.wait ? <span className="rounded-full bg-red-500 text-white px-1.5 text-[10px] font-semibold">判断待ち {s.wait}</span> : null}
             </button>
           )
         })}
@@ -178,6 +184,7 @@ export default function CityView({ agents, deptOrder, deptLabels, events, runnin
             </span>
             {a.model && <span className="text-slate-500 truncate" translate="no">{a.model}</span>}
           </div>
+          {(pending.get(a.id) || []).map((e) => <PendingCard key={e.id} e={e} onAnswer={onAnswer} onComment={onComment} />)}
           <div className="mt-2.5 rounded-lg bg-indigo-50 border border-indigo-100 p-2.5">
             <div className="text-[11px] text-indigo-500 font-semibold mb-0.5">いまやっていること</div>
             {aRun ? (
@@ -222,7 +229,7 @@ export default function CityView({ agents, deptOrder, deptLabels, events, runnin
                     <i className={`shrink-0 w-2.5 h-2.5 rounded-full ${st === 'run' ? 'animate-pulse' : ''}`} style={{ background: STATE_DOT[st] }} />
                     <span className="truncate font-medium">{titleOf(x)}<span className="ml-1.5 text-slate-500 font-normal">{nameOf(x.id)}</span></span>
                     {r && <span className="ml-auto text-[11px] text-cyan-600 truncate max-w-[50%]" translate="no">{clip(r.task, 18)}</span>}
-                    {!r && st === 'err' && <span className="ml-auto text-[11px] text-red-500">失敗</span>}
+                    {pending.get(x.id)?.length ? <span className="ml-auto text-[11px] font-semibold text-white bg-red-500 rounded-full px-1.5">判断待ち</span> : !r && st === 'err' && <span className="ml-auto text-[11px] text-red-500">失敗</span>}
                   </button>
                 </li>
               )
@@ -230,6 +237,50 @@ export default function CityView({ agents, deptOrder, deptLabels, events, runnin
           </ul>
         </aside>
       ) : null}
+    </div>
+  )
+}
+
+// 人の判断待ち。承認/却下で答える（LINEの回答と同じ処理）。選択式の案件は、選んだ内容を担当へ返す
+function PendingCard({ e, onAnswer, onComment }: { e: PendingItem; onAnswer: Props['onAnswer']; onComment: Props['onComment'] }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const opts = e.options || []
+  const binary = opts.some((o) => o === 'approve' || o === '承認して反映')
+  const cs = !!e.ref && e.ref.startsWith('cs:')
+  const run = async (f: () => Promise<{ ok: boolean; message: string }>) => {
+    if (busy) return
+    setBusy(true); setMsg(null)
+    try { const r = await f(); setMsg({ ok: r.ok, text: r.message }); if (r.ok) setText('') } finally { setBusy(false) }
+  }
+  const answer = (action: 'approve' | 'reject') => {
+    if (action === 'approve' && !window.confirm(cs ? 'AIの返信案を、そのままお客様に送ります。よろしいですか？' : '承認して反映します。よろしいですか？')) return
+    void run(() => onAnswer(e.id, action))
+  }
+  const reply = (body: string) => run(() => onComment(e.agent_id, `【判断待ちへの返答】案件: ${e.headline.slice(0, 80)}\n${body}`))
+  return (
+    <div className="mt-2.5 rounded-lg border-2 border-red-400 bg-red-50 p-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-bold text-red-600"><span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />判断待ち{e.urgency === 'high' ? '（急ぎ）' : ''}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-900 break-words" translate="no">{clip(e.headline, 140)}</div>
+      {e.detail && <button onClick={() => setOpen(!open)} className="mt-1 text-[11px] text-red-600 underline cursor-pointer">{open ? '詳細を閉じる' : '詳細を見る'}</button>}
+      {open && <div className="mt-1 text-xs text-slate-700 whitespace-pre-wrap break-words max-h-40 overflow-y-auto" translate="no">{e.detail}</div>}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {binary ? (
+          <>
+            <button disabled={busy} onClick={() => answer('approve')} className="px-3 h-8 rounded-full text-xs font-semibold bg-red-600 text-white disabled:opacity-40 cursor-pointer">{cs ? 'AI案で送信' : '承認して反映'}</button>
+            <button disabled={busy} onClick={() => answer('reject')} className="px-3 h-8 rounded-full text-xs font-semibold bg-white border border-red-300 text-red-700 disabled:opacity-40 cursor-pointer">{cs ? '対応しない' : '却下'}</button>
+          </>
+        ) : opts.map((o) => (
+          <button key={o} disabled={busy} onClick={() => { if (window.confirm(`この内容で担当に返答します。\n\n${o}`)) void reply(`選んだ案: ${o}`) }} className="px-3 py-1.5 rounded-2xl text-xs font-semibold bg-red-600 text-white disabled:opacity-40 cursor-pointer text-left break-words max-w-full">{clip(o, 60)}</button>
+        ))}
+      </div>
+      <div className="mt-2">
+        <textarea value={text} onChange={(ev) => setText(ev.target.value)} maxLength={900} rows={2} placeholder="条件やコメントを書いて、担当へ返す（例: 来週まで待って）" className="w-full rounded border border-red-200 bg-white px-2 py-1 text-xs text-slate-800" />
+        <button disabled={busy || !text.trim()} onClick={() => void reply(text.trim())} className="mt-1 px-3 h-7 rounded-full text-xs bg-slate-700 text-white disabled:opacity-40 cursor-pointer">コメントで返す</button>
+      </div>
+      {msg && <div className={`mt-1.5 text-xs ${msg.ok ? 'text-emerald-700' : 'text-red-700'}`}>{msg.text}</div>}
     </div>
   )
 }

@@ -13,7 +13,9 @@ interface Agent { id: string; parent_id: string | null; layer: number; role_titl
 interface ChatMsg { id: number; dept: string; from_agent: string; to_agent: string | null; body: string; created_at: string }
 interface Ev { id: number; at: string; agent_id: string | null; run_id: string | null; kind: string; level: string; title: string; detail: string | null; meta?: Record<string, unknown> | null }
 interface Running { run_id: string; agent_id: string; started_at: string; task: string; last: { title: string; at: string } | null }
+interface Esc { id: string; agent_id: string; kind: string; urgency: string; headline: string; detail: string; options: string[] | null; ref: string | null; created_at: string }
 interface Status {
+  cost_daily?: { day: string; usd: number }[]
   running: Running[]; queued: number | null; escalations_open: number | null; heartbeat_at: string | null; errors_24h: number | null
   cost_24h_usd: number | null; cap_24h_usd: number | null; cost_30d_usd: number | null; cap_30d_usd: number | null; revenue_30d_jpy: number | null
 }
@@ -26,6 +28,7 @@ const TOOL = new Set(['tool', 'tool_error'])
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 const hhmmss = (iso: string) => new Date(iso).toLocaleTimeString(getLocale(), { hourCycle: 'h23', timeZone: 'Asia/Tokyo' })
+const dayLabel = (iso: string) => { const [, m, d] = iso.split('-'); return `${Number(m)}月${Number(d)}日` }
 const yen = (usd: number | null) => (usd == null ? '-' : `約${Math.round(usd * 150).toLocaleString(getLocale())}円`)
 
 function useTyped(text: string, key: string | number) {
@@ -211,6 +214,8 @@ export default function AiMapTab() {
   const [err, setErr] = useState('')
   const [sel, setSel] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [escs, setEscs] = useState<Esc[]>([])
+  const [showDaily, setShowDaily] = useState(false)
   const lastId = useRef(0)
   const mapBox = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<'city' | 'dept' | 'tree'>('city')
@@ -239,6 +244,43 @@ export default function AiMapTab() {
       setErr(m || '取得に失敗しました')
     }
   }, [])
+
+  // 人の判断待ち。10秒ごとに取る（担当の上に赤く出す）
+  const loadEscs = useCallback(async () => {
+    if (document.hidden) return
+    try { const r = await saApi.get<{ escalations: Esc[] }>('/ai-escalations'); setEscs(r.data.escalations || []) } catch { /* 取れなくても、ほかの表示は続ける */ }
+  }, [])
+  useEffect(() => {
+    const first = setTimeout(loadEscs, 0)
+    const t = setInterval(loadEscs, 10000)
+    return () => { clearTimeout(first); clearInterval(t) }
+  }, [loadEscs])
+  const pending = useMemo(() => {
+    const m = new Map<string, Esc[]>()
+    for (const e of escs) m.set(e.agent_id, [...(m.get(e.agent_id) || []), e])
+    return m
+  }, [escs])
+  const answerEsc = useCallback(async (id: string, action: 'approve' | 'reject') => {
+    try {
+      const r = await saApi.post<{ ok?: boolean; title?: string; message?: string }>('/ai-answer', { id, action })
+      setEscs((p) => p.filter((e) => e.id !== id))
+      void loadEscs()
+      return { ok: true, message: [r.data.title, r.data.message].filter(Boolean).join(' ') || '回答しました' }
+    } catch (e: unknown) {
+      const d = (e as { response?: { data?: { message?: string; title?: string } } })?.response?.data
+      return { ok: false, message: d?.message || d?.title || '回答できませんでした' }
+    }
+  }, [loadEscs])
+  const commentEsc = useCallback(async (agentId: string, text: string) => {
+    const a = agents.find((x) => x.id === agentId)
+    const room = ROOM_OPTIONS.some((r) => r.id === a?.dept) ? (a?.dept as string) : 'exec'
+    try {
+      await saApi.post('/ai-chat', { room, to: agentId, body: text })
+      return { ok: true, message: '担当に返しました（最優先の仕事として入ります）' }
+    } catch (e: unknown) {
+      return { ok: false, message: (e as { response?: { data?: { error?: string } } })?.response?.data?.error || '送れませんでした' }
+    }
+  }, [agents])
 
   useEffect(() => {
     const first = setTimeout(load, 0)
@@ -368,9 +410,18 @@ export default function AiMapTab() {
         <span>待機中の仕事 <b className="text-sm">{status?.queued ?? '-'}</b></span>
         <span>人に確認中 <b className={`text-sm ${status?.escalations_open ? 'text-amber-300' : ''}`}>{status?.escalations_open ?? '-'}</b></span>
         <span>24時間のエラー <b className={`text-sm ${status?.errors_24h ? 'text-red-300' : ''}`}>{status?.errors_24h ?? '-'}</b></span>
-        <span>費用(24h) <b className="text-sm">{yen(status?.cost_24h_usd ?? null)}</b><span className="text-slate-500"> / {yen(status?.cap_24h_usd ?? null)}</span></span>
+        <span>費用 <button onClick={() => setShowDaily((v) => !v)} className="underline decoration-dotted cursor-pointer" aria-expanded={showDaily}><b className="text-sm">{(() => { const d = status?.cost_daily?.[0]; return d ? `${dayLabel(d.day)} ${yen(d.usd)}` : yen(status?.cost_24h_usd ?? null) })()}</b></button><span className="text-slate-500"> ／ 1日の上限 {yen(status?.cap_24h_usd ?? null)}</span> <button onClick={() => setShowDaily((v) => !v)} className="text-cyan-300 cursor-pointer">{showDaily ? '日別を閉じる' : '日別を見る'}</button></span>
         <span>鼓動 <b className={`text-sm ${beatAge != null && beatAge > 30 ? 'text-red-300' : ''}`}>{beatAge == null ? '-' : `${beatAge}分前`}</b></span>
         {err && <span className="text-red-300">{err}</span>}
+        {showDaily && (
+          <div className="basis-full grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 pt-1">
+            {(status?.cost_daily || []).length === 0 && <span className="text-slate-500 col-span-full">日別の費用はまだ取れていません</span>}
+            {(status?.cost_daily || []).map((d) => {
+              const over = status?.cap_24h_usd != null && d.usd > status.cap_24h_usd
+              return <div key={d.day} className={`rounded-lg border px-2.5 py-1.5 ${over ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-800 bg-slate-900/60'}`}><div className="text-[11px] text-slate-400">{dayLabel(d.day)}</div><div className={`text-sm font-semibold ${over ? 'text-amber-300' : ''}`}>{yen(d.usd)}</div></div>
+            })}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
@@ -396,7 +447,7 @@ export default function AiMapTab() {
         </div>
         {mode === 'city' && (
           <Suspense fallback={<div className="h-[560px] grid place-items-center text-sm text-slate-500">街を読み込み中…</div>}>
-            <CityView agents={agents} deptOrder={DEPT_ORDER} deptLabels={DEPT_LABELS} events={events} running={taskOf} stateOf={state} titleOf={(a) => uiText(a.role_title)} sel={sel} onSel={setSel} now={now} />
+            <CityView agents={agents} deptOrder={DEPT_ORDER} deptLabels={DEPT_LABELS} events={events} running={taskOf} stateOf={state} titleOf={(a) => uiText(a.role_title)} sel={sel} onSel={setSel} now={now} pending={pending} onAnswer={answerEsc} onComment={commentEsc} />
           </Suspense>
         )}
         {mode === 'dept' && (() => {

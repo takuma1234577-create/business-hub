@@ -13146,5 +13146,89 @@
   "{0}  {1}体": [
     "{0}  {1} agents",
     "{0}  {1} agentes"
+  ],
+  "承認して反映": [
+    "Approve and apply",
+    "Aprobar y aplicar"
+  ],
+  "{0}月{1}日": [
+    "{0}/{1}",
+    "{1}/{0}"
+  ],
+  "回答しました": [
+    "Answered",
+    "Respondido"
+  ],
+  "回答できませんでした": [
+    "Could not answer",
+    "No se pudo responder"
+  ],
+  "担当に返しました（最優先の仕事として入ります）": [
+    "Sent to the agent (queued as top priority)",
+    "Enviado al agente (con máxima prioridad)"
+  ],
+  "費用": [
+    "Cost",
+    "Costo"
+  ],
+  "／ 1日の上限": [
+    " / Daily limit",
+    " / Límite diario"
+  ],
+  "日別を閉じる": [
+    "Hide daily",
+    "Ocultar por día"
+  ],
+  "日別を見る": [
+    "Show daily",
+    "Ver por día"
+  ],
+  "日別の費用はまだ取れていません": [
+    "Daily costs are not available yet",
+    "Aún no hay costos diarios"
+  ],
+  "判断待ち": [
+    "Awaiting your decision",
+    "Esperando tu decisión"
+  ],
+  "AIの返信案を、そのままお客様に送ります。よろしいですか？": [
+    "The AI's draft reply will be sent to the customer as is. Continue?",
+    "Se enviará al cliente el borrador de la IA tal cual. ¿Continuar?"
+  ],
+  "承認して反映します。よろしいですか？": [
+    "Approve and apply this. Continue?",
+    "Se aprobará y aplicará. ¿Continuar?"
+  ],
+  "（急ぎ）": [
+    " (urgent)",
+    " (urgente)"
+  ],
+  "詳細を閉じる": [
+    "Hide details",
+    "Ocultar detalles"
+  ],
+  "AI案で送信": [
+    "Send AI draft",
+    "Enviar borrador de IA"
+  ],
+  "対応しない": [
+    "Do nothing",
+    "No hacer nada"
+  ],
+  "この内容で担当に返答します。\n\n{0}": [
+    "Reply to the agent with this.\n\n{0}",
+    "Responder al agente con esto.\n\n{0}"
+  ],
+  "条件やコメントを書いて、担当へ返す（例: 来週まで待って）": [
+    "Write conditions or comments to send back (e.g. wait until next week)",
+    "Escribe condiciones o comentarios para devolver (p. ej. espera a la próxima semana)"
+  ],
+  "コメントで返す": [
+    "Reply with comment",
+    "Responder con comentario"
+  ],
+  "判断待ち {0}": [
+    "Awaiting decision {0}",
+    "Pendiente {0}"
   ]
 }

@@ -90,5 +90,7 @@
   "<!-- FITPEAK サイト分析（Business-hub） -->\n<script src=\"https://my.fitpeak.co/api/public/site-analytics/fa.js\" data-site=\"fitpeak.co\" defer></script>": "Code/JSON example; preserve copyable syntax and field values.",
   "SVPコーポレーション": "Legal entity or personal name; keep original identity.",
   "宇良琢真": "Legal entity or personal name; keep original identity.",
-  "体": "Unit suffix after a count; translated through the \"{0}体\" phrase"
+  "体": "Unit suffix after a count; translated through the \"{0}体\" phrase",
+  "【判断待ちへの返答】案件: {0}\n{1}": "AI担当に送る内部の指示文（日本語のまま渡す）",
+  "選んだ案: {0}": "AI担当に送る内部の指示文（日本語のまま渡す）"
 }
