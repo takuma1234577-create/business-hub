@@ -168,6 +168,7 @@ export default function AiMapTab() {
   const [now, setNow] = useState(() => Date.now())
   const lastId = useRef(0)
   const mapBox = useRef<HTMLDivElement>(null)
+  const [mode, setMode] = useState<'dept' | 'tree'>('dept')
   const [view, setView] = useState({ k: 1, x: 0, y: 0 })
   const ptrs = useRef(new Map<number, { x: number; y: number }>())
   const gesture = useRef<{ moved: boolean; dist: number }>({ moved: false, dist: 0 })
@@ -270,6 +271,18 @@ export default function AiMapTab() {
   }
   const COLOR = { run: '#22d3ee', warm: '#4ade80', err: '#f87171', idle: '#64748b', off: '#334155' }
 
+  const taskOf = useMemo(() => new Map((status?.running || []).map((r) => [r.agent_id, r])), [status])
+  const groups = useMemo(() => {
+    const by = new Map<string, Agent[]>()
+    for (const a of agents) { const d = a.dept || (a.layer <= 2 ? 'exec' : 'other'); by.set(d, [...(by.get(d) || []), a]) }
+    const order = DEPTS.map((d) => d.id)
+    const keys = [...by.keys()].sort((p, q) => (order.indexOf(p) < 0 ? 99 : order.indexOf(p)) - (order.indexOf(q) < 0 ? 99 : order.indexOf(q)))
+    return keys.map((k) => {
+      const list = [...by.get(k)!].sort((p, q) => p.layer - q.layer || p.id.localeCompare(q.id))
+      return { id: k, label: DEPTS.find((d) => d.id === k)?.label || (k === 'other' ? 'その他' : k), list, minLayer: list[0]?.layer ?? 0 }
+    })
+  }, [agents])
+
   const shown = sel ? events.filter((e) => e.agent_id === sel) : events
   const thinks = shown.filter((e) => e.kind === 'think' || e.kind === 'run_start')
   const bodyOf = (e: Ev) => (e.kind === 'think' ? e.detail || e.title : e.title)
@@ -314,21 +327,58 @@ export default function AiMapTab() {
 
       <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
         <div className="px-3 py-2 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-800">
-          <span>組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小・担当を押すとその担当だけを下に表示）</span>
+          <span>{mode === 'dept' ? '組織マップ（担当を押すと、その担当だけを下に表示）' : '組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小）'}</span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {sel && <button onClick={() => setSel(null)} className="underline cursor-pointer text-cyan-300">全員に戻す</button>}
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex rounded border border-slate-700 overflow-hidden">
+              {([['dept', '部門別'], ['tree', 'ツリー図']] as const).map(([m, l]) => (
+                <button key={m} onClick={() => setMode(m)} className={`px-2.5 h-7 cursor-pointer ${mode === m ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-400 hover:text-slate-200'}`}>{l}</button>
+              ))}
+            </span>
+            {mode === 'tree' && <span className="inline-flex items-center gap-1">
               <button onClick={() => zoomAt(1 / 1.3)} aria-label="縮小" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">−</button>
               <span className="w-10 text-center tabular-nums">{Math.round(view.k * 100)}%</span>
               <button onClick={() => zoomAt(1.3)} aria-label="拡大" className="w-7 h-7 rounded border border-slate-700 text-slate-200 text-base leading-none cursor-pointer hover:bg-slate-800">＋</button>
               <button onClick={() => setView({ k: 1, x: 0, y: 0 })} className="px-2 h-7 rounded border border-slate-700 text-slate-200 cursor-pointer hover:bg-slate-800">全体</button>
-            </span>
+            </span>}
             {([['run', '作業中'], ['warm', '直近'], ['idle', '待機'], ['err', '失敗']] as const).map(([k, l]) => (
               <span key={k} className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2 rounded-full" style={{ background: COLOR[k] }} />{l}</span>
             ))}
           </span>
         </div>
-        <div ref={mapBox} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="overflow-hidden h-[460px] sm:h-[540px] cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
+        {mode === 'dept' && (
+          <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {agents.length === 0 && <div className="col-span-full p-8 text-center text-slate-500 text-sm">{err ? '取得できていません' : '読み込み中…'}</div>}
+            {groups.map((g) => {
+              const busy = g.list.filter((a) => state(a.id, a.enabled) === 'run').length
+              return (
+                <section key={g.id} className="rounded-lg border border-slate-800 bg-slate-900/50 p-2.5 min-w-0">
+                  <h4 className="flex items-center justify-between text-sm font-semibold mb-1.5">
+                    <span>{g.label}<span className="ml-1.5 text-xs font-normal text-slate-500">{g.list.length}体</span></span>
+                    {busy > 0 && <span className="text-[11px] font-normal text-cyan-300">作業中 {busy}</span>}
+                  </h4>
+                  <ul className="space-y-0.5">
+                    {g.list.map((a) => {
+                      const st = state(a.id, a.enabled)
+                      const on = sel === a.id
+                      const t = taskOf.get(a.id)
+                      return (
+                        <li key={a.id}>
+                          <button onClick={() => setSel(on ? null : a.id)} style={{ paddingLeft: 8 + Math.min(a.layer - g.minLayer, 3) * 14 }} className={`w-full text-left flex items-center gap-2 rounded pr-2 py-1.5 text-[13px] cursor-pointer ${on ? 'bg-cyan-500/20 ring-1 ring-cyan-400' : 'hover:bg-slate-800'} ${st === 'off' ? 'opacity-50' : ''}`}>
+                            <i className={`shrink-0 w-2.5 h-2.5 rounded-full ${st === 'run' ? 'animate-pulse' : ''}`} style={{ background: COLOR[st] }} />
+                            <span className={`truncate ${a.layer === g.minLayer ? 'font-semibold text-slate-100' : 'text-slate-300'}`}>{a.role_title}</span>
+                            {t && <span className="ml-auto text-[11px] text-cyan-300 truncate max-w-[45%]">{clip(t.task, 22)}</span>}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
+        )}
+        {mode === 'tree' && <div ref={mapBox} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="overflow-hidden h-[460px] sm:h-[540px] cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
           {agents.length === 0 ? <div className="p-8 text-center text-slate-500 text-sm">{err ? '取得できていません' : '読み込み中…'}</div> : (
             <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }} role="img" aria-label="AI組織のマップ">
               <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
@@ -364,7 +414,7 @@ export default function AiMapTab() {
               </g>
             </svg>
           )}
-        </div>
+        </div>}
         {runList.length > 0 && (
           <div className="px-3 py-2 border-t border-slate-800 text-xs space-y-1">
             {runList.map((r) => (
