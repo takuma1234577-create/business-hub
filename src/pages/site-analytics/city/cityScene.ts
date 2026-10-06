@@ -407,7 +407,7 @@ export class CityScene {
     tex.anisotropy = 8
     const group = new THREE.Group()
     group.position.set(cx, 0, cz)
-    group.rotation.y = AZ
+    group.rotation.y = 0
     const face = new THREE.MeshBasicMaterial({ map: tex })
     const side = this.mat(0x312e81)
     const board = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.22), [side, side, side, side, face, side])
