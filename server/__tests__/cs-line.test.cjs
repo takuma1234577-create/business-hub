@@ -40,3 +40,12 @@ assert.deepEqual(pendingThreads(rows, { ...opts, aiCountsAsAnswer: true }).map((
 const th = pendingThreads(rows, { ...opts, aiCountsAsAnswer: false })[0];
 assert.equal(typeof th.text, 'string'); assert.equal('display_name' in th, false);
 console.log('OK   cs-line');
+
+// 約束の禁止（2026-10-06）: 人が動く約束・期限の約束は、送信前に弾く。通常の案内は通す
+assert.match(checkReplyText('担当者から本日中にご連絡いたします。'), /約束/);
+assert.match(checkReplyText('責任者から必ず連絡させていただきます。'), /約束/);
+assert.match(checkReplyText('確認のうえ、折り返しご連絡します。'), /約束/);
+assert.match(checkReplyText('明日までに発送いたします。'), /約束/);
+assert.equal(checkReplyText('内容を確認のうえ、このLINEでお知らせします。お時間をいただく場合があります。'), null);
+assert.equal(checkReplyText('サイズはMがおすすめです。'), null);
+console.log('cs-line promise guard: OK');
