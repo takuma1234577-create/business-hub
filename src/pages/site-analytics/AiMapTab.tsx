@@ -1,8 +1,10 @@
 import { uiText } from '@business-hub/i18n/dialogs'
 import { getLocale } from '../../i18n/store'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Brain, Wrench, Package, Radio, AlertTriangle, CheckCircle2, MessagesSquare } from 'lucide-react'
 import { saApi } from './api'
+
+const CityView = lazy(() => import('./city/CityView'))
 
 // AIエージェント管理マップ。fitpeak-ai-org の出来事（org_events）を3秒ごとに差分で取り、
 // ①組織マップ ②思考コンソール ③ツール起動 ④成果物タイムライン に出す。表示だけで、書き込みはしない。
@@ -98,6 +100,8 @@ function layout(agents: Agent[], order: string[]) {
 const DEPTS: { id: string; label: string }[] = [
   { id: 'all', label: 'すべて' }, { id: 'exec', label: '社長室' }, { id: 'site', label: 'サイト運用' }, { id: 'sns', label: 'SNS' }, { id: 'gear', label: 'ギア' }, { id: 'cs', label: 'お客様対応' }, { id: 'amazon', label: 'Amazon' }, { id: 'creashot', label: 'クレアショット' }, { id: 'company', label: '全社チャット' },
 ]
+const DEPT_ORDER = DEPTS.map((d) => d.id)
+const DEPT_LABELS: Record<string, string> = Object.fromEntries(DEPTS.map((d) => [d.id, d.label]))
 
 // やり取りの種類（指示・報告・日報）。先頭の【…】で見分けて、色をつける
 const KINDS: { tag: string; cls: string }[] = [
@@ -209,7 +213,7 @@ export default function AiMapTab() {
   const [now, setNow] = useState(() => Date.now())
   const lastId = useRef(0)
   const mapBox = useRef<HTMLDivElement>(null)
-  const [mode, setMode] = useState<'dept' | 'tree'>('dept')
+  const [mode, setMode] = useState<'city' | 'dept' | 'tree'>('city')
   const [closed, setClosed] = useState<Set<string>>(new Set())
   const [view, setView] = useState({ k: 1, x: 0, y: 0 })
   const ptrs = useRef(new Map<number, { x: number; y: number }>())
@@ -371,11 +375,11 @@ export default function AiMapTab() {
 
       <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
         <div className="px-3 py-2 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-800">
-          <span>{mode === 'dept' ? '組織マップ（担当を押すと、その担当だけを下に表示）' : '組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小）'}</span>
+          <span>{mode === 'city' ? 'AIの街（部屋や人を押すと、いま何をしているかが見えます）' : mode === 'dept' ? '組織マップ（担当を押すと、その担当だけを下に表示）' : '組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小）'}</span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {sel && <button onClick={() => setSel(null)} className="underline cursor-pointer text-cyan-300">全員に戻す</button>}
             <span className="inline-flex rounded border border-slate-700 overflow-hidden">
-              {([['dept', '部門別'], ['tree', 'ツリー図']] as const).map(([m, l]) => (
+              {([['city', '街（3D）'], ['dept', '部門別'], ['tree', 'ツリー図']] as const).map(([m, l]) => (
                 <button key={m} onClick={() => setMode(m)} className={`px-2.5 h-7 cursor-pointer ${mode === m ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-400 hover:text-slate-200'}`}>{l}</button>
               ))}
             </span>
@@ -390,6 +394,11 @@ export default function AiMapTab() {
             ))}
           </span>
         </div>
+        {mode === 'city' && (
+          <Suspense fallback={<div className="h-[560px] grid place-items-center text-sm text-slate-500">街を読み込み中…</div>}>
+            <CityView agents={agents} deptOrder={DEPT_ORDER} deptLabels={DEPT_LABELS} events={events} running={taskOf} stateOf={state} titleOf={(a) => uiText(a.role_title)} sel={sel} onSel={setSel} now={now} />
+          </Suspense>
+        )}
         {mode === 'dept' && (() => {
           const hot = agents.filter((a) => { const st = state(a.id, a.enabled); return st === 'run' || st === 'err' })
           return (

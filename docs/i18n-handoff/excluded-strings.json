@@ -89,5 +89,6 @@
   "{0}/collections/fitpeak筋トレギア一覧": "Canonical product handle or URL; preserve navigation identifiers.",
   "<!-- FITPEAK サイト分析（Business-hub） -->\n<script src=\"https://my.fitpeak.co/api/public/site-analytics/fa.js\" data-site=\"fitpeak.co\" defer></script>": "Code/JSON example; preserve copyable syntax and field values.",
   "SVPコーポレーション": "Legal entity or personal name; keep original identity.",
-  "宇良琢真": "Legal entity or personal name; keep original identity."
+  "宇良琢真": "Legal entity or personal name; keep original identity.",
+  "体": "Unit suffix after a count; translated through the \"{0}体\" phrase"
 }

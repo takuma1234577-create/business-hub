@@ -12978,5 +12978,173 @@
   "{0}{1}（{2}件）": [
     "{0}{1} ({2} items)",
     "{0}{1} ({2} elementos)"
+  ],
+  "最終意思決定者（Taku）": [
+    "Final decision-maker (Taku)",
+    "Decisor final (Taku)"
+  ],
+  "Taku（最終意思決定者）": [
+    "Taku (final decision-maker)",
+    "Taku (decisor final)"
+  ],
+  "AIの街（部屋や人を押すと、いま何をしているかが見えます）": [
+    "AI city (tap a room or a person to see what they are doing now)",
+    "Ciudad de IA (toca una sala o una persona para ver qué hace ahora)"
+  ],
+  "組織マップ（ドラッグで移動・ホイール/ピンチで拡大縮小）": [
+    "Org map (drag to move, wheel/pinch to zoom)",
+    "Mapa de la organización (arrastra para mover, rueda/pellizco para zoom)"
+  ],
+  "街（3D）": [
+    "City (3D)",
+    "Ciudad (3D)"
+  ],
+  "部門別": [
+    "By department",
+    "Por departamento"
+  ],
+  "ツリー図": [
+    "Tree",
+    "Árbol"
+  ],
+  "縮小": [
+    "Zoom out",
+    "Reducir"
+  ],
+  "拡大": [
+    "Zoom in",
+    "Ampliar"
+  ],
+  "全体": [
+    "Fit",
+    "Todo"
+  ],
+  "街を読み込み中…": [
+    "Loading the city…",
+    "Cargando la ciudad…"
+  ],
+  "いま動いている・失敗している担当": [
+    "Agents working or failing now",
+    "Agentes activos o con fallos ahora"
+  ],
+  "いまは動いている担当も、失敗している担当もいません": [
+    "No agent is working or failing right now",
+    "Ningún agente está activo ni con fallos ahora"
+  ],
+  "社員": [
+    "Staff",
+    "Empleado"
+  ],
+  "直前まで作業": [
+    "Just worked",
+    "Trabajó hace poco"
+  ],
+  "考えている": [
+    "Thinking",
+    "Pensando"
+  ],
+  "仕事を開始": [
+    "Started a job",
+    "Inició un trabajo"
+  ],
+  "仕事を完了": [
+    "Finished a job",
+    "Terminó un trabajo"
+  ],
+  "道具を使用": [
+    "Used a tool",
+    "Usó una herramienta"
+  ],
+  "道具が失敗": [
+    "Tool failed",
+    "Falló una herramienta"
+  ],
+  "結論": [
+    "Conclusion",
+    "Conclusión"
+  ],
+  "提案": [
+    "Proposal",
+    "Propuesta"
+  ],
+  "判断": [
+    "Decision",
+    "Decisión"
+  ],
+  "反映": [
+    "Applied",
+    "Aplicado"
+  ],
+  "人に確認": [
+    "Asked a human",
+    "Consultó a una persona"
+  ],
+  "この端末では3D表示を使えません。「部門別」か「ツリー図」に切り替えてください。": [
+    "3D view is not available on this device. Switch to \"By department\" or \"Tree\".",
+    "La vista 3D no está disponible en este dispositivo. Cambia a \"Por departamento\" o \"Árbol\"."
+  ],
+  "作業中 {0}": [
+    "Working {0}",
+    "Activos {0}"
+  ],
+  "{0}体": [
+    "{0} agents",
+    "{0} agentes"
+  ],
+  "全体表示": [
+    "Overview",
+    "Vista general"
+  ],
+  "ドラッグで移動 ・ ホイール/ピンチで拡大 ・ 部屋や人を押すと詳細": [
+    "Drag to move · wheel/pinch to zoom · tap a room or person for details",
+    "Arrastra para mover · rueda/pellizco para zoom · toca una sala o persona"
+  ],
+  "／ 上司: {0}": [
+    " / Manager: {0}",
+    " / Jefe: {0}"
+  ],
+  "いまやっていること": [
+    "What they are doing now",
+    "Qué hace ahora"
+  ],
+  "直近:": [
+    "Latest:",
+    "Último:"
+  ],
+  "開始から": [
+    "Since start",
+    "Desde el inicio"
+  ],
+  "停止中です": [
+    "Stopped",
+    "Detenido"
+  ],
+  "いまは次の仕事を待っています": [
+    "Waiting for the next job",
+    "Esperando el próximo trabajo"
+  ],
+  "最近の動き": [
+    "Recent activity",
+    "Actividad reciente"
+  ],
+  "まだ記録がありません": [
+    "No records yet",
+    "Aún no hay registros"
+  ],
+  "体 ／ 作業中": [
+    " agents / working",
+    " agentes / activos"
+  ],
+  "／ 失敗 {0}": [
+    " / failed {0}",
+    " / fallos {0}"
+  ],
+  "失敗 {0}": [
+    "Failed {0}",
+    "Fallos {0}"
+  ],
+  "{0}  {1}体": [
+    "{0}  {1} agents",
+    "{0}  {1} agentes"
   ]
 }
