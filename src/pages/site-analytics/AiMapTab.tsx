@@ -36,7 +36,7 @@ function useTyped(text: string, key: string | number) {
   return text.slice(0, n)
 }
 
-interface Row { a: Agent; y: number; indent: number; head: boolean }
+interface Row { a: Agent; y: number; indent: number; head: boolean; depth: number; parent: number }
 interface Box { id: string; label: string; x: number; y: number; w: number; h: number; rows: Row[] }
 
 const BOX_W = 208, ROW = 24, HEAD = 34, GAP = 20
@@ -47,13 +47,23 @@ function layout(agents: Agent[], order: string[]) {
   for (const a of agents) { const d = a.dept || (a.layer <= 2 ? 'exec' : 'other'); by.set(d, [...(by.get(d) || []), a]) }
   const rank = (k: string) => (order.indexOf(k) < 0 ? 99 : order.indexOf(k))
   const keys = [...by.keys()].sort((p, q) => rank(p) - rank(q))
+  // 部門内は、上司（parent_id）→部下の順に並べる。深さごとに字下げし、上司から部下へ線を引く
   const mk = (k: string, x: number, y: number): Box => {
     const list = [...by.get(k)!].sort((p, q) => p.layer - q.layer || p.id.localeCompare(q.id))
-    const min = list[0]?.layer ?? 0
-    return { id: k, label: '', x, y, w: BOX_W, h: HEAD + list.length * ROW + 8, rows: list.map((a, i) => ({ a, y: HEAD + i * ROW, indent: Math.min(a.layer - min, 3) * 10, head: a.layer === min })) }
+    const ids = new Set(list.map((a) => a.id))
+    const kids = (id: string | null) => list.filter((a) => (id === null ? !a.parent_id || !ids.has(a.parent_id) : a.parent_id === id))
+    const ordered: { a: Agent; depth: number; parent: number }[] = []
+    const walk = (a: Agent, depth: number, parent: number) => {
+      const idx = ordered.length
+      ordered.push({ a, depth, parent })
+      for (const c of kids(a.id)) walk(c, depth + 1, idx)
+    }
+    for (const r of kids(null)) walk(r, 0, -1)
+    const w = k === 'exec' ? 280 : BOX_W
+    return { id: k, label: '', x, y, w, h: HEAD + ordered.length * ROW + 8, rows: ordered.map((o, i) => ({ a: o.a, y: HEAD + i * ROW, indent: Math.min(o.depth, 4) * 16, head: o.depth === 0, depth: o.depth, parent: o.parent })) }
   }
   const rest = keys.filter((k) => k !== 'exec')
-  const W = Math.max(rest.length, 1) * BOX_W + Math.max(rest.length - 1, 0) * GAP
+  const W = Math.max(Math.max(rest.length, 1) * BOX_W + Math.max(rest.length - 1, 0) * GAP, 300)
   const boxes: Box[] = []
   const links: { x1: number; y1: number; x2: number; y2: number }[] = []
   // 最上段: 最終意思決定者（オーナー）→ 社長室 → 各部門（すべて社長室の直属。横一列）
@@ -62,7 +72,7 @@ function layout(agents: Agent[], order: string[]) {
   let y = OH + 26
   let execBottom = y
   if (by.has('exec')) {
-    const e = mk('exec', (W - BOX_W) / 2, y)
+    const e = mk('exec', (W - 280) / 2, y)
     boxes.push(e)
     links.push({ x1: W / 2, y1: OH, x2: W / 2, y2: y })
     execBottom = y + e.h
@@ -469,6 +479,9 @@ export default function AiMapTab() {
                       <rect width={b.w} height={b.h} rx="9" fill="#0b1220" stroke={bad ? COLOR.err : hot ? COLOR.run : '#1e293b'} strokeWidth={hot || bad ? 1.6 : 1} />
                       <text x="12" y="21" fontSize="13" fontWeight="700" fill="#e2e8f0">{label}</text>
                       <text x={b.w - 12} y="21" fontSize="11" textAnchor="end" fill="#64748b">{b.rows.length}体</text>
+                      {b.rows.map((r) => r.parent >= 0 ? (
+                        <polyline key={`l-${r.a.id}`} fill="none" stroke="#475569" strokeWidth="1.2" points={`${16 + b.rows[r.parent].indent},${b.rows[r.parent].y + (ROW - 2) / 2 + 5} ${16 + b.rows[r.parent].indent},${r.y + (ROW - 2) / 2} ${12 + r.indent},${r.y + (ROW - 2) / 2}`} />
+                      ) : null)}
                       {b.rows.map((r) => {
                         const st = state(r.a.id, r.a.enabled)
                         const on = sel === r.a.id
@@ -477,7 +490,7 @@ export default function AiMapTab() {
                             <rect x="4" y="0" width={b.w - 8} height={ROW - 2} rx="5" fill={on ? 'rgba(34,211,238,.22)' : st === 'run' ? 'rgba(34,211,238,.10)' : st === 'err' ? 'rgba(248,113,113,.16)' : 'transparent'} />
                             {st === 'run' && <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill="none" stroke={COLOR.run} strokeWidth="1.5" className="aim-ring-s" />}
                             <circle cx={16 + r.indent} cy={(ROW - 2) / 2} r="4" fill={COLOR[st]} />
-                            <text x={28 + r.indent} y={(ROW - 2) / 2 + 4} fontSize="12" fontWeight={r.head ? 700 : 400} fill={st === 'off' ? '#475569' : on ? '#fff' : r.head ? '#f1f5f9' : '#cbd5e1'}>{clip(uiText(r.a.role_title), 13 - Math.floor(r.indent / 10))}</text>
+                            <text x={28 + r.indent} y={(ROW - 2) / 2 + 4} fontSize={r.depth === 0 ? 13 : 12} fontWeight={r.depth <= 1 ? 700 : 400} fill={st === 'off' ? '#475569' : on ? '#fff' : r.head ? '#f1f5f9' : '#cbd5e1'}>{clip(uiText(r.a.role_title), (b.w === 280 ? 18 : 13) - Math.floor(r.indent / 12))}</text>
                           </g>
                         )
                       })}
