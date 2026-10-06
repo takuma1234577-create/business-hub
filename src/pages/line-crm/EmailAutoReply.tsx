@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Mail, Save, Play, ToggleLeft, ToggleRight, Clock, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, PenLine, Send, Sparkles, X, RefreshCw } from 'lucide-react'
@@ -424,7 +425,7 @@ export default function EmailAutoReply() {
                       {statusIcon(log.status)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-medium text-sm text-slate-900 dark:text-white truncate">
+                          <span translate="no" className="font-medium text-sm text-slate-900 dark:text-white truncate">
                             {log.subject || '(件名なし)'}
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -441,7 +442,7 @@ export default function EmailAutoReply() {
                         </div>
                         <div className="flex items-center gap-3 text-xs text-slate-400">
                           <span>{log.customer_email}</span>
-                          <span>{new Date(log.created_at).toLocaleString('ja-JP')}</span>
+                          <span>{new Date(log.created_at).toLocaleString(getLocale())}</span>
                         </div>
                       </div>
                     </button>
@@ -450,12 +451,12 @@ export default function EmailAutoReply() {
                       <div className="px-5 pb-4 space-y-3">
                         <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
                           <h4 className="text-xs font-medium text-slate-500 mb-1">お客様のメッセージ</h4>
-                          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{log.customer_message}</p>
+                          <p translate="no" className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{log.customer_message}</p>
                         </div>
                         {log.ai_reply && (
                           <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-4">
                             <h4 className="text-xs font-medium text-green-600 mb-1">AI返信</h4>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{log.ai_reply}</p>
+                            <p translate="no" className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{log.ai_reply}</p>
                           </div>
                         )}
                         {log.error && (

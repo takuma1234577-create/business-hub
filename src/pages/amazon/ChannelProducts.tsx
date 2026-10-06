@@ -188,7 +188,7 @@ export default function ChannelProducts() {
                     {sp.imageUrl ? <img src={sp.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"><ShoppingBag size={16} className="text-slate-300" /></div>}
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px]">{sp.title}</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px]"><span translate="no">{sp.title}</span></p>
                   </td>
                   <td className="px-4 py-3">
                     {sp.variantTitle ? (

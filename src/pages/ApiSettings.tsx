@@ -1,3 +1,4 @@
+import { getLocale } from '../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -455,7 +456,7 @@ export default function ApiSettings() {
   const getConnection = (id: string) => connections.find(c => c.id === id)
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(dateStr).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
   // API設定用の認証ゲート
@@ -744,7 +745,7 @@ export default function ApiSettings() {
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       セラーID: {acct.seller_id} · マーケットプレイス: {acct.marketplace_id}
-                      {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                      {acct.last_synced_at && <span className="ml-2">· 最終確認: {new Date(acct.last_synced_at).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
                   <button onClick={() => handleAmazonEdit(acct.id)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition" title="編集">
@@ -890,7 +891,7 @@ export default function ApiSettings() {
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {store.shop_domain || store.shop_id || '-'}
-                      {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                      {store.last_synced_at && <span className="ml-2">· 最終確認: {new Date(store.last_synced_at).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </p>
                   </div>
                   {/* Gmail連携ボタン */}

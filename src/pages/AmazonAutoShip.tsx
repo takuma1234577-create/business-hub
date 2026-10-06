@@ -21,7 +21,7 @@ export default function AmazonAutoShip() {
   return (
     <ToolLayout title="Amazon自動出荷">
       {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}

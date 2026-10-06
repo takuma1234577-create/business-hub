@@ -261,7 +261,7 @@ export default function KnowledgeChunks() {
                       <span className="text-xs text-slate-500">{c.category}</span>
                     </div>
                     <p className="font-medium text-slate-900 dark:text-white truncate">{c.title}</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{c.content}</p>
+                    <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{c.content}</p>
                   </div>
                   <button
                     onClick={() => handleDelete(c.id)}
@@ -324,8 +324,8 @@ export default function KnowledgeChunks() {
                           similarity: {r.similarity.toFixed(3)}
                         </span>
                       </div>
-                      <p className="font-medium text-slate-900 dark:text-white text-sm">{r.title}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 mt-1">{r.content}</p>
+                      <p className="font-medium text-slate-900 dark:text-white text-sm"><span translate="no">{r.title}</span></p>
+                      <p translate="no" className="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 mt-1">{r.content}</p>
                     </li>
                   ))}
                 </ul>

@@ -26,8 +26,8 @@ export default function InvoiceTool() {
 
   return (
     <ToolLayout title="請求書ツール">
-      <div className="mb-6 flex items-center justify-between">
-        <nav className="flex space-x-1 border-b border-gray-200 flex-1">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <nav className="flex flex-wrap gap-1 border-b border-gray-200 flex-1">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -42,7 +42,7 @@ export default function InvoiceTool() {
             </button>
           ))}
         </nav>
-        <div className="ml-4">
+        <div className="shrink-0">
           <AuthStatus />
         </div>
       </div>

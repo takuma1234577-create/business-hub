@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
@@ -37,7 +38,7 @@ const STATUS_TABS: { key: string; label: string }[] = [
   { key: '', label: 'すべて' },
 ]
 
-const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-')
+const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-')
 
 export default function ReferralAdmin() {
   const [status, setStatus] = useState('confirmed')

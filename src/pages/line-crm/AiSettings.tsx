@@ -270,7 +270,7 @@ export default function AiSettings() {
                         {kb.category}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{kb.content}</p>
+                    <p translate="no" className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{kb.content}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

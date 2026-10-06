@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useState } from 'react'
 import type { Device, Preset } from './api'
 import { useOverview, formatBucket } from './useOverview'
@@ -29,7 +30,7 @@ export default function OverviewTab({ preset, device, onOpenPage }: { preset: Pr
 
       {data.cached_at && (preset === '7d' || preset === '30d' || preset === '90d') && (
         <p className="text-[11px] text-slate-400 -mt-1">
-          集計時刻 {new Date(data.cached_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}（7日間以上の期間は15分ごとに更新）
+          集計時刻 {new Date(data.cached_at).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })}（7日間以上の期間は15分ごとに更新）
         </p>
       )}
 
@@ -83,7 +84,7 @@ export default function OverviewTab({ preset, device, onOpenPage }: { preset: Pr
                 {pages.slice(0, 50).map((r) => (
                   <tr key={r.path} onClick={() => onOpenPage(r.path)} className="border-b border-slate-50 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer">
                     <td className="px-4 py-2 max-w-[320px]">
-                      <p className="truncate text-slate-900 dark:text-white">{r.title || prettyPath(r.path)}</p>
+                      <p className="truncate text-slate-900 dark:text-white"><span translate="no">{r.title || prettyPath(r.path)}</span></p>
                       <p className="truncate text-slate-400">{prettyPath(r.path)}</p>
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums">{fmtNum(r.pageviews)}</td>

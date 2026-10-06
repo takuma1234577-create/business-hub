@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react'
@@ -60,7 +61,7 @@ export default function FitpeakWarrantyRegister() {
           <p className="text-white font-semibold">保証登録が完了しました</p>
           <p className="text-sm text-white/60 mt-2">
             保証期間：<span className="text-[#c8a960] font-semibold">{result.warrantyMonths}ヶ月</span>
-            （{new Date(result.warrantyExpiresAt).toLocaleDateString('ja-JP')} まで）
+            （{new Date(result.warrantyExpiresAt).toLocaleDateString(getLocale())} まで）
           </p>
           {result.upsell && (
             <a

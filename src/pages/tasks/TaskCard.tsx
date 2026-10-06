@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import type { Task } from './types';
 import { api } from './api';
@@ -60,7 +61,7 @@ export default function TaskCard({ task, onUpdate }: Props) {
               {config.label}
             </span>
             {task.customer_name && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+              <span translate="no" className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                 👤 {task.customer_name}
               </span>
             )}
@@ -74,10 +75,10 @@ export default function TaskCard({ task, onUpdate }: Props) {
             )}
           </div>
           <h3 className={`font-semibold text-gray-900 ${task.status === 'done' ? 'line-through' : ''}`}>
-            {task.title}
+            <span translate="no">{task.title}</span>
           </h3>
           {task.description && (
-            <p className="text-sm text-gray-600 mt-1 leading-relaxed">{task.description}</p>
+            <p translate="no" className="text-sm text-gray-600 mt-1 leading-relaxed">{task.description}</p>
           )}
         </div>
         <div className="flex flex-col gap-1 flex-shrink-0">
@@ -116,7 +117,7 @@ export default function TaskCard({ task, onUpdate }: Props) {
       <div className="mt-2 flex items-center justify-between">
         <span className={`text-xs font-medium ${status.color}`}>● {status.label}</span>
         <span className="text-xs text-gray-400">
-          {new Date(task.created_at).toLocaleDateString('ja-JP')}
+          {new Date(task.created_at).toLocaleDateString(getLocale())}
         </span>
       </div>
     </div>

@@ -1,10 +1,11 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { saApi, type Device, type Preset, type Revenue } from './api'
 import { useOverview } from './useOverview'
 import { Card, Kpi, LineChart, Columns, Empty } from './ui'
 import { fmtNum, timeAgo } from './format'
 
-const yen = (v: number | null | undefined) => (v == null ? '—' : `¥${Math.round(v).toLocaleString('ja-JP')}`)
+const yen = (v: number | null | undefined) => (v == null ? '—' : `¥${Math.round(v).toLocaleString(getLocale())}`)
 const dayLabel = (d: string) => {
   const [, m, day] = d.split('-')
   return `${Number(m)}/${Number(day)}`

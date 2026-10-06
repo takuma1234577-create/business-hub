@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:i18n": "node scripts/i18n-validate.mjs && node scripts/i18n-extract.mjs --check && node scripts/i18n-test.mjs",
+    "audit:i18n": "node scripts/i18n-validate.mjs --draft"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

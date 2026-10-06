@@ -9,7 +9,24 @@ const SkipTranslation = createContext(false)
 const components = new Map<ElementType, ComponentType<Record<string, unknown>>>()
 function textChildren(children: unknown, language: ReturnType<typeof useLanguage>): unknown {
   if (typeof children === 'string') return translate(children, language)
-  if (Array.isArray(children)) return children.map(child => textChildren(child, language))
+  if (Array.isArray(children)) {
+    // Adjacent JSX strings and counts form one translatable text run.
+    const result: unknown[] = []
+    let run: (string | number)[] = []
+    const flush = () => {
+      if (!run.length) return
+      const source = run.join('')
+      const translated = translate(source, language)
+      result.push(...(translated === source ? run.map(part => typeof part === 'string' ? translate(part, language) : part) : [translated]))
+      run = []
+    }
+    for (const child of children) {
+      if (typeof child === 'string' || typeof child === 'number') run.push(child)
+      else { flush(); result.push(textChildren(child, language)) }
+    }
+    flush()
+    return result
+  }
   return children
 }
 /** Stable host wrappers let React own the DOM, preserving form state, refs and events. */

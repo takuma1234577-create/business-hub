@@ -118,7 +118,7 @@ export function PendingDocuments() {
           {uploadResults.map((r, i) => (
             <div key={i} className={`flex items-center gap-2 text-sm ${r.success ? 'text-emerald-600' : 'text-red-600'}`}>
               {r.success ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-              <span>{r.name}</span>
+              <span><span translate="no">{r.name}</span></span>
               {r.error && <span className="text-xs text-gray-500">({r.error})</span>}
             </div>
           ))}

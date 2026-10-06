@@ -177,7 +177,7 @@ export default function TagManager() {
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">{tag.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate"><span translate="no">{tag.name}</span></span>
                     <div className="hidden sm:block w-32 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
                       <div
                         className="h-full rounded-full"

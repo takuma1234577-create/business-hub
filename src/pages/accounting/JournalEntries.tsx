@@ -275,7 +275,7 @@ export function JournalEntries() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-500">{entry.entry_date}</span>
-                      <span className="text-sm font-medium text-gray-900">{entry.description || '-'}</span>
+                      <span translate="no" className="text-sm font-medium text-gray-900">{entry.description || '-'}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                         entry.source === 'ai_import' ? 'bg-blue-100 text-blue-700' :
                         entry.source === 'opening' ? 'bg-purple-100 text-purple-700' :

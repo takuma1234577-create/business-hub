@@ -132,8 +132,8 @@ export function TemplateManager() {
             <div key={t.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h3 className="font-medium text-gray-800">{t.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">件名: {t.subject}</p>
+                  <h3 className="font-medium text-gray-800"><span translate="no">{t.name}</span></h3>
+                  <p translate="no" className="text-sm text-gray-600 mt-1">件名: {t.subject}</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleEdit(t)} className="text-xs text-blue-600 hover:underline">編集</button>

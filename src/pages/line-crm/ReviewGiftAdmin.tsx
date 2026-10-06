@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
@@ -116,7 +117,7 @@ export default function ReviewGiftAdmin() {
     navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(uiText('このURLをコピーしてLINEで送ってください'), url))
   }
 
-  const fmt = (d: string | null) => d ? new Date(d).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'
+  const fmt = (d: string | null) => d ? new Date(d).toLocaleString(getLocale(), { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'
   const statusBadge = (c: Claim) => {
     if (c.shopify_invoice_url) return <span className="text-xs px-2 py-0.5 rounded-full bg-[#06C755]/15 text-[#06C755] font-medium">発行済</span>
     if (c.verification_status === 'verified') return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-500 font-medium">検証済</span>
@@ -196,7 +197,7 @@ export default function ReviewGiftAdmin() {
                     {c.friend?.picture_url && <img src={c.friend.picture_url} alt="" className="w-7 h-7 rounded-full" />}
                     <div>
                       <p className="text-sm font-medium text-slate-900 dark:text-white">{c.friend?.display_name || c.user_id || '匿名'}</p>
-                      <p className="text-[11px] text-slate-400">{fmt(c.created_at)} ・ {c.product_name || 'リストラップ'}</p>
+                      <p translate="no" className="text-[11px] text-slate-400">{fmt(c.created_at)} ・ {c.product_name || 'リストラップ'}</p>
                     </div>
                   </div>
                   {statusBadge(c)}

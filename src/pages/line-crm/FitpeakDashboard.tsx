@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Gift, Link2 } from 'lucide-react'
@@ -92,7 +93,7 @@ export default function FitpeakDashboard() {
 
   const formatDate = (d: string | null) => {
     if (!d) return '-'
-    return new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return new Date(d).toLocaleDateString(getLocale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)
@@ -193,7 +194,7 @@ export default function FitpeakDashboard() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
                 <p className="text-xs text-slate-500 mb-1">商品</p>
-                <p className="font-medium text-slate-900 dark:text-white">{s.product_name}</p>
+                <p translate="no" className="font-medium text-slate-900 dark:text-white">{s.product_name}</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
                 <p className="text-xs text-slate-500 mb-1">レビューボタン</p>
@@ -395,7 +396,7 @@ export default function FitpeakDashboard() {
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => openDetail(s.id)}>
                   <td className="px-4 py-3 text-xs text-slate-500">{formatDate(s.created_at)}</td>
                   <td className="px-4 py-3 text-slate-900 dark:text-white">{s.user_id === 'anonymous' ? '匿名' : (s.user_id || '-').slice(0, 20)}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{s.product_name}</td>
+                  <td translate="no" className="px-4 py-3 text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{s.product_name}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`font-bold ${ratingColor(s.rating)}`}>{stars(s.rating)}</span>
                   </td>

@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Send, Megaphone, X, Clock, CheckCircle, AlertCircle, Radio, Users, Tag as TagIcon, Eye, Filter, Calendar, FileText } from 'lucide-react'
@@ -237,7 +238,7 @@ export default function Broadcasts() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleString('ja-JP', {
+    return new Date(dateStr).toLocaleString(getLocale(), {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     })
@@ -351,7 +352,7 @@ export default function Broadcasts() {
                       >
                         <option value="">テンプレートを選択</option>
                         {templates.map(tpl => (
-                          <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                          <option translate="no" key={tpl.id} value={tpl.id}>{tpl.name}</option>
                         ))}
                       </select>
                       {selectedTemplateId && (() => {
@@ -478,7 +479,7 @@ export default function Broadcasts() {
                               }`}
                               style={includeTags.includes(tag.id) ? { backgroundColor: tag.color || '#06C755' } : undefined}
                             >
-                              {tag.name}
+                              <span translate="no">{tag.name}</span>
                             </button>
                           ))}
                         </div>
@@ -506,7 +507,7 @@ export default function Broadcasts() {
                                   : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600'
                               }`}
                             >
-                              {tag.name}
+                              <span translate="no">{tag.name}</span>
                             </button>
                           ))}
                         </div>
@@ -589,7 +590,7 @@ export default function Broadcasts() {
                         {msgs.map((m, i) => (
                           <div key={i} className="flex justify-end">
                             <div className="bg-[#06C755] text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] whitespace-pre-wrap leading-relaxed">
-                              {m.type === 'text' && m.text ? m.text : `(${m.type})`}
+                              <span translate="no">{m.type === 'text' && m.text ? m.text : `(${m.type})`}</span>
                             </div>
                           </div>
                         ))}
@@ -697,7 +698,7 @@ export default function Broadcasts() {
                       </span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">
-                      {bc.message_content}
+                      <span translate="no">{bc.message_content}</span>
                     </p>
                     <div className="flex items-center gap-4 text-xs text-slate-400">
                       {bc.scheduled_at && (

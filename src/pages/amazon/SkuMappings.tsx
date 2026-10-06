@@ -468,7 +468,7 @@ export default function SkuMappings() {
                     <td className="px-4 py-2">
                       {sp.imageUrl ? <img src={sp.imageUrl} alt="" className="w-6 h-6 rounded object-cover" /> : <div className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800" />}
                     </td>
-                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[180px]">{sp.title}</td>
+                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[180px]"><span translate="no">{sp.title}</span></td>
                     <td className="px-4 py-2 text-slate-500">{sp.variantTitle || '-'}</td>
                     <td className="px-4 py-2 font-mono text-slate-500">{sp.sku || '-'}</td>
                     <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">¥{Number(sp.price).toLocaleString()}</td>

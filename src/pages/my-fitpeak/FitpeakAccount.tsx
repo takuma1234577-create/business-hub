@@ -1,3 +1,5 @@
+import { getLocale } from '../../i18n/store'
+import { uiText } from '@business-hub/i18n/dialogs'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageCircle, CheckCircle, ExternalLink, User, LogOut } from 'lucide-react'
@@ -82,10 +84,10 @@ export default function FitpeakAccount() {
                   <span className="text-xs font-medium text-[#06C755]">LINE連携済み</span>
                 </div>
                 <p className="text-base font-semibold text-white truncate mt-0.5">
-                  {linkInfo.friends?.display_name || linkInfo.shopify_customer_name || 'LINEユーザー'}
+                  <span translate="no">{linkInfo.friends?.display_name || linkInfo.shopify_customer_name || uiText('LINEユーザー')}</span>
                 </p>
                 <p className="text-xs text-white/30 mt-0.5">
-                  {new Date(linkInfo.linked_at).toLocaleDateString('ja-JP')} に連携
+                  {new Date(linkInfo.linked_at).toLocaleDateString(getLocale())} に連携
                 </p>
               </div>
             </div>

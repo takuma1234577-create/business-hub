@@ -1,3 +1,4 @@
+import { getLocale } from '../../i18n/store'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { fmtNum, fmtPct, prettyPath } from './format'
@@ -226,7 +227,8 @@ export function Columns({ items, height = 120, unit = '' }: { items: { label: st
 export function WeekHour({ data }: { data: { dow: number; hour: number; pageviews: number }[] }) {
   const map = new Map(data.map((d) => [`${d.dow}-${d.hour}`, d.pageviews]))
   const max = Math.max(1, ...data.map((d) => d.pageviews))
-  const days = ['月', '火', '水', '木', '金', '土', '日']
+  const formatter = new Intl.DateTimeFormat(getLocale(), { weekday: 'short', timeZone: 'UTC' })
+  const days = Array.from({ length: 7 }, (_, index) => formatter.format(new Date(Date.UTC(2024, 0, 1 + index))))
   const dowIdx = [1, 2, 3, 4, 5, 6, 0]
   if (!data.length) return <Empty>データがまだありません</Empty>
   return (
@@ -245,7 +247,7 @@ export function WeekHour({ data }: { data: { dow: number; hour: number; pageview
                 return (
                   <div
                     key={h}
-                    title={`${days[r]}曜 ${h}時台：${fmtNum(v)} PV`}
+                    title={`${days[r]} ${h}:00 — ${fmtNum(v)} PV`}
                     className="h-5 rounded-[3px] bg-slate-100 dark:bg-slate-800 relative overflow-hidden"
                   >
                     {v > 0 && <div className="absolute inset-0 bg-slate-900 dark:bg-white" style={{ opacity: a }} />}

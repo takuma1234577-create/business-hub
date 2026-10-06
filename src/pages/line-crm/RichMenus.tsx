@@ -544,7 +544,7 @@ function AreaActionEditor({ index, area, templates, onChange }: { index: number;
           className="w-full px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
         >
           <option value="">テンプレートを選択...</option>
-          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          {templates.map(t => <option translate="no" key={t.id} value={t.id}>{t.name}</option>)}
         </select>
         )
       })()}

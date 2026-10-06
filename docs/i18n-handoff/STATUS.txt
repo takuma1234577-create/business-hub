@@ -1,3 +1,37 @@
+Cloud implementation review — 2026-10-03
+Status: IMPLEMENTED; ready for code review. No merge or production deployment performed.
+Branch: codex/business-hub-languages-cloud. PR: https://github.com/takuma1234577-create/business-hub/pull/31
+
+Final behavior:
+- Japanese / English / Spanish selector on internal and public pages; persisted preference, document language and storage-event synchronization.
+- 3,245 reviewed dictionary entries, including source labels, long settings explanations, native dialogs, numeric templates and placeholders. All original {会社名}-style template variables remain literal.
+- Classified 91 original/internal strings in excluded-strings.json: product-search aliases and handles, original mail defaults, PDF wording/filenames, code and JSON examples, legal/personal names. These are deliberately outside UI translation.
+- Source coverage audit: 3,266 extracted candidates, zero unclassified missing translations. The extractor scans Japanese literals/templates under 1,500 characters; it is an audit, not proof of all possible runtime/server content.
+- Reviewed draft batches against Japanese context, correcting accounting debit/credit terms, invoice tier calculations, shipping states, timing descriptions, brands, Gmail query syntax and missing values.
+- Runtime keeps stable React host wrappers and Router links; joins adjacent text/counts for template translation and falls back to translating known fragments. Preserves form values, option values, textarea contents, refs, events and state.
+- Original-content boundaries expanded for customer/review/message/knowledge/AI/task fields, names, product titles and previews. API payloads, outgoing email construction and PDF renderer wording are not switched by UI language.
+- Display dates and weekdays use the selected locale, retaining existing time zone settings. Invoice email template date substitution and PDF dates remain original.
+- Mobile title wrapping, invoice tabs/input shrink behavior, Amazon tabs and eBay headers/tabs corrected after browser checks.
+
+Validation:
+- npm run build: PASS. Existing large bundle warning remains.
+- npx eslint src/i18n src/components/ToolLayout.tsx: PASS.
+- git diff --check: PASS.
+- Dictionary validator: 3,245 entries, zero structural/numeric/placeholder problems.
+- Source audit: zero unclassified missing candidates.
+- npm run test:i18n with Cloud Chromium: PASS. Uses fake config and mocked APIs only.
+- Browser checks: ja/en/es login and reload persistence; all home cards; English/Spanish routes at 390px width: invoice, Amazon, LINE CRM, Amazon analytics, return settings/request, Shopify reviews, gifting, eBay, subscriptions, inventory and site analytics; all 7 invoice tabs; populated return history/detail with original customer/AI fields; input and select value preservation, textarea, refs, native dialogs, numeric templates, literal variables, dates, storage events and no React/page errors.
+- Agent-browser verification CLI was attempted earlier; daemon could not start in this environment. Existing Puppeteer succeeded.
+
+Review limits:
+- Browser route sweep uses empty/mock datasets, plus a populated return-detail fixture. External production integrations, actual mail delivery, live AI and end-to-end PDF delivery were not exercised.
+- Server-provided/user-generated text is kept in its original language. Newly introduced fixed UI copy requires adding reviewed dictionary entries and appropriate original-content boundaries.
+- messages-draft.json is an archival working draft and is NOT imported by the application. Excluded non-UI examples can still fail --draft validation; do not bulk promote them.
+- No production credentials, production data writes, merge or deployment.
+
+Original handoff follows for implementation history:
+
+
 User request: Add Japanese / English / Spanish language switching throughout Business-hub.
 User then explicitly requested continuing in Codex/ChatGPT Cloud. Work is INCOMPLETE and NOT deployed.
 Repository: takuma1234577-create/business-hub. Production: https://my.fitpeak.co
