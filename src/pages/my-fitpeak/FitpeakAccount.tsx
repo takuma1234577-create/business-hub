@@ -120,7 +120,10 @@ export default function FitpeakAccount() {
               className="flex items-center justify-center gap-2 w-full mt-5 py-3.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition"
             >
               <MessageCircle size={18} />
-              FITPEAK公式LINEを友だち追加
+              <span className="flex flex-col items-center leading-tight">
+                <span>FITPEAK公式LINEを友だち追加</span>
+                <span className="text-[11px] font-medium opacity-90">1タップ簡単で登録</span>
+              </span>
               <ExternalLink size={14} />
             </a>
 
