@@ -221,6 +221,8 @@ app.get('/api/daily-cron', async (req, res) => {
     salesEmail:          '/api/sales-email/cron',
     reviewSolicitations: '/api/amazon-analytics/cron/review-solicitations',
     reviewMonitor:       '/api/amazon-review-monitor/cron/check',
+    // SP-APIの資格情報の期限(約180日)と403を見張り、LINEで通知
+    spApiWatch:          '/api/amazon-analytics/cron/sp-api-watch',
     // HP営業cron一時停止（同一メール重複送信のため停止 2026-05-21）
     // hpOutreach:          '/api/hp-outreach/cron/research',
     // hpEnrich:            '/api/hp-outreach/cron/enrich',

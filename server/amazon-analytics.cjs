@@ -696,4 +696,39 @@ router.get('/cron/sp-api-health', async (_req, res) => {
   res.json(out);
 });
 
+// ---------------------------------------------------------------------------
+// GET /cron/sp-api-watch - 資格情報の期限(約180日)とAPIの403を見張り、オーナーのLINEへ知らせる
+// ---------------------------------------------------------------------------
+router.get('/cron/sp-api-watch', async (_req, res) => {
+  try {
+    const { runSpApiWatch } = require('./sp-api-watch.cjs');
+    const { notifyOwner } = require('./owner-notify.cjs');
+    const { data: acct } = await supabase.from('amazon_sp_accounts').select('id, client_secret_expires_at, last_secret_notice')
+      .eq('is_active', true).order('created_at', { ascending: true }).limit(1).single();
+    if (!acct) return res.json({ sent: false, reason: 'no_account' });
+    const result = await runSpApiWatch({
+      getState: async () => ({ expiresAt: acct.client_secret_expires_at, last: acct.last_secret_notice }),
+      probe: async () => {
+        try {
+          const { token, endpoint, marketplaceId } = await getAccessToken();
+          const r = await axios.get(`${endpoint}/fba/inventory/v1/summaries`, {
+            headers: { 'x-amz-access-token': token },
+            params: { details: false, granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId },
+          });
+          return r.status;
+        } catch (err) {
+          // トークン発行そのものの401/400(資格情報が無効)も権限の問題として扱う
+          return err.response?.status || 0;
+        }
+      },
+      notify: notifyOwner,
+      saveLast: async (v) => { await supabase.from('amazon_sp_accounts').update({ last_secret_notice: v }).eq('id', acct.id); },
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[sp-api-watch] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
