@@ -557,120 +557,138 @@ router.post('/solicitations/auto-config', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /cron/review-solicitations - Cron: auto-send review requests
+// GET /cron/review-solicitations - Cron: Amazon公式「レビューをリクエスト」を自動送信
+// 規則とテストは server/review-solicitations.cjs / __tests__/review-solicitations.test.cjs
 // ---------------------------------------------------------------------------
+const { runReviewSolicitations, roleForPath } = require('./review-solicitations.cjs');
+const SOL_TABLE = 'amazon_review_solicitations';
+
+function makeSpClient({ token, endpoint, marketplaceId }) {
+  const headers = { 'x-amz-access-token': token };
+  return {
+    async getOrders({ createdAfter }) {
+      const all = [];
+      let nextToken = null;
+      for (let page = 0; page < 10; page++) {
+        const params = nextToken
+          ? { MarketplaceIds: marketplaceId, NextToken: nextToken }
+          : { MarketplaceIds: marketplaceId, CreatedAfter: createdAfter, OrderStatuses: 'Shipped', MaxResultsPerPage: 100 };
+        const r = await axios.get(`${endpoint}/orders/v0/orders`, { headers, params });
+        all.push(...(r.data?.payload?.Orders || []));
+        nextToken = r.data?.payload?.NextToken;
+        if (!nextToken) break;
+        await new Promise(res => setTimeout(res, 1000));
+      }
+      return all;
+    },
+    async getSolicitationActions(orderId) {
+      const r = await axios.get(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}`, { headers, params: { marketplaceIds: marketplaceId } });
+      const links = r.data?._links?.actions || r.data?.payload?._links?.actions || [];
+      const embedded = r.data?._embedded?.actions || r.data?.payload?._embedded?.actions || [];
+      return [...links.map(a => a.name), ...embedded.map(a => a.name || a._links?.self?.name)].filter(Boolean);
+    },
+    async sendReviewRequest(orderId) {
+      await axios.post(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}/solicitations/productReviewAndSellerFeedback`, null, { headers, params: { marketplaceIds: marketplaceId } });
+    },
+  };
+}
+
+const solicitationStore = {
+  async getRecords(ids) {
+    if (!ids.length) return [];
+    const { data, error } = await supabase.from(SOL_TABLE).select('amazon_order_id, status, sent_at, checked_at, created_at').in('amazon_order_id', ids);
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  async countSentSince(iso) {
+    const { count, error } = await supabase.from(SOL_TABLE).select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('sent_at', iso);
+    if (error) throw new Error(error.message);
+    return count || 0;
+  },
+  // 二重送信防止: 新規は一意制約つきINSERT、再確認は「前の状態のままなら」だけ sending に変える
+  async claim(orderId, prevStatus) {
+    if (!prevStatus) {
+      const { error } = await supabase.from(SOL_TABLE).insert({ amazon_order_id: orderId, status: 'sending', source: 'auto' });
+      return !error;
+    }
+    const { data, error } = await supabase.from(SOL_TABLE).update({ status: 'sending' }).eq('amazon_order_id', orderId).eq('status', prevStatus).select('id');
+    return !error && (data || []).length === 1;
+  },
+  async update(orderId, fields) {
+    const { error } = await supabase.from(SOL_TABLE).update(fields).eq('amazon_order_id', orderId);
+    if (error) throw new Error(error.message);
+  },
+};
+
 router.get('/cron/review-solicitations', async (req, res) => {
   try {
-    // Check if auto-send is enabled
     const { data: config } = await supabase
       .from('amazon_analytics_settings')
       .select('value')
       .eq('key', 'review_auto_send')
       .maybeSingle();
-
     const settings = config?.value || { enabled: false };
-    if (!settings.enabled) {
-      return res.json({ skipped: true, reason: 'Auto-send is disabled' });
+    if (!settings.enabled) return res.json({ skipped: true, reason: 'Auto-send is disabled' });
+
+    const sp = makeSpClient(await getAccessToken());
+    const result = await runReviewSolicitations({
+      sp, store: solicitationStore, settings,
+      log: (m) => console.log('[review-solicitations]', m),
+    });
+    if (result.error === 'forbidden') {
+      console.error(`[review-solicitations] 403 ${result.api}: SP-APIアプリに役割「${result.role}」が必要です（Seller Centralで役割を有効化し、アプリを再認可してください）`);
+    } else {
+      console.log('[review-solicitations] result', JSON.stringify(result));
     }
-
-    const delayDays = settings.delayDays || 7;
-    const maxPerDay = settings.maxPerDay || 50;
-
-    // Check how many already sent today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const { count: sentToday } = await supabase
-      .from('amazon_review_solicitations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'sent')
-      .gte('sent_at', todayStart.toISOString());
-
-    const remaining = maxPerDay - (sentToday || 0);
-    if (remaining <= 0) {
-      return res.json({ skipped: true, reason: 'Daily limit reached', sentToday });
-    }
-
-    // Fetch eligible orders
-    const { token, endpoint, marketplaceId } = await getAccessToken();
-    const now = new Date();
-    const targetDate = new Date(now);
-    targetDate.setDate(targetDate.getDate() - delayDays);
-    const rangeEnd = new Date(targetDate);
-    rangeEnd.setDate(rangeEnd.getDate() + 1);
-
-    const ordersResponse = await axios.get(
-      `${endpoint}/orders/v0/orders`,
-      {
-        headers: { 'x-amz-access-token': token },
-        params: {
-          MarketplaceIds: marketplaceId,
-          CreatedAfter: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          CreatedBefore: targetDate.toISOString(),
-          OrderStatuses: 'Shipped',
-          MaxResultsPerPage: 100,
-        },
-      }
-    );
-
-    const allOrders = ordersResponse.data?.payload?.Orders || [];
-    const orderIds = allOrders.map(o => o.AmazonOrderId);
-
-    // Exclude already solicited
-    const { data: alreadySolicited } = await supabase
-      .from('amazon_review_solicitations')
-      .select('amazon_order_id')
-      .in('amazon_order_id', orderIds.length > 0 ? orderIds : ['__none__']);
-
-    const solicitedSet = new Set((alreadySolicited || []).map(s => s.amazon_order_id));
-    const eligible = orderIds.filter(id => !solicitedSet.has(id)).slice(0, remaining);
-
-    const results = { sent: 0, failed: 0, total: eligible.length };
-
-    for (const orderId of eligible) {
-      try {
-        await axios.post(
-          `${endpoint}/solicitations/v1/orders/${orderId}/solicitations/productReviewAndSellerFeedback`,
-          null,
-          {
-            headers: { 'x-amz-access-token': token },
-            params: { marketplaceIds: marketplaceId },
-          }
-        );
-
-        await supabase
-          .from('amazon_review_solicitations')
-          .upsert({
-            amazon_order_id: orderId,
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-            source: 'auto',
-          }, { onConflict: 'amazon_order_id' });
-
-        results.sent++;
-      } catch (err) {
-        const msg = err.response?.data?.errors?.[0]?.message || err.message;
-        await supabase
-          .from('amazon_review_solicitations')
-          .upsert({
-            amazon_order_id: orderId,
-            status: 'failed',
-            error_message: msg,
-            sent_at: new Date().toISOString(),
-            source: 'auto',
-          }, { onConflict: 'amazon_order_id' });
-
-        results.failed++;
-      }
-
-      // Rate limit
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    res.json(results);
+    res.json(result);
   } catch (err) {
-    console.error('[amazon-analytics] cron error:', err.message);
+    console.error('[review-solicitations] cron error:', err.response?.status || '', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// GET /cron/sp-api-health - 読み取り専用の疎通確認。HTTPステータスと必要な役割だけを返す
+// (注文番号・件数以外の中身・鍵は返さない)
+// ---------------------------------------------------------------------------
+router.get('/cron/sp-api-health', async (_req, res) => {
+  const out = { checkedAt: new Date().toISOString() };
+  try {
+    const { token, endpoint, marketplaceId } = await getAccessToken();
+    out.lwaToken = 200;
+    const headers = { 'x-amz-access-token': token };
+    const probe = async (name, path, params) => {
+      try {
+        const r = await axios.get(`${endpoint}${path}`, { headers, params });
+        out[name] = { status: r.status };
+        return r;
+      } catch (err) {
+        out[name] = { status: err.response?.status || 0, code: err.response?.data?.errors?.[0]?.code || null, role: roleForPath(path) };
+        return null;
+      }
+    };
+    const inv = await probe('getInventorySummaries', '/fba/inventory/v1/summaries', { details: false, granularityType: 'Marketplace', granularityId: marketplaceId, marketplaceIds: marketplaceId });
+    if (inv) out.getInventorySummaries.items = (inv.data?.payload?.inventorySummaries || []).length;
+    const ord = await probe('getOrders', '/orders/v0/orders', { MarketplaceIds: marketplaceId, CreatedAfter: new Date(Date.now() - 3 * 86400000).toISOString() });
+    if (ord) out.getOrders.count = (ord.data?.payload?.Orders || []).length;
+    const rep = await probe('getReports', '/reports/2021-06-30/reports', { reportTypes: 'GET_SALES_AND_TRAFFIC_REPORT', pageSize: 1 });
+    if (rep) out.getReports.count = (rep.data?.reports || []).length;
+    // 直近の出荷済み注文(注文APIが使えなければ購入通知キャッシュ)で送信可否を確認
+    let orderId = (ord?.data?.payload?.Orders || []).find(o => o.OrderStatus === 'Shipped')?.AmazonOrderId;
+    if (!orderId) {
+      const { data } = await supabase.from('purchase_ticker_cache').select('amazon_order_id').eq('channel', 'amazon')
+        .lte('purchased_at', new Date(Date.now() - 6 * 86400000).toISOString()).order('purchased_at', { ascending: false }).limit(1);
+      orderId = data?.[0]?.amazon_order_id;
+    }
+    if (orderId) {
+      const sol = await probe('getSolicitationActionsForOrder', `/solicitations/v1/orders/${encodeURIComponent(orderId)}`, { marketplaceIds: marketplaceId });
+      if (sol) out.getSolicitationActionsForOrder.actions = (sol.data?._links?.actions || []).map(a => a.name);
+    }
+  } catch (err) {
+    out.lwaToken = err.response?.status || 0;
+    out.error = err.response?.data?.error || err.message;
+  }
+  res.json(out);
 });
 
 module.exports = router;
