@@ -184,7 +184,7 @@ function internalGet(routePath) {
     const mockReq = Object.create(require('http').IncomingMessage.prototype);
     Object.assign(mockReq, {
       method: 'GET', url: routePath, path: routePath, originalUrl: routePath,
-      headers: { 'x-vercel-cron': '1' }, query: {}, params: {},
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET}` }, query: {}, params: {},
       get(h) { return this.headers[h?.toLowerCase()]; },
     });
     const mockRes = Object.create(require('http').ServerResponse.prototype);
