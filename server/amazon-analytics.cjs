@@ -656,6 +656,10 @@ router.get('/cron/sp-api-health', async (_req, res) => {
   try {
     const { token, endpoint, marketplaceId } = await getAccessToken();
     out.lwaToken = 200;
+    // 鍵の指紋(sha256先頭6文字のみ。値は復元不可)。最新のトークンが使われているかの照合用
+    const acct = await getSpAccount();
+    const fp = (v) => require('crypto').createHash('sha256').update(String(v || '')).digest('hex').slice(0, 6);
+    out.account = { refreshTokenFp: fp(acct.refreshToken), clientIdTail: String(acct.clientId || '').slice(-6), clientSecretFp: fp(acct.clientSecret), endpoint: acct.endpoint, marketplaceId: acct.marketplaceId };
     const headers = { 'x-amz-access-token': token };
     const probe = async (name, path, params) => {
       try {
@@ -663,7 +667,8 @@ router.get('/cron/sp-api-health', async (_req, res) => {
         out[name] = { status: r.status };
         return r;
       } catch (err) {
-        out[name] = { status: err.response?.status || 0, code: err.response?.data?.errors?.[0]?.code || null, role: roleForPath(path) };
+        const e0 = err.response?.data?.errors?.[0] || {};
+        out[name] = { status: err.response?.status || 0, code: e0.code || null, message: e0.message || null, details: e0.details || null, requestId: err.response?.headers?.['x-amzn-requestid'] || null, role: roleForPath(path) };
         return null;
       }
     };
