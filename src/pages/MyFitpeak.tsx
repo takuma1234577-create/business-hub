@@ -8,6 +8,7 @@ import FitpeakOrderDetail from './my-fitpeak/FitpeakOrderDetail'
 import FitpeakAccount from './my-fitpeak/FitpeakAccount'
 import FitpeakNotifications from './my-fitpeak/FitpeakNotifications'
 import FitpeakPro from './my-fitpeak/FitpeakPro'
+import FitpeakSaved from './my-fitpeak/FitpeakSaved'
 import FitpeakWarrantyRegister from './my-fitpeak/FitpeakWarrantyRegister'
 import { type ReactNode, useEffect, useState } from 'react'
 
@@ -81,6 +82,7 @@ export default function MyFitpeak() {
             <Route path="account" element={<FitpeakAccount />} />
             <Route path="notifications" element={<FitpeakNotifications />} />
             <Route path="pro" element={<FitpeakPro />} />
+            <Route path="saved" element={<FitpeakSaved />} />
             <Route path="warranty-register" element={<FitpeakWarrantyRegister />} />
             {/* 旧URL（メールやLINEのリンクから来る人のため） */}
             <Route path="line" element={<Navigate to="/my-fitpeak/account" replace />} />

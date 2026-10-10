@@ -323,6 +323,17 @@ router.post('/change-password', async (req, res) => {
 });
 
 // ── 認証ミドルウェア ──
+// Vercel Cron は CRON_SECRET が設定されていると Authorization: Bearer ${CRON_SECRET} を付けて呼ぶ。
+// x-vercel-cron ヘッダーは外部から誰でも付けられるので、認証の根拠にしない。
+function isCronRequest(req) {
+  const secret = process.env.CRON_SECRET;
+  const auth = req.headers.authorization;
+  if (!secret || typeof auth !== 'string') return false;
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const actual = Buffer.from(auth);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
 function authMiddleware(req, res, next) {
   const publicPaths = [
     '/api/auth/',
@@ -360,7 +371,7 @@ function authMiddleware(req, res, next) {
   ];
 
   if (publicPaths.some(p => req.path.startsWith(p))) return next();
-  if (req.headers['x-vercel-cron']) return next();
+  if (isCronRequest(req)) return next();
   if (!req.path.startsWith('/api/')) return next();
 
   const token = req.headers.authorization?.replace('Bearer ', '');

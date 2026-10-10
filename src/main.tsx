@@ -9,7 +9,8 @@ import LanguageSwitcher from './i18n/LanguageSwitcher'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <LanguageSwitcher />
+      {/* お客様向けのMy FITPEAKには言語切り替えを出さない(社内ツールのみ) */}
+      {!window.location.pathname.startsWith('/my-fitpeak') && <LanguageSwitcher />}
       <App />
     </BrowserRouter>
   </StrictMode>,
