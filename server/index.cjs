@@ -141,6 +141,7 @@ const reviewOrderVerifyRoutes = require(path.join(__dirname, 'review-order-verif
 const giftingRoutes = require(path.join(__dirname, 'gifting.cjs'));
 const ebayManagerRoutes = require(path.join(__dirname, 'ebay-manager.cjs'));
 const imageDownloaderRoutes = require(path.join(__dirname, 'image-downloader.cjs'));
+const viralResearchRoutes = require(path.join(__dirname, 'viral-research.cjs'));
 const inventoryRoutes = require(path.join(__dirname, 'inventory.cjs'));
 
 // Mount each tool at its prefix
@@ -175,6 +176,7 @@ app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/image-downloader', imageDownloaderRoutes);
+app.use('/api/viral-research', viralResearchRoutes); // Macで起動したときだけ動く(yt-dlp と claude を使う)
 app.use('/api/subscription', subscriptionModule);
 app.use('/api/review-submission', reviewSubmissionModule);
 
@@ -295,6 +297,7 @@ if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Business Hub API running at http://localhost:${PORT}`);
   });
+  viralResearchRoutes.startScheduler();
 }
 
 module.exports = app;
