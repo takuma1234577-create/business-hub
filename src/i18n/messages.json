@@ -13230,5 +13230,313 @@
   "判断待ち {0}": [
     "Awaiting decision {0}",
     "Pendiente {0}"
+  ],
+  "バズリサーチ": [
+    "Viral Research",
+    "Investigación viral"
+  ],
+  "YouTube・TikTokで、投稿者の普段の再生数より何倍伸びたかで動画を探す。Copilotにフック分析や台本づくりを頼める。Macで起動したときだけ動く。": [
+    "Find YouTube and TikTok videos by how many times they beat the creator's usual views. Ask Copilot for hook analysis and scripts. Works only when started on the Mac.",
+    "Encuentra videos de YouTube y TikTok según cuántas veces superan las vistas habituales del creador. Pide a Copilot análisis de ganchos y guiones. Solo funciona al iniciarlo en el Mac."
+  ],
+  "毎日": [
+    "Daily",
+    "Diario"
+  ],
+  "毎週": [
+    "Weekly",
+    "Semanal"
+  ],
+  "台本": [
+    "Script",
+    "Guion"
+  ],
+  "ブリーフ": [
+    "Brief",
+    "Brief"
+  ],
+  "レポート": [
+    "Report",
+    "Informe"
+  ],
+  "クレアチン関連でここ3か月に伸びたショートを探して、共通するフックの型をまとめて": [
+    "Find creatine-related Shorts that took off in the last 3 months and summarize the hook types they share",
+    "Busca Shorts sobre creatina que despegaron en los últimos 3 meses y resume los tipos de gancho que comparten"
+  ],
+  "監視アカウントで最近バズった動画と、その理由を教えて": [
+    "Show me recent viral videos from tracked accounts and why they went viral",
+    "Muéstrame los videos virales recientes de las cuentas seguidas y por qué se viralizaron"
+  ],
+  "筋トレ初心者向けで、小さいアカウントなのに伸びた動画のフォーマットを分析して": [
+    "Analyze the formats of beginner workout videos that took off from small accounts",
+    "Analiza los formatos de videos de entrenamiento para principiantes que despegaron desde cuentas pequeñas"
+  ],
+  "いちばんスコアが高い動画を元に、クレアショットの30秒UGC台本を作って保存して": [
+    "Write and save a 30-second UGC script for Creashot based on the highest-scoring video",
+    "Escribe y guarda un guion UGC de 30 segundos para Creashot basado en el video con mayor puntuación"
+  ],
+  "字幕を取得中…": [
+    "Fetching captions…",
+    "Obteniendo subtítulos…"
+  ],
+  "冒頭: 「{0}」": [
+    "Opening: \"{0}\"",
+    "Inicio: «{0}»"
+  ],
+  "字幕がない動画でした": [
+    "This video has no captions",
+    "Este video no tiene subtítulos"
+  ],
+  "{0}倍": [
+    "{0}x",
+    "{0}x"
+  ],
+  "スコア不明": [
+    "Score unknown",
+    "Puntuación desconocida"
+  ],
+  "/ 普段 {0}回": [
+    "/ usually {0} views",
+    "/ normalmente {0} vistas"
+  ],
+  "/ 登録 {0}": [
+    "/ {0} subscribers",
+    "/ {0} suscriptores"
+  ],
+  "/ いいね {0}": [
+    "/ {0} likes",
+    "/ {0} me gusta"
+  ],
+  "フック": [
+    "Hook",
+    "Gancho"
+  ],
+  "この動画がなぜ伸びたか、フックの型・フォーマット・構成・コメントを誘う仕掛けの観点で分析して。真似するならどう撮るかも。\n{0}": [
+    "Analyze why this video took off in terms of hook type, format, structure, and comment triggers. Also tell me how to shoot something similar.\n{0}",
+    "Analiza por qué despegó este video en cuanto a tipo de gancho, formato, estructura y recursos para generar comentarios. Dime también cómo grabar algo similar.\n{0}"
+  ],
+  "この動画のフックと構成を元に、クレアショット(クレアチンのサプリ)向けの30秒UGC台本を作って保存して。\n{0}": [
+    "Based on this video's hook and structure, write and save a 30-second UGC script for Creashot (a creatine supplement).\n{0}",
+    "Con base en el gancho y la estructura de este video, escribe y guarda un guion UGC de 30 segundos para Creashot (un suplemento de creatina).\n{0}"
+  ],
+  "台本に": [
+    "To script",
+    "A guion"
+  ],
+  "動画を検索": [
+    "Searching videos",
+    "Buscando videos"
+  ],
+  "アカウントを確認": [
+    "Checking account",
+    "Revisando cuenta"
+  ],
+  "監視アカウントを確認": [
+    "Checking tracked accounts",
+    "Revisando cuentas seguidas"
+  ],
+  "詳細を確認": [
+    "Checking details",
+    "Revisando detalles"
+  ],
+  "フックを取得": [
+    "Getting hook",
+    "Obteniendo gancho"
+  ],
+  "字幕を取得": [
+    "Getting captions",
+    "Obteniendo subtítulos"
+  ],
+  "エージェントを確認": [
+    "Checking agents",
+    "Revisando agentes"
+  ],
+  "保存済みの結果を確認": [
+    "Checking saved results",
+    "Revisando resultados guardados"
+  ],
+  "保存物に保存": [
+    "Saving to assets",
+    "Guardando en recursos"
+  ],
+  "開始します…": [
+    "Starting…",
+    "Iniciando…"
+  ],
+  "{0}本見つかりました(外れ値スコア順)": [
+    "Found {0} videos (sorted by outlier score)",
+    "Se encontraron {0} videos (ordenados por puntuación atípica)"
+  ],
+  "検索語を考えています…": [
+    "Coming up with search terms…",
+    "Pensando términos de búsqueda…"
+  ],
+  "検索語を直してから登録できます": [
+    "Edit the search terms, then register",
+    "Edita los términos de búsqueda y luego regístralo"
+  ],
+  "検索語を入れてください": [
+    "Enter search terms",
+    "Introduce términos de búsqueda"
+  ],
+  "{0} 時点の結果": [
+    "Results as of {0}",
+    "Resultados al {0}"
+  ],
+  "まだ結果がありません": [
+    "No results yet",
+    "Aún no hay resultados"
+  ],
+  "取得中…(TikTokは30秒ほど)": [
+    "Fetching… (about 30 seconds for TikTok)",
+    "Obteniendo… (unos 30 segundos para TikTok)"
+  ],
+  "{0}: 直近{1}本(スコア順)": [
+    "{0}: latest {1} videos (by score)",
+    "{0}: últimos {1} videos (por puntuación)"
+  ],
+  "取得中…": [
+    "Fetching…",
+    "Obteniendo…"
+  ],
+  "このツールは Mac で business-hub を起動したときだけ使えます。": [
+    "This tool works only when business-hub is started on the Mac.",
+    "Esta herramienta solo funciona cuando business-hub se inicia en el Mac."
+  ],
+  "動画データの取得(yt-dlp)と Copilot(Claude Code)を Mac の中で動かしているためです。Mac で business-hub を起動し、localhost の画面から開いてください。": [
+    "Video data (yt-dlp) and Copilot (Claude Code) run on the Mac itself. Start business-hub on the Mac and open it from the localhost page.",
+    "Los datos de video (yt-dlp) y Copilot (Claude Code) se ejecutan en el propio Mac. Inicia business-hub en el Mac y ábrelo desde la página de localhost."
+  ],
+  "ニッチ検索": [
+    "Niche search",
+    "Búsqueda por nicho"
+  ],
+  "リサーチエージェント": [
+    "Research agents",
+    "Agentes de investigación"
+  ],
+  "監視アカウント": [
+    "Tracked accounts",
+    "Cuentas seguidas"
+  ],
+  "保存物": [
+    "Assets",
+    "Recursos"
+  ],
+  "YouTube / TikTok で、投稿者の普段の再生数に比べて何倍伸びたか(外れ値スコア)で動画を探し、Copilot にフック分析や台本づくりを頼めます。": [
+    "Find YouTube / TikTok videos by how many times they beat the creator's usual views (outlier score), and ask Copilot for hook analysis and scripts.",
+    "Encuentra videos de YouTube / TikTok según cuántas veces superan las vistas habituales del creador (puntuación atípica) y pide a Copilot análisis de ganchos y guiones."
+  ],
+  "新しい会話": [
+    "New chat",
+    "Nueva conversación"
+  ],
+  "考えています…": [
+    "Thinking…",
+    "Pensando…"
+  ],
+  "例: 筋トレ系で今週伸びているフックは?(Enterで送信 / Shift+Enterで改行)": [
+    "e.g. Which workout hooks are taking off this week? (Enter to send / Shift+Enter for a new line)",
+    "p. ej. ¿Qué ganchos de entrenamiento están despegando esta semana? (Enter para enviar / Shift+Enter para nueva línea)"
+  ],
+  "例: クレアチン, 筋トレ サプリ": [
+    "e.g. creatine, workout supplements",
+    "p. ej. creatina, suplementos de entrenamiento"
+  ],
+  "1週間": [
+    "1 week",
+    "1 semana"
+  ],
+  "1か月": [
+    "1 month",
+    "1 mes"
+  ],
+  "3か月": [
+    "3 months",
+    "3 meses"
+  ],
+  "1年": [
+    "1 year",
+    "1 año"
+  ],
+  "期間なし": [
+    "Any time",
+    "Sin límite"
+  ],
+  "カンマ区切りで複数キーワード。1キーワード40秒ほど。TikTok はキーワード検索ができないため、監視アカウントに登録して見ます。": [
+    "Separate multiple keywords with commas. About 40 seconds per keyword. TikTok can't be searched by keyword, so add accounts to Tracked accounts instead.",
+    "Separa varias palabras clave con comas. Unos 40 segundos por palabra clave. TikTok no permite buscar por palabra clave, así que agrega cuentas en Cuentas seguidas."
+  ],
+  "探したいことを一文で書くと、検索語を考えて登録します。毎日・毎週の自動実行は、Mac の business-hub が動いている間に行われます。": [
+    "Describe what you want to find in one sentence and search terms will be generated and registered. Daily and weekly runs happen while business-hub is running on the Mac.",
+    "Describe en una frase lo que quieres encontrar y se generarán y registrarán términos de búsqueda. Las ejecuciones diarias y semanales ocurren mientras business-hub esté en marcha en el Mac."
+  ],
+  "名前(例: クレアショット)": [
+    "Name (e.g. Creashot)",
+    "Nombre (p. ej. Creashot)"
+  ],
+  "例: クレアチンのサプリ『クレアショット』の広告ネタになる、伸びている筋トレ・サプリ系ショートを探したい": [
+    "e.g. Find trending workout and supplement Shorts that could inspire ads for the creatine supplement Creashot",
+    "p. ej. Buscar Shorts de entrenamiento y suplementos en tendencia que sirvan de idea para anuncios del suplemento de creatina Creashot"
+  ],
+  "検索語を考える": [
+    "Suggest search terms",
+    "Sugerir términos"
+  ],
+  "検索語(カンマ区切り。自分で書いてもよい)": [
+    "Search terms (comma-separated; you can write your own)",
+    "Términos de búsqueda (separados por comas; puedes escribir los tuyos)"
+  ],
+  "登録して実行": [
+    "Register and run",
+    "Registrar y ejecutar"
+  ],
+  "/ 最終実行": [
+    "/ last run",
+    "/ última ejecución"
+  ],
+  "/ {0}本": [
+    "/ {0} videos",
+    "/ {0} videos"
+  ],
+  "/ 実行中": [
+    "/ running",
+    "/ en ejecución"
+  ],
+  "結果": [
+    "Results",
+    "Resultados"
+  ],
+  "{0} を削除しますか?": [
+    "Delete {0}?",
+    "¿Eliminar {0}?"
+  ],
+  "競合・参考にしたいクリエイター・自社アカウントを登録すると、その人の普段の再生数と比べて伸びた動画が分かります。": [
+    "Add competitors, creators you want to learn from, or your own accounts to see which of their videos beat their usual views.",
+    "Agrega competidores, creadores de referencia o tus propias cuentas para ver qué videos superaron sus vistas habituales."
+  ],
+  "@TikTokID / https://www.youtube.com/@チャンネル": [
+    "@TikTokID / https://www.youtube.com/@channel",
+    "@TikTokID / https://www.youtube.com/@canal"
+  ],
+  "最新に更新": [
+    "Refresh",
+    "Actualizar"
+  ],
+  "Copilot が作った台本・ブリーフ・レポート。開いて印刷すれば PDF にできます。": [
+    "Scripts, briefs, and reports made by Copilot. Open one and print it to save as PDF.",
+    "Guiones, briefs e informes creados por Copilot. Ábrelos e imprímelos para guardarlos en PDF."
+  ],
+  "まだありません。Copilot に「台本にして保存して」と頼むとここに入ります。": [
+    "Nothing yet. Ask Copilot to \"make it a script and save it\" and it will appear here.",
+    "Aún no hay nada. Pide a Copilot que \"lo convierta en guion y lo guarde\" y aparecerá aquí."
+  ],
+  "削除しますか?": [
+    "Delete?",
+    "¿Eliminar?"
+  ],
+  "印刷 / PDF": [
+    "Print / PDF",
+    "Imprimir / PDF"
   ]
 }

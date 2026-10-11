@@ -14,6 +14,7 @@ import {
   Repeat,
   Boxes,
   Activity,
+  TrendingUp,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -122,6 +123,16 @@ const tools: Tool[] = [
     path: '/image-downloader',
     color: 'text-indigo-600 dark:text-indigo-400',
     bgColor: 'bg-indigo-50 dark:bg-indigo-950/50',
+    status: 'active',
+  },
+  {
+    id: 'viral-research',
+    name: 'バズリサーチ',
+    description: 'YouTube・TikTokで、投稿者の普段の再生数より何倍伸びたかで動画を探す。Copilotにフック分析や台本づくりを頼める。Macで起動したときだけ動く。',
+    icon: <TrendingUp size={28} />,
+    path: '/viral-research',
+    color: 'text-orange-600 dark:text-orange-400',
+    bgColor: 'bg-orange-50 dark:bg-orange-950/50',
     status: 'active',
   },
   {

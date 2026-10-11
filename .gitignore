@@ -26,3 +26,7 @@ dist-ssr
 .env.vercel
 .env.pulled
 .env*.local
+
+# バズリサーチ(ローカル専用)
+.venv-ytdlp
+data/viral-research

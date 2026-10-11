@@ -22,6 +22,7 @@ import Inventory from './pages/Inventory'
 import InventoryPartner from './pages/InventoryPartner'
 import Login from './pages/Login'
 import SiteAnalytics from './pages/SiteAnalytics'
+import ViralResearch from './pages/ViralResearch'
 
 // 全fetchリクエストに認証トークンを自動付与
 const originalFetch = window.fetch
@@ -117,6 +118,7 @@ function App() {
       <Route path="/subscription" element={<Subscription />} />
       <Route path="/inventory" element={<Inventory />} />
       <Route path="/site-analytics" element={<SiteAnalytics />} />
+      <Route path="/viral-research" element={<ViralResearch />} />
     </Routes>
   )
 }
