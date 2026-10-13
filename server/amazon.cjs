@@ -2155,7 +2155,7 @@ router.get('/cron/sync', async (req, res) => {
           if (invNotFound > 0) alerts.push(`在庫同期でShopifyに見つからないマッピングが ${invNotFound} 件あります`);
         }
       } catch (err) {
-        console.error('[cron/sync] inventory sync error:', err.message);
+        console.error('[cron/sync] inventory sync error:', err.message, err.response?.data ? JSON.stringify(err.response.data).slice(0, 400) : '');
         results.inventorySync = { error: err.message };
       }
     }

@@ -173,6 +173,7 @@ app.use('/api/sales-agent', salesAgentRoutes);
 app.use('/api/gifting', giftingRoutes);
 app.use('/api/review-order-verify', reviewOrderVerifyRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/escalation-reminder', require(path.join(__dirname, 'escalation-reminder.cjs')));
 app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/image-downloader', imageDownloaderRoutes);
 app.use('/api/subscription', subscriptionModule);
@@ -236,6 +237,8 @@ app.get('/api/daily-cron', async (req, res) => {
     ebayProfitWatch:     '/api/ebay/cron/profit-watch',
     // 商品在庫管理: Amazon在庫スナップショット（1日1回）＋売上レポート取り込み（毎回）
     inventory:           '/api/inventory/cron',
+    // 人に回したお客様対応が24時間未処理なら、オーナーのLINEに再通知（24時間に1回）
+    escalationReminder:  '/api/escalation-reminder/cron',
     // 定期購入: 課金予定の実行・失敗リトライ・配達完了フォールバック
     // （settings.billing.cron_enabled が false の間は何もしない）
     subscription:        '/api/subscription/cron',

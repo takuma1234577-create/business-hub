@@ -511,7 +511,7 @@ router.get('/cron', async (req, res) => {
       if (!pending || !pending.length) { result.sales = []; for (const w of [90, 30]) result.sales.push((await requestSalesReport(w)).id); }
     }
     res.json({ ok: true, ...result });
-  } catch (e) { console.error('[inventory/cron]', e.message); res.status(500).json({ error: e.message, ...result }); }
+  } catch (e) { console.error('[inventory/cron]', e.message, e.response?.data ? JSON.stringify(e.response.data).slice(0, 400) : ''); res.status(500).json({ error: e.message, ...result }); }
 });
 
 // ---------------------------------------------------------------------------
