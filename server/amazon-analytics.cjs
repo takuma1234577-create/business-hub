@@ -3,6 +3,7 @@ const { getSupabase } = require('./shared.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const axios = require('axios');
 const router = express.Router();
+const { solicitationPostConfig } = require('./review-solicitations.cjs');
 
 // ---------------------------------------------------------------------------
 // Amazon SP-API auth (shared pattern with amazon.cjs)
@@ -283,10 +284,7 @@ router.post('/solicitations/send', async (req, res) => {
     await axios.post(
       `${endpoint}/solicitations/v1/orders/${amazonOrderId}/solicitations/productReviewAndSellerFeedback`,
       null,
-      {
-        headers: { 'x-amz-access-token': token },
-        params: { marketplaceIds: marketplaceId },
-      }
+      solicitationPostConfig(token, marketplaceId)
     );
 
     // Record in DB
@@ -301,13 +299,11 @@ router.post('/solicitations/send', async (req, res) => {
     res.json({ success: true, amazonOrderId });
   } catch (err) {
     const errorMessage = err.response?.data?.errors?.[0]?.message || err.message;
-    const errorCode = err.response?.data?.errors?.[0]?.code || '';
     const httpStatus = err.response?.status;
     console.error('[amazon-analytics] solicitation send error:', errorMessage);
 
     // 403/409 or "already requested" → treat as already sent
     const alreadySent = httpStatus === 403 || httpStatus === 409
-      || errorCode === 'InvalidInput'
       || /already|previously|solicitation.*exist/i.test(errorMessage);
 
     if (alreadySent) {
@@ -367,10 +363,7 @@ router.post('/solicitations/send-bulk', async (req, res) => {
         await axios.post(
           `${endpoint}/solicitations/v1/orders/${orderId}/solicitations/productReviewAndSellerFeedback`,
           null,
-          {
-            headers: { 'x-amz-access-token': token },
-            params: { marketplaceIds: marketplaceId },
-          }
+          solicitationPostConfig(token, marketplaceId)
         );
 
         await supabase
@@ -384,12 +377,10 @@ router.post('/solicitations/send-bulk', async (req, res) => {
         results.sent.push(orderId);
       } catch (err) {
         const msg = err.response?.data?.errors?.[0]?.message || err.message;
-        const errCode = err.response?.data?.errors?.[0]?.code || '';
         const httpStatus = err.response?.status;
 
         // Already sent externally → record as sent
         const wasAlreadySent = httpStatus === 403 || httpStatus === 409
-          || errCode === 'InvalidInput'
           || /already|previously|solicitation.*exist/i.test(msg);
 
         if (wasAlreadySent) {
@@ -588,7 +579,7 @@ function makeSpClient({ token, endpoint, marketplaceId }) {
       return [...links.map(a => a.name), ...embedded.map(a => a.name || a._links?.self?.name)].filter(Boolean);
     },
     async sendReviewRequest(orderId) {
-      await axios.post(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}/solicitations/productReviewAndSellerFeedback`, null, { headers, params: { marketplaceIds: marketplaceId } });
+      await axios.post(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}/solicitations/productReviewAndSellerFeedback`, null, solicitationPostConfig(token, marketplaceId));
     },
   };
 }
