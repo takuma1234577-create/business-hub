@@ -51,6 +51,16 @@ function pickEligibleOrders(orders, { now = new Date(), minDays = 7, maxDays = M
   });
 }
 
+// 送信(POST)は本文なし・marketplaceIds はクエリ。axios は本文なしのPOSTに
+// Content-Type: application/x-www-form-urlencoded を付けるため、SP-APIが
+// 「クエリ付きURLにフォーム形式は不可」として 400 Invalid Input を返す。JSONを明示する。
+function solicitationPostConfig(token, marketplaceId) {
+  return {
+    headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
+    params: { marketplaceIds: marketplaceId },
+  };
+}
+
 const isForbidden = (err) => err?.response?.status === 403;
 const errMsg = (err) => err?.response?.data?.errors?.[0]?.message || err?.message || String(err);
 const isAlreadySent = (msg) => /already|previously|solicitation.*exist|既に/i.test(msg || '');
@@ -134,4 +144,4 @@ async function runReviewSolicitations({ sp, store, settings, now = new Date(), s
   return result;
 }
 
-module.exports = { runReviewSolicitations, pickEligibleOrders, jstDayStart, roleForPath, refDate };
+module.exports = { runReviewSolicitations, solicitationPostConfig, pickEligibleOrders, jstDayStart, roleForPath, refDate };

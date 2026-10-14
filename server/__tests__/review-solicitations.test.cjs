@@ -1,6 +1,8 @@
 // Amazon公式「レビューをリクエスト」(SP-API Solicitations) の自動送信。node server/__tests__/review-solicitations.test.cjs
 const assert = require('node:assert/strict');
-const { runReviewSolicitations, pickEligibleOrders, jstDayStart, roleForPath } = require('../review-solicitations.cjs');
+const http = require('node:http');
+const axios = require('axios');
+const { runReviewSolicitations, pickEligibleOrders, jstDayStart, roleForPath, solicitationPostConfig } = require('../review-solicitations.cjs');
 
 const now = new Date('2026-10-09T12:00:00Z');
 const ago = (d) => new Date(now.getTime() - d * 86400000).toISOString();
@@ -111,6 +113,16 @@ const sleep = async () => {};
   // 10. 役割の対応表
   assert.match(roleForPath('/fba/inventory/v1/summaries'), /Amazon Fulfillment/);
   assert.match(roleForPath('/reports/2021-06-30/reports'), /Reports/i);
+  // 11. 送信POSTはJSON形式で送る(フォーム形式だとSP-APIが Invalid Input を返す)
+  {
+    const seen = await new Promise((resolve) => {
+      const srv = http.createServer((q, res) => { res.end('{}'); srv.close(); resolve({ url: q.url, type: q.headers['content-type'], token: q.headers['x-amz-access-token'] }); });
+      srv.listen(0, '127.0.0.1', () => axios.post(`http://127.0.0.1:${srv.address().port}/solicitations/v1/orders/A/solicitations/productReviewAndSellerFeedback`, null, { ...solicitationPostConfig('tok', 'A1VC38T7YXB528'), proxy: false }));
+    });
+    assert.equal(seen.type, 'application/json');
+    assert.equal(seen.token, 'tok');
+    assert.match(seen.url, /\?marketplaceIds=A1VC38T7YXB528$/);
+  }
 
   console.log('OK   review-solicitations');
 })().catch(e => { console.error(e); process.exit(1); });
