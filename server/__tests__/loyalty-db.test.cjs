@@ -207,16 +207,28 @@ test('仮押さえで残高が減り、残高を超える仮押さえはでき�
   await rejects(h.one(`select lp_hold_points($1, 41, 'checkout', 'CODE0000000000002', null, null)`, [m.id]), /insufficient/);
 });
 
-test('確定は金額が完全一致したときだけ。2回目は何もしない。確定後は解除できない', async () => {
+test('確定：割引額が仮押さえより多ければ拒否。2回目は何もしない。確定後は解除できない', async () => {
   const m = await memberWithPoints(100);
   const id = (await h.one(`select lp_hold_points($1, 60, 'checkout', 'CODE0000000000001', null, null) id`, [m.id])).id;
-  await rejects(h.one(`select lp_confirm_hold($1, 'order-1', 59)`, [id]), /amount_mismatch/);
+  await rejects(h.one(`select lp_confirm_hold($1, 'order-1', 61)`, [id]), /amount_mismatch/);
+  await rejects(h.one(`select lp_confirm_hold($1, 'order-1', 0)`, [id]), /amount_mismatch/);
   const c1 = (await h.one(`select lp_confirm_hold($1, 'order-1', 60) r`, [id])).r;
   assert.equal(c1.status, 'used');
   const c2 = (await h.one(`select lp_confirm_hold($1, 'order-1', 60) r`, [id])).r;
   assert.equal(c2.already, true);
   await rejects(h.one(`select lp_release_hold($1, 'test')`, [id]), /not_held/);
   assert.equal(await h.balance(m.id), 40);
+});
+
+test('確定：カートが少なく割引が仮押さえより小さかったら、使った分だけ確定して残りを戻す。返品の戻しも使った分まで', async () => {
+  const m = await memberWithPoints(100);
+  const id = (await h.one(`select lp_hold_points($1, 60, 'checkout', 'CODE0000000000001', null, null) id`, [m.id])).id;
+  const r = (await h.one(`select lp_confirm_hold($1, 'order-1', 45) r`, [id])).r;
+  assert.equal(r.used, 45);
+  assert.equal(await h.balance(m.id), 55);
+  await rejects(h.one(`select lp_refund_points($1, 46, 'refund:x')`, [id]), /exceeds/);
+  await h.one(`select lp_refund_points($1, 45, 'refund:y')`, [id]);
+  assert.equal(await h.balance(m.id), 100);
 });
 
 test('24時間使われない仮押さえは解除され、ポイントが戻る', async () => {
@@ -373,4 +385,80 @@ test('lp_link_by_email：同じメールの未紐づけ契約だけを紐づけ�
   const r = (await h.one(`select lp_link_by_email($1, 'taro@example.com') r`, [a.id])).r;
   assert.equal(r, 1);
   assert.equal((await h.one(`select lp_link_by_email($1, '') r`, [a.id])).r, 0);
+});
+
+// ── 定期請求でのポイント利用 ────────────────────────────
+
+async function subscriberWithPoints(n) {
+  const m = await h.member('active');
+  const req = (await h.one(`select lp_request_adjust($1, $2, 'テスト', 'staff') id`, [m.id, n])).id;
+  await h.one(`select lp_approve_adjust($1, 'owner', 'test-pin-1234')`, [req]);
+  return m;
+}
+
+test('請求での利用設定は本人の契約だけ。使い方は none/all/fixed', async () => {
+  const m = await subscriberWithPoints(100);
+  const other = await h.member('active');
+  await rejects(h.one(`select lp_set_billing_pref($1, $2, 'all', null)`, [other.id, m.subId]), /subscription_not_found/);
+  await rejects(h.one(`select lp_set_billing_pref($1, $2, 'half', null)`, [m.id, m.subId]), /invalid_mode/);
+  await rejects(h.one(`select lp_set_billing_pref($1, $2, 'fixed', 0)`, [m.id, m.subId]), /invalid_points/);
+  await h.one(`select lp_set_billing_pref($1, $2, 'fixed', 30)`, [m.id, m.subId]);
+  const prefs = (await h.one(`select lp_billing_prefs($1) r`, [m.id])).r;
+  assert.equal(prefs.length, 1);
+  assert.equal(prefs[0].mode, 'fixed');
+  assert.equal(prefs[0].points, 30);
+});
+
+test('請求直前の仮押さえ：設定どおりの額（残高と請求額が上限）。同じサイクルの2回目は同じ仮押さえを返す', async () => {
+  const m = await subscriberWithPoints(100);
+  assert.equal((await h.one(`select lp_hold_for_billing($1, 2, 3000) r`, [m.subId])).r, null, '設定なしなら使わない');
+  await h.one(`select lp_set_billing_pref($1, $2, 'all', null)`, [m.id, m.subId]);
+  const a = (await h.one(`select lp_hold_for_billing($1, 2, 80) r`, [m.subId])).r;
+  assert.equal(a.amount, 80, '請求額が上限');
+  assert.equal(a.existing, false);
+  const again = (await h.one(`select lp_hold_for_billing($1, 2, 80) r`, [m.subId])).r;
+  assert.equal(again.hold_id, a.hold_id);
+  assert.equal(again.existing, true);
+  assert.equal(await h.balance(m.id), 20);
+  await h.one(`select lp_set_billing_pref($1, $2, 'fixed', 50)`, [m.id, m.subId]);
+  const b = (await h.one(`select lp_hold_for_billing($1, 3, 3000) r`, [m.subId])).r;
+  assert.equal(b.amount, 20, '残高が上限');
+});
+
+test('請求の確定・解除：課金成功で確定、失敗で解除。定期の仮押さえは時間切れで勝手に解除しない', async () => {
+  const m = await subscriberWithPoints(100);
+  await h.one(`select lp_set_billing_pref($1, $2, 'fixed', 30)`, [m.id, m.subId]);
+  const a = (await h.one(`select lp_hold_for_billing($1, 2, 3000) r`, [m.subId])).r;
+  await h.one(`select lp_set_hold_discount($1, 'gid://shopify/SubscriptionManualDiscount/1')`, [a.hold_id]);
+  await rejects(h.one(`select lp_set_hold_discount($1, 'gid://shopify/SubscriptionManualDiscount/2')`, [a.hold_id]), /discount_already_set/);
+  await h.addDays(30);
+  assert.equal((await h.one(`select lp_release_expired_holds() n`)).n, 0);
+  const c = (await h.one(`select lp_confirm_billing_hold($1, 2, 'order-9', 30) r`, [m.subId])).r;
+  assert.equal(c.status, 'used');
+  assert.equal(await h.balance(m.id), 70);
+
+  const b = (await h.one(`select lp_hold_for_billing($1, 3, 3000) r`, [m.subId])).r;
+  await h.one(`select lp_set_hold_discount($1, 'gid://shopify/SubscriptionManualDiscount/3')`, [b.hold_id]);
+  const rel = (await h.one(`select lp_release_billing_hold($1, 3, 'billing_failed') r`, [m.subId])).r;
+  assert.equal(rel.discount_id, 'gid://shopify/SubscriptionManualDiscount/3');
+  assert.equal(await h.balance(m.id), 70);
+  assert.equal((await h.one(`select lp_release_billing_hold($1, 4, 'x') r`, [m.subId])).r, null);
+  assert.equal((await h.one(`select lp_confirm_billing_hold($1, 4, 'o', 1) r`, [m.subId])).r, null);
+});
+
+test('解約時は、まだ使われていない定期の仮押さえをすべて解除して割引IDを返す', async () => {
+  const m = await subscriberWithPoints(100);
+  await h.one(`select lp_set_billing_pref($1, $2, 'fixed', 30)`, [m.id, m.subId]);
+  const a = (await h.one(`select lp_hold_for_billing($1, 2, 3000) r`, [m.subId])).r;
+  await h.one(`select lp_set_hold_discount($1, 'gid://d/1')`, [a.hold_id]);
+  const r = (await h.one(`select lp_release_subscription_holds($1, 'cancelled') r`, [m.subId])).r;
+  assert.deepEqual(r, ['gid://d/1']);
+  assert.equal(await h.balance(m.id), 100);
+});
+
+test('割引コードIDの記録：仮押さえ中だけ', async () => {
+  const m = await memberWithPoints(100);
+  const id = (await h.one(`select lp_hold_points($1, 10, 'checkout', 'CODE0000000000001', null, null) id`, [m.id])).id;
+  await h.one(`select lp_release_hold($1, 'cancel')`, [id]);
+  await rejects(h.one(`select lp_set_hold_discount($1, 'gid://x')`, [id]), /not_held/);
 });

@@ -7,6 +7,7 @@ const path = require('path');
 const MIGRATIONS = [
   '2026-10-14-login-points-challenge.sql',
   '2026-10-14b-loyalty-status-link.sql',
+  '2026-10-15-loyalty-redeem.sql',
 ].map((f) => path.join(__dirname, '../../../migrations', f));
 
 // 本番 fajqnrqfjugonbssssts の既存表（2026-10-14 時点の列と制約を information_schema から写したもの）
@@ -53,6 +54,8 @@ create table subscriptions (
   email text not null default 'x@example.com',
   shopify_customer_id text,
   first_order_id text,
+  amount numeric,
+  next_billing_at timestamptz,
   status text not null default 'pending_first_shipment'
     check (status in ('pending_first_shipment','awaiting_delivery','active','past_due','paused','cancelled')),
   member_id uuid references members(id) on delete set null,

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useSearchParams, useLocation } from 'react-router-dom'
 import { FitpeakAuthProvider, useFitpeakAuth } from './my-fitpeak/lib/auth'
 import { fitpeakSupabase } from './my-fitpeak/lib/supabase'
 import FitpeakLayout from './my-fitpeak/FitpeakLayout'
@@ -10,6 +10,7 @@ import FitpeakNotifications from './my-fitpeak/FitpeakNotifications'
 import FitpeakPro from './my-fitpeak/FitpeakPro'
 import FitpeakSaved from './my-fitpeak/FitpeakSaved'
 import FitpeakWarrantyRegister from './my-fitpeak/FitpeakWarrantyRegister'
+import FitpeakRedeem from './my-fitpeak/FitpeakRedeem'
 import { type ReactNode, useEffect, useState } from 'react'
 
 function AutoLoginHandler({ children }: { children: ReactNode }) {
@@ -59,12 +60,14 @@ function AutoLoginHandler({ children }: { children: ReactNode }) {
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useFitpeakAuth()
+  const location = useLocation()
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
       <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
     </div>
   )
-  if (!user) return <Navigate to="/my-fitpeak/login" />
+  // ログイン後に元のページへ戻す（ポイント利用ページなど、外から直接来る入口のため）
+  if (!user) return <Navigate to={`/my-fitpeak/login?next=${encodeURIComponent(location.pathname + location.search)}`} />
   return <>{children}</>
 }
 
@@ -84,6 +87,7 @@ export default function MyFitpeak() {
             <Route path="pro" element={<FitpeakPro />} />
             <Route path="saved" element={<FitpeakSaved />} />
             <Route path="warranty-register" element={<FitpeakWarrantyRegister />} />
+            <Route path="points/use" element={<FitpeakRedeem />} />
             {/* 旧URL（メールやLINEのリンクから来る人のため） */}
             <Route path="line" element={<Navigate to="/my-fitpeak/account" replace />} />
           </Route>

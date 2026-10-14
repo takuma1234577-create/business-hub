@@ -6,10 +6,16 @@ import { CheckCircle, MessageCircle } from 'lucide-react'
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID || ''
 
+// ログイン後の戻り先。My FITPEAK の中のパスだけ（外部サイトへの転送に使われないように）
+function safeNext(v: string | null): string {
+  return v && v.startsWith('/my-fitpeak') && !v.startsWith('//') ? v : '/my-fitpeak'
+}
+
 export default function FitpeakLogin() {
   const { user, signInWithPassword, signUp } = useFitpeakAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const nextPath = safeNext(searchParams.get('next'))
   const code = searchParams.get('code')
 
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login')
@@ -39,7 +45,7 @@ export default function FitpeakLogin() {
     const params = new URLSearchParams(hash)
     const tokenHash = params.get('lt')
     if (!tokenHash) return
-    const next = params.get('next') || '/my-fitpeak'
+    const next = safeNext(params.get('next'))
     setLineLoginLoading(true)
     ;(async () => {
       const { error: otpError } = await fitpeakSupabase.auth.verifyOtp({
@@ -87,7 +93,7 @@ export default function FitpeakLogin() {
                 type: 'magiclink',
               })
               if (otpError) throw new Error(otpError.message)
-              navigate('/my-fitpeak')
+              navigate(nextPath)
               return
             }
           }
@@ -96,7 +102,7 @@ export default function FitpeakLogin() {
         }
       }
       // 通常のブラウザはLINEの認可画面へ
-      window.location.href = '/api/my-fitpeak/auth/line/start?redirect=/my-fitpeak'
+      window.location.href = `/api/my-fitpeak/auth/line/start?redirect=${encodeURIComponent(nextPath)}`
     } catch (err) {
       setError(err instanceof Error ? err.message : 'LINEログインに失敗しました')
       setLineLoginLoading(false)
@@ -148,9 +154,9 @@ export default function FitpeakLogin() {
   // ただしLINEログインから戻ってきた直後（#lt=）は、その処理が終わるまで待つ
   useEffect(() => {
     if (user && !isLineContext && !lineLoginLoading && !window.location.hash.includes('lt=')) {
-      navigate('/my-fitpeak')
+      navigate(nextPath)
     }
-  }, [user, isLineContext, lineLoginLoading, navigate])
+  }, [user, isLineContext, lineLoginLoading, navigate, nextPath])
 
   const performLineLink = async () => {
     if (!lineUserId && !code) return

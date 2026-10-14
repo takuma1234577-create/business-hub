@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Gift, Flame, ChevronDown, ChevronUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { apiFetch } from './lib/api'
+import BillingPointsPref from './BillingPointsPref'
 
 /**
  * 毎日のログインポイント＋クレアショットチャレンジ（仕様書 v1 第7項）
@@ -258,6 +260,16 @@ export default function LoyaltyCard() {
       {status.points_expire_on && status.balance > 0 && (
         <p className="text-[11px] text-white/30 mt-1 text-right">有効期限 {formatDate(status.points_expire_on)}（ポイントを獲得するたびに延長）</p>
       )}
+      {status.balance > 0 && (
+        <Link
+          to="/my-fitpeak/points/use?redirect=/cart"
+          className="block w-full mt-3 py-2.5 rounded-lg border border-[#c8a960]/40 text-center text-xs font-semibold hover:bg-[#c8a960]/10 transition"
+          style={{ color: GOLD }}
+        >
+          ポイントを使ってお買い物
+        </Link>
+      )}
+      <BillingPointsPref />
     </section>
   )
 }

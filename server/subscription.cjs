@@ -332,6 +332,14 @@ async function syncContract(contractId, { origin = 'regular' } = {}) {
       patch.cancelled_at = new Date().toISOString();
     }
     await db().from('subscriptions').update(patch).eq('id', existing.id);
+    if (patch.status === 'cancelled') {
+      // ログインポイント：Shopify 側で解約された場合も、使われていない定期のポイントを戻す
+      try {
+        await require('./loyalty.cjs').hooks().onSubscriptionCancelled(existing);
+      } catch (err) {
+        console.error('[subscription] 解約時のポイント解除エラー:', err.message);
+      }
+    }
     return { ...existing, ...patch };
   }
 
@@ -721,6 +729,12 @@ async function cancelSubscription(subscription, actor, reasonId = null, note = n
   };
   await db().from('subscriptions').update(patch).eq('id', subscription.id);
   await logEvent(subscription.id, 'cancelled', actor, { reason_id: reasonId, note, cycle_count: subscription.cycle_count });
+  // ログインポイント：まだ使われていない定期のポイント（仮押さえ）を戻す
+  try {
+    await require('./loyalty.cjs').hooks().onSubscriptionCancelled(subscription);
+  } catch (err) {
+    console.error('[subscription] 解約時のポイント解除エラー:', err.message);
+  }
   return { ...subscription, ...patch };
 }
 
@@ -744,6 +758,9 @@ const WEBHOOK_TOPICS = [
   'SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE',
   'SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED',
   'ORDERS_CREATE',
+  // ログインポイント：返品・キャンセルで使ったポイントを戻す
+  'ORDERS_CANCELLED',
+  'REFUNDS_CREATE',
   'FULFILLMENTS_CREATE',
   'FULFILLMENTS_UPDATE',
   'FULFILLMENT_EVENTS_CREATE',
@@ -775,8 +792,18 @@ async function handleWebhook(topic, body) {
     case 'fulfillment_events/create':
       return handleFulfillmentEvent(body);
 
+    // ログインポイント：割引コードで使われたポイントを確定（loyalty.cjs）
     case 'orders/create':
-      return 'ignored';
+      await require('./loyalty.cjs').hooks().onOrderCreated(body);
+      return 'loyalty_checked';
+
+    // ログインポイント：返品・キャンセルで使ったポイントを戻す
+    case 'refunds/create':
+      await require('./loyalty.cjs').hooks().onOrderRefunded(body.order_id);
+      return 'loyalty_refund_checked';
+    case 'orders/cancelled':
+      await require('./loyalty.cjs').hooks().onOrderRefunded(body.id);
+      return 'loyalty_refund_checked';
 
     default:
       return 'unhandled';
@@ -847,6 +874,13 @@ async function handleBillingSuccess(body) {
 
   await logEvent(subscription.id, 'billing_success', 'shopify', { order_id: orderId, attempt_id: attemptId });
 
+  // ログインポイント：この請求で使ったポイントを確定
+  try {
+    await require('./loyalty.cjs').hooks().onBillingSucceeded(subscription, cycle ? cycle.cycle_no : subscription.cycle_count + 1, orderId);
+  } catch (err) {
+    console.error('[subscription] ポイント確定エラー:', err.message);
+  }
+
   // FITPEAK PRO（会員プラン）: 配送が無いので、ここで次回課金日を確定して active に戻す
   try {
     const pro = require('./fitpeak-pro.cjs');
@@ -908,6 +942,15 @@ async function handleBillingFailure(body) {
   await logEvent(subscription.id, 'billing_failed', 'shopify', {
     reason, retry_count: retryCount, next_retry_at: nextRetryAt, exhausted,
   });
+
+  // ログインポイント：リトライ上限まで失敗したら、契約の割引を外してポイントを戻す（リトライ中は割引ごと残す）
+  if (exhausted && cycle) {
+    try {
+      await require('./loyalty.cjs').hooks().onBillingExhausted(subscription, cycle.cycle_no);
+    } catch (err) {
+      console.error('[subscription] ポイント解除エラー:', err.message);
+    }
+  }
 
   // FITPEAK PRO（会員プラン）: リトライ中はPRO維持、上限に達したらPROを外す
   try {
@@ -1042,6 +1085,13 @@ async function runBillingCron() {
           amount: sub.amount,
           status: 'scheduled',
         });
+      }
+
+      // ログインポイント：設定があれば、この請求に1回限りのポイント割引を付ける（失敗しても請求は止めない）
+      try {
+        await require('./loyalty.cjs').hooks().prepareBillingDiscount(sub, cycleNo);
+      } catch (err) {
+        console.error('[subscription] ポイント割引の準備エラー:', sub.id, err.message);
       }
 
       const attempt = await createBillingAttempt(sub.shopify_contract_id, idempotencyKey);
