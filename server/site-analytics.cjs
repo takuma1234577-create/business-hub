@@ -20,6 +20,7 @@
  *               ログインユーザーが「サイトのリンクを押した後に作られた」ときだけ新規登録として site_signups に残す。
  */
 const { sendOwnerChat } = require('./owner-chat.cjs');
+const { sendOwnerAnswer } = require('./owner-answer.cjs');
 const express = require('express');
 const crypto = require('crypto');
 const { getSupabase } = require('./shared.cjs');
@@ -505,6 +506,25 @@ router.get('/ai-chat', async (req, res) => {
     console.error('[site-analytics/ai-chat]', err.message);
     return res.status(502).json({ error: err.message });
   }
+});
+
+// 人の判断待ち（AIが承認や判断を求めているもの）。AIマップが、担当の上に赤く出す
+router.get('/ai-escalations', async (req, res) => {
+  try {
+    const live = await aiOrg('?mode=escalations');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(live);
+  } catch (err) {
+    console.error('[site-analytics/ai-escalations]', err.message);
+    return res.status(502).json({ error: err.message });
+  }
+});
+
+// 判断待ちへの回答（承認/却下）。LINEのワンタップ回答と同じ処理をAI組織が行う
+router.post('/ai-answer', async (req, res) => {
+  const { id, action } = req.body || {};
+  const r = await sendOwnerAnswer({ id: String(id || ''), action: String(action || '') });
+  return res.status(r.status || (r.ok ? 200 : 502)).json(r.data);
 });
 
 // オーナーがグループチャットに直接書いた指示。AI組織に渡して、チャットに出し、宛先（省略時は部屋の責任者）に最優先の仕事として入れる
