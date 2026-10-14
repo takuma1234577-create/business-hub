@@ -327,3 +327,50 @@ test('anon・authenticated は関数も表も使えない', async () => {
   await rejects(h.asRole('authenticated', `select lp_daily_login($1)`, [m.id]), /permission denied/);
   await rejects(h.asRole('anon', `select * from point_transactions`), /permission denied/);
 });
+
+// ── 状態の取得・定期契約との紐づけ ─────────────────────────
+
+test('lp_status：残高・連続・未抽選のチャレンジ・履歴・有効期限を1回で返す（付与はしない）', async () => {
+  const m = await h.member();
+  const before = (await h.one(`select lp_status($1) r`, [m.id])).r;
+  assert.equal(before.balance, 0);
+  assert.equal(before.logged_in_today, false);
+  assert.equal(before.eligibility, 'active');
+  await h.loginDays(m.id, 28);
+  const s = (await h.one(`select lp_status($1) r`, [m.id])).r;
+  assert.equal(s.balance, 28);
+  assert.equal(s.streak, 28);
+  assert.equal(s.logged_in_today, true);
+  assert.equal(s.streak_alive, true);
+  assert.equal(s.open_challenges.length, 1);
+  assert.equal(s.open_challenges[0].tier, 'first');
+  assert.equal(s.transactions.length, 20);
+  assert.ok(s.points_expire_on);
+  await h.addDays(3);
+  const later = (await h.one(`select lp_status($1) r`, [m.id])).r;
+  assert.equal(later.streak_alive, false, '2日以上空いたら連続は切れている表示');
+  assert.equal(later.balance, 28);
+});
+
+test('lp_link_subscription：注文の契約を会員に紐づける。別の会員の契約は奪えない', async () => {
+  const a = await h.member(null);
+  const b = await h.member(null);
+  const sub = await h.one(`insert into subscriptions (shopify_contract_id, status, first_order_id, shopify_customer_id) values ('gid://c/1', 'active', '5001', '777') returning id`);
+  const r = (await h.one(`select lp_link_subscription($1, '5001', '777') r`, [a.id])).r;
+  assert.equal(r.linked, 1);
+  assert.equal((await h.login(a.id)).status, 'granted');
+  const again = (await h.one(`select lp_link_subscription($1, '5001', '777') r`, [a.id])).r;
+  assert.equal(again.linked, 1);
+  await rejects(h.one(`select lp_link_subscription($1, '5001', '777')`, [b.id]), /subscription_taken/);
+  const owner = await h.one(`select member_id from subscriptions where id = $1`, [sub.id]);
+  assert.equal(owner.member_id, a.id);
+});
+
+test('lp_link_by_email：同じメールの未紐づけ契約だけを紐づける', async () => {
+  const a = await h.member(null);
+  await h.one(`insert into subscriptions (shopify_contract_id, status, email) values ('gid://c/2', 'active', 'Taro@Example.com') returning id`);
+  await h.one(`insert into subscriptions (shopify_contract_id, status, email) values ('gid://c/3', 'active', 'other@example.com') returning id`);
+  const r = (await h.one(`select lp_link_by_email($1, 'taro@example.com') r`, [a.id])).r;
+  assert.equal(r, 1);
+  assert.equal((await h.one(`select lp_link_by_email($1, '') r`, [a.id])).r, 0);
+});

@@ -5,6 +5,7 @@ import { Package, ChevronRight, Truck, Search, Plus, X, MessageCircle, CheckCirc
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
 import { apiFetch, displayName, isLineAccount } from './lib/api'
+import LoyaltyCard from './LoyaltyCard'
 
 interface Order {
   id: number | string
@@ -161,6 +162,9 @@ export default function FitpeakHome() {
 
   return (
     <div className="space-y-6">
+      {/* 毎日のログインポイント＋クレアショットチャレンジ（開いた時点でその日のログインを記録） */}
+      <LoyaltyCard />
+
       {/* 会員の状態（LINE連携） */}
       <section className="rounded-2xl bg-[#151515] border border-white/10 p-5">
         <div className="flex items-center justify-between gap-4">

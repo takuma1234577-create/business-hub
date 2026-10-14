@@ -1728,18 +1728,31 @@ publicRouter.post('/portal/:id/payment-update', async (req, res) => {
 /**
  * 注文番号での紐づけ（チェックアウトのメールと My FITPEAK のログインメールが違う場合）
  */
+/** 引き当てで入力されたメールが、注文時のメール（注文または顧客）と一致するか */
+function orderEmailMatches(order, input) {
+  const want = String(input || '').trim().toLowerCase();
+  if (!want) return false;
+  return [order?.email, order?.customer?.email]
+    .filter(Boolean)
+    .some((e) => String(e).trim().toLowerCase() === want);
+}
+
+// 注文番号だけでは他人の契約を付け替えられないよう、注文時のメールアドレスの一致も必須にする（2026-10-14）
 publicRouter.post('/portal/claim', async (req, res) => {
   try {
     const { email } = await requireCustomer(req);
     const orderNumber = String(req.body?.order_number || '').trim().replace(/^#/, '');
-    if (!orderNumber) return res.status(400).json({ error: '注文番号を入力してください' });
+    const orderEmail = String(req.body?.order_email || '').trim();
+    if (!orderNumber || !orderEmail) return res.status(400).json({ error: '注文番号と、注文時のメールアドレスを入力してください' });
 
     const data = await shopifyGraphQL(
-      `query($q: String!) { orders(first: 5, query: $q) { nodes { id name customer { id email } } } }`,
+      `query($q: String!) { orders(first: 5, query: $q) { nodes { id name email customer { id email } } } }`,
       { q: `name:${orderNumber}` },
     );
     const order = (data?.orders?.nodes || [])[0];
-    if (!order) return res.status(404).json({ error: '注文が見つかりませんでした' });
+    if (!order || !orderEmailMatches(order, orderEmail)) {
+      return res.status(404).json({ error: '注文が見つかりませんでした。注文番号と、注文時のメールアドレスをご確認ください。' });
+    }
 
     const customerId = numericId(order.customer?.id);
     const { data: candidates } = await db()
@@ -1783,5 +1796,5 @@ module.exports._internal = {
   cancelShopifyContract, pauseShopifyContract, activateShopifyContract, sendPaymentUpdateEmail,
   resolveOrderIdFromFulfillment, syncSellingPlan, logEvent, numericId, gid,
   markDelivered, skipSubscription, cancelSubscription, handleWebhook, verifyShopifyHmac,
-  WEBHOOK_TOPICS, toPortalShape, requireCustomer, loadCustomerSub,
+  WEBHOOK_TOPICS, toPortalShape, requireCustomer, loadCustomerSub, orderEmailMatches,
 };

@@ -4,7 +4,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const MIGRATION = path.join(__dirname, '../../../migrations/2026-10-14-login-points-challenge.sql');
+const MIGRATIONS = [
+  '2026-10-14-login-points-challenge.sql',
+  '2026-10-14b-loyalty-status-link.sql',
+].map((f) => path.join(__dirname, '../../../migrations', f));
 
 // 本番 fajqnrqfjugonbssssts の既存表（2026-10-14 時点の列と制約を information_schema から写したもの）
 const EXISTING = `
@@ -16,6 +19,7 @@ exception when duplicate_object then null; end $$;
 
 create table members (
   id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid unique,
   line_user_id text unique,
   email text,
   created_at timestamptz default now()
@@ -47,6 +51,8 @@ create table subscriptions (
   id uuid primary key default gen_random_uuid(),
   shopify_contract_id text not null unique,
   email text not null default 'x@example.com',
+  shopify_customer_id text,
+  first_order_id text,
   status text not null default 'pending_first_shipment'
     check (status in ('pending_first_shipment','awaiting_delivery','active','past_due','paused','cancelled')),
   member_id uuid references members(id) on delete set null,
@@ -79,7 +85,7 @@ async function createDb() {
   const { pgcrypto } = await import('@electric-sql/pglite/contrib/pgcrypto');
   const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(EXISTING);
-  await db.exec(fs.readFileSync(MIGRATION, 'utf8'));
+  for (const f of MIGRATIONS) await db.exec(fs.readFileSync(f, 'utf8'));
   await db.exec(TEST_CLOCK);
   await db.exec(`select lp_set_owner_pin('test-pin-1234')`);
 
@@ -137,6 +143,17 @@ async function createDb() {
   return h;
 }
 
+// API層テスト用：supabase.rpc と同じ形（名前付き引数）で PGlite の関数を呼ぶ
+function pgRpc(db) {
+  return async (fn, args = {}) => {
+    if (!/^lp_[a-z_]+$/.test(fn)) throw new Error('bad fn');
+    const keys = Object.keys(args);
+    const sql = `select ${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(', ')}) as r`;
+    const res = await db.query(sql, keys.map((k) => args[k]));
+    return res.rows[0].r;
+  };
+}
+
 async function rejects(promise, pattern) {
   try {
     await promise;
@@ -149,4 +166,4 @@ async function rejects(promise, pattern) {
   throw new Error('エラーになるはずが成功した');
 }
 
-module.exports = { createDb, rejects };
+module.exports = { createDb, rejects, pgRpc };

@@ -103,6 +103,10 @@ const myFitpeakLineAuthRoutes = require(path.join(__dirname, 'my-fitpeak-line-au
 const myFitpeakCustomerAuth = require(path.join(__dirname, 'my-fitpeak-auth.cjs'));
 // My FITPEAK（顧客向け）: LINEログインは誰でも、その他は顧客自身のログインで通す
 app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
+// 毎日のログインポイント＋クレアショットチャレンジ（本人のログインが必須。管理トークンでの代理操作は不可）
+const loyalty = require(path.join(__dirname, 'loyalty.cjs'));
+const loyaltyDeps = loyalty.productionDeps();
+app.use('/api/my-fitpeak/loyalty', cors(), myFitpeakCustomerAuth, loyalty.createMemberRouter(loyaltyDeps));
 app.use('/api/my-fitpeak', cors(), myFitpeakCustomerAuth, myFitpeakRoutes);
 
 // FITPEAKサイト分析：計測タグ(fa.js)と収集は公開（fitpeak.co の閲覧者のブラウザから叩く）
@@ -176,6 +180,8 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/ebay', ebayManagerRoutes);
 app.use('/api/image-downloader', imageDownloaderRoutes);
 app.use('/api/subscription', subscriptionModule);
+// ログインポイント：期限切れの処理（daily-cron から）
+app.use('/api/loyalty', loyalty.createAdminRouter(loyaltyDeps));
 app.use('/api/review-submission', reviewSubmissionModule);
 
 // Internal request helper: Express appに対して内部リクエストを実行（外部fetchなし）
@@ -241,6 +247,8 @@ app.get('/api/daily-cron', async (req, res) => {
     // 定期購入: 課金予定の実行・失敗リトライ・配達完了フォールバック
     // （settings.billing.cron_enabled が false の間は何もしない）
     subscription:        '/api/subscription/cron',
+    // ログインポイント：期限切れのチャレンジ（30日）・仮押さえ（24時間）・ポイント（最後の獲得から1年）
+    loyalty:             '/api/loyalty/cron',
     // LINE Login→友だち追加のMeta CAPI未送信分を再送
     capiRetry:           '/api/line-crm/line-login/capi/retry',
     dailyBackup:         '/api/backup/run',
