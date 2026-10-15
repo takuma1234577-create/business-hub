@@ -51,9 +51,14 @@ function pickEligibleOrders(orders, { now = new Date(), minDays = 7, maxDays = M
   });
 }
 
-// 送信(POST)は本文なし・marketplaceIds はクエリ。axios は本文なしのPOSTに
-// Content-Type: application/x-www-form-urlencoded を付けるため、SP-APIが
-// 「クエリ付きURLにフォーム形式は不可」として 400 Invalid Input を返す。JSONを明示する。
+// 送信(POST)は Content-Type を JSON にし、本文にも marketplaceIds を入れる。
+//  - 指定なしだと axios がフォーム形式を付け、SP-API は 400 Invalid Input を返す
+//  - JSON指定で本文が空だと 400 Could not process payload を返す(2026-10-15 本番で確認)
+// python-amazon-sp-api と同じく、クエリと本文の両方に marketplaceIds を付ける。
+function solicitationPostBody(marketplaceId) {
+  return { marketplaceIds: [marketplaceId] };
+}
+
 function solicitationPostConfig(token, marketplaceId) {
   return {
     headers: { 'x-amz-access-token': token, 'Content-Type': 'application/json' },
@@ -144,4 +149,4 @@ async function runReviewSolicitations({ sp, store, settings, now = new Date(), s
   return result;
 }
 
-module.exports = { runReviewSolicitations, solicitationPostConfig, pickEligibleOrders, jstDayStart, roleForPath, refDate };
+module.exports = { runReviewSolicitations, solicitationPostConfig, solicitationPostBody, pickEligibleOrders, jstDayStart, roleForPath, refDate };

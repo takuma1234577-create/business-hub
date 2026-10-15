@@ -3,7 +3,7 @@ const { getSupabase } = require('./shared.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const axios = require('axios');
 const router = express.Router();
-const { solicitationPostConfig } = require('./review-solicitations.cjs');
+const { solicitationPostConfig, solicitationPostBody } = require('./review-solicitations.cjs');
 
 // ---------------------------------------------------------------------------
 // Amazon SP-API auth (shared pattern with amazon.cjs)
@@ -283,7 +283,7 @@ router.post('/solicitations/send', async (req, res) => {
     // Send solicitation via SP-API
     await axios.post(
       `${endpoint}/solicitations/v1/orders/${amazonOrderId}/solicitations/productReviewAndSellerFeedback`,
-      null,
+      solicitationPostBody(marketplaceId),
       solicitationPostConfig(token, marketplaceId)
     );
 
@@ -362,7 +362,7 @@ router.post('/solicitations/send-bulk', async (req, res) => {
       try {
         await axios.post(
           `${endpoint}/solicitations/v1/orders/${orderId}/solicitations/productReviewAndSellerFeedback`,
-          null,
+          solicitationPostBody(marketplaceId),
           solicitationPostConfig(token, marketplaceId)
         );
 
@@ -579,7 +579,7 @@ function makeSpClient({ token, endpoint, marketplaceId }) {
       return [...links.map(a => a.name), ...embedded.map(a => a.name || a._links?.self?.name)].filter(Boolean);
     },
     async sendReviewRequest(orderId) {
-      await axios.post(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}/solicitations/productReviewAndSellerFeedback`, null, solicitationPostConfig(token, marketplaceId));
+      await axios.post(`${endpoint}/solicitations/v1/orders/${encodeURIComponent(orderId)}/solicitations/productReviewAndSellerFeedback`, solicitationPostBody(marketplaceId), solicitationPostConfig(token, marketplaceId));
     },
   };
 }
