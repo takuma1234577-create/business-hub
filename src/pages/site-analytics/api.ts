@@ -5,20 +5,11 @@ export const saApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// 分析するサイト。本体(fitpeak.co)と FITPEAK NAVI(navi.fitpeak.co)。画面の切り替えで変わり、全てのAPI呼び出しに付く
-export const SITES = [
-  { value: 'fitpeak.co', label: 'fitpeak.co' },
-  { value: 'navi.fitpeak.co', label: 'FITPEAK NAVI' },
-] as const
-let currentSite = 'fitpeak.co'
-export const setSite = (s: string) => { currentSite = SITES.some((x) => x.value === s) ? s : 'fitpeak.co' }
-export const getSite = () => currentSite
-export const siteUrl = (path = '') => `https://${currentSite}${path}`
-saApi.interceptors.request.use((cfg) => {
-  if ((cfg.method || 'get').toLowerCase() === 'get') cfg.params = { site: currentSite, ...(cfg.params || {}) }
-  else if (cfg.data && typeof cfg.data === 'object' && !Array.isArray(cfg.data)) cfg.data = { site: currentSite, ...cfg.data }
-  return cfg
-})
+// ページ → 実際のURL。本体はパス(/…)、FITPEAK NAVI は navi.fitpeak.co/… の形で同じ集計に入っている
+export const pageUrl = (path: string) => {
+  const m = path.match(/^([a-z0-9-]+\.fitpeak\.co)(\/.*)$/)
+  return m ? `https://${m[1]}${m[2]}` : `https://fitpeak.co${path.startsWith('/') ? path : `/${path}`}`
+}
 
 export type Preset = 'today' | 'yesterday' | '7d' | '30d' | '90d'
 export type Device = 'all' | 'mobile' | 'desktop'

@@ -2,9 +2,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { TRACKER_JS } = require('../server/site-analytics.cjs');
+const { TRACKER_JS, pageUrl } = require('../server/site-analytics.cjs');
 
-function browser(url) {
+function browser(url, attrs = { 'data-site': 'navi.fitpeak.co' }) {
   const sent = [];
   const store = {};
   const listeners = {};
@@ -15,7 +15,7 @@ function browser(url) {
   const history = { pushState(_s, _t, u) { if (u != null) setUrl(u); if (hooks.afterNav) hooks.afterNav(); }, replaceState(_s, _t, u) { if (u != null) setUrl(u); } };
   const el = { scrollHeight: 2000, offsetHeight: 2000, scrollWidth: 400 };
   const document = {
-    currentScript: { getAttribute: (k) => (k === 'data-site' ? 'navi.fitpeak.co' : null), src: 'https://my.fitpeak.co/api/public/site-analytics/fa.js' },
+    currentScript: { getAttribute: (k) => attrs[k] ?? null, src: 'https://my.fitpeak.co/api/public/site-analytics/fa.js' },
     referrer: 'https://www.google.com/', title: 'NAVI', visibilityState: 'visible', body: el, documentElement: el,
     addEventListener: () => {},
   };
@@ -81,4 +81,19 @@ test('離脱の記録は前のページのタイトルのまま（遷移の直�
   assert.equal(leave.title, 'NAVI');
   const pv = b.sent.filter((e) => e.t === 'pageview');
   assert.equal(pv[1].title, 'ホームジム');
+});
+
+// NAVIは本体と区別せず、同じ fitpeak.co の集計に入れる。ページは navi.fitpeak.co/パス
+test('data-path-prefix があればパスの前に付ける（サイトは fitpeak.co のまま）', () => {
+  const b = browser('https://navi.fitpeak.co/', { 'data-site': 'fitpeak.co', 'data-path-prefix': 'navi.fitpeak.co' });
+  b.win.history.pushState({}, '', '/home-gym');
+  const pv = b.sent.filter((e) => e.t === 'pageview');
+  assert.deepEqual(pv.map((e) => [e.site, e.path]), [['fitpeak.co', 'navi.fitpeak.co/'], ['fitpeak.co', 'navi.fitpeak.co/home-gym']]);
+  assert.equal(b.sent.find((e) => e.t === 'leave').path, 'navi.fitpeak.co/');
+});
+
+test('ページのURL: 本体はパス、NAVIは navi.fitpeak.co/… から', () => {
+  assert.equal(pageUrl('/pages/compare'), 'https://fitpeak.co/pages/compare');
+  assert.equal(pageUrl('navi.fitpeak.co/home-gym'), 'https://navi.fitpeak.co/home-gym');
+  assert.equal(pageUrl('evil.com/x'), 'https://fitpeak.co/evil.com/x', 'fitpeak.co 以外のホストには飛ばさない');
 });

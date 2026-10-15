@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Activity, BarChart3, FileText, Flame, Code2, ExternalLink, UserPlus, Coins, Bot } from 'lucide-react'
-import { SITES, setSite, type Device, type Preset } from './site-analytics/api'
+import type { Device, Preset } from './site-analytics/api'
 import { Seg } from './site-analytics/ui'
 import { useOverview } from './site-analytics/useOverview'
 import RealtimeTab from './site-analytics/RealtimeTab'
@@ -40,8 +40,6 @@ export default function SiteAnalytics() {
   const preset = (sp.get('range') as Preset) || '7d'
   const device = (sp.get('device') as Device) || 'all'
   const path = sp.get('path') || '/'
-  const site = sp.get('site') || 'fitpeak.co'
-  setSite(site)
 
   const set = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(sp)
@@ -55,7 +53,7 @@ export default function SiteAnalytics() {
 
   // ページ選択用の一覧（サイト全体の集計から取る）
   const needPages = tab === 'page' || tab === 'heatmap'
-  const { data: siteData } = useOverview(preset, 'all', null, needPages, site)
+  const { data: siteData } = useOverview(preset, 'all', null, needPages)
   const pages = siteData?.pages || []
 
   const showFilters = tab === 'overview' || tab === 'signups' || tab === 'page' || tab === 'heatmap' || tab === 'revenue'
@@ -69,12 +67,9 @@ export default function SiteAnalytics() {
           </button>
           <div className="min-w-0">
             <h1 className="text-lg font-semibold text-slate-900 dark:text-white leading-tight">FITPEAK サイト分析</h1>
-            <a href={`https://${site}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-slate-500 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1">
-              {site} <ExternalLink size={10} />
+            <a href="https://fitpeak.co" target="_blank" rel="noopener noreferrer" className="text-[11px] text-slate-500 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1">
+              fitpeak.co・navi.fitpeak.co <ExternalLink size={10} />
             </a>
-          </div>
-          <div className="ml-auto">
-            <Seg<string> value={site} onChange={(v) => set({ site: v === 'fitpeak.co' ? null : v, path: null })} options={SITES.map((x) => ({ value: x.value, label: x.label }))} />
           </div>
         </div>
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 mt-3 flex gap-1 overflow-x-auto">
@@ -94,7 +89,7 @@ export default function SiteAnalytics() {
         </nav>
       </header>
 
-      <main key={site} className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
         {showFilters && (
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <Seg<Preset> value={preset} onChange={(v) => set({ range: v })} options={PRESETS} />
