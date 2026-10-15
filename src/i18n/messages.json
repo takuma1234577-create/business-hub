@@ -13230,5 +13230,21 @@
   "判断待ち {0}": [
     "Awaiting decision {0}",
     "Pendiente {0}"
+  ],
+  "TikTok Shop の対応付け": [
+    "TikTok Shop SKU mapping",
+    "Vinculación de SKU de TikTok Shop"
+  ],
+  "同じSKUを自動で対応付け": [
+    "Auto-link matching SKUs",
+    "Vincular automáticamente SKU iguales"
+  ],
+  "TikTok Shop が未連携です。API設定から連携してください。": [
+    "TikTok Shop is not connected. Connect it from API settings.",
+    "TikTok Shop no está conectado. Conéctalo desde la configuración de API."
+  ],
+  "TikTok Shop に出品中の商品がありません": [
+    "No active products on TikTok Shop",
+    "No hay productos activos en TikTok Shop"
   ]
 }

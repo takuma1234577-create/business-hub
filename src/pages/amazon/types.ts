@@ -10,6 +10,7 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'ERROR'
   | 'NEEDS_REVIEW'
+  | 'COMPLETED'
 
 export type ShippingSpeed = 'STANDARD' | 'EXPEDITED' | 'PRIORITY'
 

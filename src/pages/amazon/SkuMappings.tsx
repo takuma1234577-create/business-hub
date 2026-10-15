@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { skuMappingApi, amazonSkuApi, shopifyProductApi, hideApi, groupApi } from './api'
 import { smartMatch } from './searchUtils'
+import TikTokSkuMappings from './TikTokSkuMappings'
 import type { SkuMapping } from './types'
 import type { AmazonProduct, AmazonSku, ShopifyProduct } from './api'
 
@@ -149,7 +150,7 @@ export default function SkuMappings() {
     setDeleting(null)
   }
 
-  const getMappingForAmazonSku = (sku: string) => mappings.find(m => m.amazonSku === sku)
+  const getMappingForAmazonSku = (sku: string) => mappings.find(m => m.channel === 'SHOPIFY' && m.amazonSku === sku)
   const getShopifyBySku = (sku: string) => shopifyProducts.find(p => p.sku === sku || p.variantId === sku)
 
   const filteredAmazonProducts = amazonSearch
@@ -462,7 +463,7 @@ export default function SkuMappings() {
             </thead>
             <tbody>
               {shopifyProducts.map(sp => {
-                const mapped = mappings.find(m => m.channelSku === sp.sku || m.channelSku === sp.variantId)
+                const mapped = mappings.find(m => m.channel === 'SHOPIFY' && (m.channelSku === sp.sku || m.channelSku === sp.variantId))
                 return (
                   <tr key={sp.variantId} className="border-t border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-2">
@@ -496,6 +497,8 @@ export default function SkuMappings() {
           )}
         </div>
       </div>
+
+      <TikTokSkuMappings mappings={mappings} amazonSkus={amazonSkus} onChanged={fetchMappings} />
     </div>
   )
 }
