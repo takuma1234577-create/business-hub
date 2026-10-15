@@ -2,8 +2,8 @@ import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
 import { saApi, type Device, type Overview, type Preset } from './api'
 
-export function useOverview(preset: Preset, device: Device, path: string | null, enabled = true) {
-  const key = `${preset}|${device}|${path ?? ''}`
+export function useOverview(preset: Preset, device: Device, path: string | null, enabled = true, site = '') {
+  const key = `${site}|${preset}|${device}|${path ?? ''}`
   const [state, setState] = useState<{ key: string; data: Overview | null; err: string }>({ key: '', data: null, err: '' })
 
   useEffect(() => {

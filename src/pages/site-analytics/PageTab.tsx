@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ExternalLink, Flame } from 'lucide-react'
-import type { Device, PageRow, Preset } from './api'
+import { siteUrl, type Device, type PageRow, type Preset } from './api'
 import { useOverview, formatBucket } from './useOverview'
 import { useSignups, placeLabel } from './useSignups'
 import { Card, Kpi, BarList, LineChart, ScrollReach, Empty } from './ui'
@@ -58,7 +58,7 @@ export default function PageTab({ preset, device, path, onChangePath, onOpenHeat
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PageSelector pages={pages} value={path} onChange={onChangePath} />
         <div className="flex gap-2">
-          <a href={`https://fitpeak.co${path}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900">
+          <a href={siteUrl(path)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900">
             <ExternalLink size={13} /> ページを開く
           </a>
           <button onClick={onOpenHeatmap} className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 cursor-pointer">

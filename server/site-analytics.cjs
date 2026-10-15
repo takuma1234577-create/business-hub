@@ -31,6 +31,8 @@ const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 
 const DEFAULT_SITE = 'fitpeak.co';
 const SITE_ORIGIN = 'https://fitpeak.co';
+// サイト名 → 実際のURL（ヒートマップの撮影用）。fitpeak.co 以外は FITPEAK NAVI などのサブドメイン
+const siteOrigin = (site) => (site && /^[a-z0-9.-]+\.fitpeak\.co$/.test(site) ? `https://${site}` : SITE_ORIGIN);
 const SCREENSHOT_BUCKET = 'line-media';
 
 // ---------------------------------------------------------------------------
@@ -59,12 +61,13 @@ try{
   function touch(){ses.t=Date.now();st('fa_ses',JSON.stringify(ses));}
   touch();
   var pvid=rid();
+  var curPath=location.pathname,curUrl=location.href.slice(0,500);
   var w=innerWidth;var device=w<768?'mobile':(w<1024&&('ontouchstart' in window)?'tablet':'desktop');
   function docH(){var b=document.body,d=document.documentElement;return Math.max(b?b.scrollHeight:0,d.scrollHeight,b?b.offsetHeight:0)||1;}
   function docW(){var b=document.body,d=document.documentElement;return Math.max(b?b.scrollWidth:0,d.scrollWidth)||1;}
   function sp(){return Math.min(1,(scrollY+innerHeight)/docH());}
   var maxSp=0;function upd(){var p=sp();if(p>maxSp)maxSp=p;}
-  function base(t){return{t:t,site:SITE,vid:vid,sid:ses.id,pv:pvid,path:location.pathname,url:location.href.slice(0,500),title:(document.title||'').slice(0,200),device:device,vw:innerWidth,vh:innerHeight,dw:docW(),dh:docH()};}
+  function base(t){return{t:t,site:SITE,vid:vid,sid:ses.id,pv:pvid,path:curPath,url:curUrl,title:(document.title||'').slice(0,200),device:device,vw:innerWidth,vh:innerHeight,dw:docW(),dh:docH()};}
   var buf=[];
   function push(e){buf.push(e);touch();if(buf.length>=15)flush(false);}
   function flush(beacon){if(!buf.length)return;var body=JSON.stringify({events:buf});buf=[];try{if(beacon&&navigator.sendBeacon){navigator.sendBeacon(API,new Blob([body],{type:'text/plain'}));}else{fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:body,keepalive:true}).catch(function(){});}}catch(e){}}
@@ -115,6 +118,12 @@ try{
     else{visSince=Date.now();lastA=Date.now();touch();}
   });
   addEventListener('pagehide',leave);
+  // 読み込みなしの画面遷移（Next.js などの pushState / 戻る）も1ページとして数える。パスが変わった時だけ
+  function nav(){try{var p=location.pathname;if(p===curPath)return;var prev=curUrl;accAtt();upd();var e=base('leave');e.pct=maxSp;e.eng=engaged();e.meta={att:att.map(function(v){return Math.round(v);})};push(e);
+    pvid=rid();curPath=p;curUrl=location.href.slice(0,500);maxSp=0;eng=0;visSince=document.visibilityState==='visible'?Date.now():0;att=att.map(function(){return 0;});lastA=Date.now();left=false;
+    var pe=base('pageview');pe.ref=prev;pe.nv=false;pe.ns=false;push(pe);flush(false);}catch(x){}}
+  try{['pushState','replaceState'].forEach(function(k){var o=history[k];if(!o)return;history[k]=function(){var r=o.apply(this,arguments);setTimeout(nav,300);return r;};});}catch(e){}
+  addEventListener('popstate',function(){setTimeout(nav,300);});
   function cssPath(el){if(!el||!el.tagName)return '';var p=[],n=el,d=0;while(n&&n.tagName&&d<4){var t=n.tagName.toLowerCase();if(n.id){p.unshift(t+'#'+n.id);break;}if(n.className&&typeof n.className==='string'){var c=n.className.trim().split(/\\s+/).slice(0,2).join('.');if(c)t+='.'+c;}p.unshift(t);n=n.parentElement;d++;}return p.join('>').slice(0,160);}
 }catch(e){}
 })();`;
@@ -558,7 +567,7 @@ router.get('/heatmap', async (req, res) => {
       const { data: pub } = supabase.storage.from(SCREENSHOT_BUCKET).getPublicUrl(p);
       screenshot_url = `${pub.publicUrl}?t=${new Date(hit.updated_at || hit.created_at || Date.now()).getTime()}`;
     }
-    return res.json({ path: pagePath, device, from, to, screenshot_url, page_url: SITE_ORIGIN + pagePath, ...data });
+    return res.json({ path: pagePath, device, from, to, screenshot_url, page_url: siteOrigin(site) + pagePath, ...data });
   } catch (err) {
     console.error('[site-analytics/heatmap]', err.message);
     return res.status(500).json({ error: err.message });
@@ -594,12 +603,12 @@ router.post('/screenshot', async (req, res) => {
       // 計測タグが撮影アクセスを数えないように opt-out 状態で開く
       try { localStorage.setItem('fa_optout', '1'); } catch { /* noop */ }
     });
-    let resp = await page.goto(SITE_ORIGIN + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
+    let resp = await page.goto(siteOrigin(site) + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
     // ボット判定の画面が出たら少し待って1回だけ読み直す
     const blocked = async () => page.evaluate(() => /There was a problem loading this website|Checking your browser/i.test(document.body ? document.body.innerText : ''));
     if ((resp && resp.status() >= 400) || await blocked()) {
       await new Promise((r) => setTimeout(r, 4000));
-      resp = await page.goto(SITE_ORIGIN + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
+      resp = await page.goto(siteOrigin(site) + pagePath, { waitUntil: 'networkidle2', timeout: 45000 });
       if (await blocked()) {
         await browser.close(); browser = null;
         return res.status(502).json({ error: 'Shopify側のボット対策で撮影できませんでした。時間をおいて再度お試しください。' });
@@ -631,4 +640,4 @@ router.post('/screenshot', async (req, res) => {
   }
 });
 
-module.exports = { publicRouter, router, classify, parseUa };
+module.exports = { publicRouter, router, classify, parseUa, TRACKER_JS, siteOrigin };
