@@ -3,6 +3,7 @@ const { getSupabase } = require('./shared.cjs');
 const supabase = new Proxy({}, { get: (_, prop) => getSupabase()[prop] });
 const axios = require('axios');
 const { sendSlackAlert } = require('./slack-notify.cjs');
+const tiktok = require('./tiktok-shop.cjs');
 const router = express.Router();
 
 // 自動出荷の信頼性パラメータ
@@ -821,6 +822,20 @@ router.get('/amazon-skus', async (req, res) => {
   }
 });
 
+// TikTok Shop のSKU一覧（対応付け画面用）
+router.get('/tiktok-products', async (req, res) => {
+  try {
+    const { data: stores } = await supabase.from('channel_stores').select('*').eq('channel', 'TIKTOK').eq('is_active', true);
+    const store = stores?.[0];
+    if (!store) return res.json({ connected: false, skus: [] });
+    const skus = await tiktok.listSkus(tiktokClientFor(store));
+    return res.json({ connected: true, skus });
+  } catch (err) {
+    console.error('GET /tiktok-products error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Inventory Sync: Amazon FBA → Shopify
 // ---------------------------------------------------------------------------
@@ -831,6 +846,7 @@ router.post('/sync-inventory', async (req, res) => {
     const { data: mappings } = await supabase
       .from('sku_mappings')
       .select('*')
+      .eq('channel', 'SHOPIFY')
       .eq('is_active', true);
 
     if (!mappings || mappings.length === 0) {
@@ -1715,6 +1731,15 @@ async function recordHeartbeat(success, summary) {
   }
 }
 
+// TikTok Shop のクライアント（トークン更新・shop_cipherはchannel_storesへ保存）
+function tiktokClientFor(store) {
+  return tiktok.createTikTokClient({
+    store,
+    http: (req) => axios({ ...req, validateStatus: () => true }),
+    saveStore: async (patch) => { await supabase.from('channel_stores').update(patch).eq('id', store.id); },
+  });
+}
+
 router.get('/cron/sync', async (req, res) => {
   const startedAt = Date.now();
   const overBudget = () => Date.now() - startedAt > SYNC_TIME_BUDGET_MS;
@@ -1814,6 +1839,20 @@ router.get('/cron/sync', async (req, res) => {
         }
       }
     }
+    // 1b. TikTok Shop の発送待ち注文を取り込む（以降の自動出荷はShopifyと同じ経路）
+    const tiktokStores = (stores || []).filter(s => s.channel === 'TIKTOK' && s.app_key && s.app_secret && s.tiktok_access_token);
+    for (const store of tiktokStores) {
+      try {
+        const r = await tiktok.importOrders({ client: tiktokClientFor(store), supabase, since: store.last_synced_at });
+        totalSynced += r.imported;
+        results.tiktokOrders = r;
+        await supabase.from('channel_stores').update({ last_synced_at: new Date().toISOString() }).eq('id', store.id);
+      } catch (err) {
+        console.error(`[cron/sync] TikTok import error for ${store.store_name}:`, err.message);
+        results.tiktokOrders = { error: err.message };
+        alerts.push(`TikTok注文取込に失敗 (${store.store_name}): ${err.message}`);
+      }
+    }
     results.orderSync = { synced: totalSynced };
     console.log(`[cron/sync] Synced ${totalSynced} orders`);
 
@@ -1883,6 +1922,21 @@ router.get('/cron/sync', async (req, res) => {
               continue;
             }
           } catch (e) { /* チェック不可時はAmazon存在チェックに委ねる */ }
+        }
+
+        // 二重出荷ガード1b: TikTokで発送待ちでなくなった注文（キャンセル・手動発送）は出さない
+        if (order.channel === 'TIKTOK' && order.channel_order_id) {
+          const ttStore = tiktokStores[0];
+          if (!ttStore) { skippedUnmapped++; continue; }
+          let awaiting = true;
+          try { awaiting = await tiktok.isStillAwaitingShipment(tiktokClientFor(ttStore), order.channel_order_id); }
+          catch (e) { /* 確認できない時はAmazon存在チェックに委ねる */ }
+          if (!awaiting) {
+            await supabase.from('orders').update({ status: 'NEEDS_REVIEW', error_message: '[要確認] TikTokで発送待ちではなくなりました（キャンセル/手動発送の可能性）', updated_at: new Date().toISOString() }).eq('id', order.id);
+            await supabase.from('fulfillment_logs').insert({ order_id: order.id, event: 'NEEDS_REVIEW', message: '[自動] TikTokで発送待ちでないため出荷を保留' });
+            needsReview++;
+            continue;
+          }
         }
 
         // 二重出荷ガード2: Amazonに同IDの注文が既に存在すれば作成しない（冪等キーの上の最終防壁）
@@ -2092,6 +2146,33 @@ router.get('/cron/sync', async (req, res) => {
       results.shopifySync = { error: err.message };
     }
 
+    // 4b. TikTok へ追跡番号を戻して発送済みにする（済んだら COMPLETED）
+    if (tiktokStores.length > 0) {
+      try {
+        const { data: ttShipped } = await supabase.from('orders').select('*')
+          .eq('channel', 'TIKTOK').not('tracking_number', 'is', null)
+          .in('status', ['SHIPPED', 'TRACKING_UPDATED']).limit(50);
+        let ttSynced = 0;
+        const client = tiktokClientFor(tiktokStores[0]);
+        for (const order of ttShipped || []) {
+          try {
+            const r = await tiktok.pushTracking({ client, order });
+            await supabase.from('orders').update({ status: 'COMPLETED', updated_at: new Date().toISOString() }).eq('id', order.id);
+            await supabase.from('fulfillment_logs').insert({
+              order_id: order.id, event: 'TIKTOK_SYNCED',
+              message: r.shipped ? `[自動] TikTokに配送情報反映: ${order.tracking_number} (${order.carrier || '-'})` : `[自動] TikTok側が${r.skipped}のため反映不要`,
+            });
+            ttSynced++;
+          } catch (err) {
+            alerts.push(`TikTokへの配送番号書き戻しに失敗 (注文 ${order.id}): ${err.message}`);
+          }
+        }
+        results.tiktokTracking = { synced: ttSynced, total: ttShipped?.length || 0 };
+      } catch (err) {
+        results.tiktokTracking = { error: err.message };
+      }
+    }
+
     // 5. Sync Amazon FBA inventory to Shopify（最後に実行・時間予算超過ならスキップして出荷処理を優先）
     if (overBudget()) {
       results.inventorySync = { skipped: 'time_budget' };
@@ -2102,7 +2183,8 @@ router.get('/cron/sync', async (req, res) => {
         const { data: shopStores } = await supabase.from('channel_stores').select('*').eq('channel', 'SHOPIFY').eq('is_active', true);
         const shopStore = shopStores?.[0];
 
-        if (activeMappings && activeMappings.length > 0 && shopStore) {
+        const shopifyMappings = (activeMappings || []).filter(m => m.channel === 'SHOPIFY');
+        if (activeMappings && activeMappings.length > 0 && (shopStore || tiktokStores.length > 0)) {
           // Amazon FBA在庫（全SKU）
           const { token: amzToken, endpoint: amzEndpoint, marketplaceId } = await getAccessToken();
           const amazonStock = {};
@@ -2117,6 +2199,18 @@ router.get('/cron/sync', async (req, res) => {
             nextTok = r.data.pagination?.nextToken || null;
           } while (nextTok);
 
+          // TikTok Shop: FBAの出荷可能数に合わせる
+          for (const store of tiktokStores) {
+            try {
+              results.tiktokInventory = await tiktok.syncInventory({ client: tiktokClientFor(store), mappings: activeMappings, amazonStock });
+              if (results.tiktokInventory.notFound > 0) alerts.push(`TikTok在庫同期で対応が見つからないマッピングが ${results.tiktokInventory.notFound} 件あります`);
+              if (results.tiktokInventory.errors.length > 0) alerts.push(`TikTok在庫の更新に失敗: ${results.tiktokInventory.errors.slice(0, 3).join(' / ')}`);
+            } catch (err) {
+              results.tiktokInventory = { error: err.message };
+              alerts.push(`TikTok在庫同期に失敗: ${err.message}`);
+            }
+          }
+          if (shopStore) {
           const shopRes2 = await axios.get(`https://${shopStore.shop_domain}/admin/api/2025-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopStore.access_token } });
           const locationId = shopRes2.data.shop?.primary_location_id;
 
@@ -2136,7 +2230,7 @@ router.get('/cron/sync', async (req, res) => {
           }
 
           let invUpdated = 0, invUnchanged = 0, invNotFound = 0;
-          for (const m of activeMappings) {
+          for (const m of shopifyMappings) {
             const amzQty = amazonStock[m.amazon_sku];
             const v = variantMap[String(m.channel_sku)];
             if (amzQty === undefined || !v || !v.inventoryItemId || !locationId) { invNotFound++; continue; }
@@ -2150,9 +2244,10 @@ router.get('/cron/sync', async (req, res) => {
               if (e.response?.status === 429) await new Promise(r => setTimeout(r, 1500));
             }
           }
-          results.inventorySync = { updated: invUpdated, unchanged: invUnchanged, notFound: invNotFound, total: activeMappings.length };
-          console.log(`[cron/sync] Inventory: updated=${invUpdated} unchanged=${invUnchanged} notFound=${invNotFound} / ${activeMappings.length}`);
+          results.inventorySync = { updated: invUpdated, unchanged: invUnchanged, notFound: invNotFound, total: shopifyMappings.length };
+          console.log(`[cron/sync] Inventory: updated=${invUpdated} unchanged=${invUnchanged} notFound=${invNotFound} / ${shopifyMappings.length}`);
           if (invNotFound > 0) alerts.push(`在庫同期でShopifyに見つからないマッピングが ${invNotFound} 件あります`);
+          }
         }
       } catch (err) {
         console.error('[cron/sync] inventory sync error:', err.message);

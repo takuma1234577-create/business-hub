@@ -33,6 +33,7 @@ const STATUS_CONFIG: Record<
   CANCELLED: { label: 'キャンセル', bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400' },
   ERROR: { label: 'エラー', bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-800 dark:text-red-300' },
   NEEDS_REVIEW: { label: '要確認', bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-800 dark:text-orange-300' },
+  COMPLETED: { label: '完了', bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-800 dark:text-emerald-300' },
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {
@@ -405,6 +406,7 @@ export default function OrderList() {
           <option value="CANCELLED">キャンセル</option>
           <option value="ERROR">エラー</option>
           <option value="NEEDS_REVIEW">要確認</option>
+          <option value="COMPLETED">完了</option>
         </select>
 
         <button

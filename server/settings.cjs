@@ -458,6 +458,8 @@ router.get('/tiktok/callback', async (req, res) => {
       shop_id: shopId,
       tiktok_access_token: accessToken,
       tiktok_refresh_token: refreshToken,
+      tiktok_token_expires_at: tokenData.access_token_expire_in ? new Date(Number(tokenData.access_token_expire_in) * 1000).toISOString() : null,
+      tiktok_shop_cipher: null, // 次回の同期で /authorization/202309/shops から取得
       is_active: true,
       auto_fulfill: true,
       inventory_sync_enabled: true,

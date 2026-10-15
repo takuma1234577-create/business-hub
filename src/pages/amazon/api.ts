@@ -149,6 +149,21 @@ export const shopifyProductApi = {
   },
 }
 
+export interface TikTokSku {
+  productId: string
+  skuId: string
+  sellerSku: string
+  warehouseId: string
+  quantity: number
+  title: string
+}
+
+export const tiktokProductApi = {
+  list(): Promise<{ connected: boolean; skus: TikTokSku[] }> {
+    return request<{ connected: boolean; skus: TikTokSku[] }>(`${BASE_URL}/tiktok-products`)
+  },
+}
+
 export const groupApi = {
   groupProducts(groupAsin: string, childAsins: string[]): Promise<{ ok: boolean }> {
     return request(`${BASE_URL}/group-products`, { method: 'POST', body: JSON.stringify({ groupAsin, childAsins }) })
