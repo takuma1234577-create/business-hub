@@ -8,10 +8,11 @@ function browser(url) {
   const sent = [];
   const store = {};
   const listeners = {};
+  const hooks = {};
   const loc = new URL(url);
   const location = { get pathname() { return loc.pathname; }, get href() { return loc.href; }, get search() { return loc.search; }, get hostname() { return loc.hostname; } };
   const setUrl = (u) => { const n = new URL(u, loc.href); loc.href = n.href; };
-  const history = { pushState(_s, _t, u) { if (u != null) setUrl(u); }, replaceState(_s, _t, u) { if (u != null) setUrl(u); } };
+  const history = { pushState(_s, _t, u) { if (u != null) setUrl(u); if (hooks.afterNav) hooks.afterNav(); }, replaceState(_s, _t, u) { if (u != null) setUrl(u); } };
   const el = { scrollHeight: 2000, offsetHeight: 2000, scrollWidth: 400 };
   const document = {
     currentScript: { getAttribute: (k) => (k === 'data-site' ? 'navi.fitpeak.co' : null), src: 'https://my.fitpeak.co/api/public/site-analytics/fa.js' },
@@ -30,7 +31,7 @@ function browser(url) {
   win.XMLHttpRequest.prototype = { open() {} };
   win.window = win;
   vm.runInNewContext(TRACKER_JS, win);
-  return { win, sent, fire: (t) => (listeners[t] || []).forEach((f) => f({})) };
+  return { win, sent, hooks, fire: (t) => (listeners[t] || []).forEach((f) => f({})) };
 }
 
 test('最初の読み込みで1回 pageview を送り、サイト名は data-site', () => {
@@ -70,4 +71,14 @@ test('戻る(popstate)でも数える', () => {
   b.fire('popstate');
   const pv = b.sent.filter((e) => e.t === 'pageview').map((e) => e.path);
   assert.deepEqual(pv, ['/', '/home-gym', '/']);
+});
+
+test('離脱の記録は前のページのタイトルのまま（遷移の直後にタイトルが変わっても）', () => {
+  const b = browser('https://navi.fitpeak.co/');
+  b.hooks.afterNav = () => { b.win.document.title = 'ホームジム'; };
+  b.win.history.pushState({}, '', '/home-gym');
+  const leave = b.sent.find((e) => e.t === 'leave');
+  assert.equal(leave.title, 'NAVI');
+  const pv = b.sent.filter((e) => e.t === 'pageview');
+  assert.equal(pv[1].title, 'ホームジム');
 });
