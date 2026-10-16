@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MIGRATIONS = ['2026-10-16-gotore.sql', '2026-10-16b-gotore-line.sql', '2026-10-16c-gotore-shortlink.sql', '2026-10-17-gotore-overview.sql', '2026-10-17b-member-profiles.sql', '2026-10-17c-gotore-pulse.sql'].map((f) => path.join(__dirname, '../../../migrations', f));
+const MIGRATIONS = ['2026-10-16-gotore.sql', '2026-10-16b-gotore-line.sql', '2026-10-16c-gotore-shortlink.sql', '2026-10-17-gotore-overview.sql', '2026-10-17b-member-profiles.sql', '2026-10-17c-gotore-pulse.sql', '2026-10-17d-gotore-line-drafts.sql'].map((f) => path.join(__dirname, '../../../migrations', f));
 
 // 本番 fajqnrqfjugonbssssts の members（2026-10-16 時点。テストに要る列だけ）
 const EXISTING = `

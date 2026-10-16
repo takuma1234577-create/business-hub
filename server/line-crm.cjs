@@ -3739,7 +3739,7 @@ async function runReviewOrderVerification({ channelId, friendId, lineUserId, ima
   }
 }
 
-async function logWebhookMessage(channelId, event, userMessage, aiReply) {
+async function logWebhookMessage(channelId, event, userMessage, aiReply, replySource = 'fitpeak_rag') {
   // 既存の chat_messages テーブルは channel_id / friend_id が必須なので、
   // 友だちを解決できた場合のみ記録する（失敗してもWebhook本処理を止めない）
   try {
@@ -3771,8 +3771,9 @@ async function logWebhookMessage(channelId, event, userMessage, aiReply) {
         friend_id: friend.id,
         direction: 'outgoing',
         message_type: 'text',
-        content: { text: aiReply, source: 'fitpeak_rag' },
-        created_at: now,
+        content: { text: aiReply, source: replySource },
+        // 受信より後に並べる（未返信の判定が created_at の順で見るため）
+        created_at: replySource === 'fitpeak_rag' ? now : new Date(Date.parse(now) + 1).toISOString(),
       });
     }
     await supabase.from('chat_messages').insert(rows);
@@ -3781,6 +3782,28 @@ async function logWebhookMessage(channelId, event, userMessage, aiReply) {
   } catch (err) {
     console.error('[line-webhook] logWebhookMessage error:', err.message);
   }
+}
+
+// 合トレナビ：トークだけで募集を作る・見る・管理する（gotore-line-chat.cjs）。
+// 合トレで扱ったら返信して true。扱わない・失敗したときは false（呼び出し側は従来の処理を続ける）。
+// 返信の記録は source=gotore_line（AIの遅延返信・CSの未返信には数えない）。記録する要約に他人の情報は入れない。
+async function handleGotoreEvent(channelId, event, incomingText) {
+  if (channelId !== DEFAULT_CHANNEL_ID) return false;
+  let r = null;
+  try {
+    const gc = require('./gotore-line-chat.cjs');
+    r = await gc.routeLineEvent(gc.production(), event);
+  } catch (e) {
+    console.error('[gotore-chat] route error:', e.message);
+  }
+  if (!r) return false;
+  try {
+    if (event.replyToken && r.messages && r.messages.length) await replyToLine(channelId, event.replyToken, r.messages);
+  } catch (e) {
+    console.error('[gotore-chat] reply failed:', e.message);
+  }
+  await logWebhookMessage(channelId, event, incomingText, r.log || '[合トレ] 返信', 'gotore_line');
+  return true;
 }
 
 // POST /api/line-crm/webhook  （LINE Messaging API・既存の本番アカウント用。URLは変更しない）
@@ -4057,6 +4080,12 @@ async function processWebhookEvents(channelId, events) {
       const postbackData = event.postback?.data || '';
       const params = new URLSearchParams(postbackData);
       const action = params.get('action');
+
+      // 合トレナビのボタン（会話式の募集・近くの募集・自分の募集）。記録はボタンの種類だけ（IDは載せない）
+      if (action === 'gotore') {
+        await handleGotoreEvent(channelId, event, `[合トレのボタン] ${String(params.get('s') || '').slice(0, 20)}`);
+        continue;
+      }
 
       if (action === 'register_email') {
         // 会員登録: コード付きリンクを送信
@@ -4335,6 +4364,10 @@ async function processWebhookEvents(channelId, events) {
     // ── テキストメッセージ処理 ──
     if (event?.type !== 'message' || event?.message?.type !== 'text') continue;
     const userMessage = event.message.text;
+
+    // 合トレナビ（「合トレ募集」などの言葉と、会話の途中）。会話中はほかの自動返信・AIより先に受ける。
+    // オーナーも試せるようにオーナー判定より前。会話していない普通の文は false が返り、従来どおり下へ流れる
+    if (lineUserId && await handleGotoreEvent(channelId, event, userMessage)) continue;
 
     // オーナー判定（AI組織）: オーナーの文章は、回答待ちの案件へのコメント／社長への指示として組織が受け取る。
     // お客様向けの自動返信・受信記録（返信待ち）には流さない。オーナーでない・失敗したときは、そのまま通常の処理へ

@@ -27,6 +27,12 @@ async function notifyAll(deps, list, text) {
   results.forEach((r) => { if (r.status === 'rejected') console.error('[gotore] LINE push failed:', r.reason && r.reason.message); });
 }
 
+// 募集が出たときの通知待ちの人への文（Web からも LINE のトークからも同じ文）
+function newPostText(baseUrl, r, slots) {
+  const label = (slots || []).map((s) => SLOT_LABEL[s]).filter(Boolean).join('・');
+  return `【合トレナビ】\n${r.gym_name}で新しい合トレ募集が出ました（${label}）。\n\n募集を見る\n${baseUrl}/my-fitpeak/gotore/gym/${encodeURIComponent(r.handle)}`;
+}
+
 const strip = (o) => { if (o && typeof o === 'object') delete o.notify; return o; };
 
 // 公開APIの簡易レート制限（IPごと・1分あたり）。Vercel では関数インスタンスごとの目安で、主な防御は CDN キャッシュ
@@ -141,9 +147,7 @@ function createMemberRouter(deps) {
       p_handle: b.handle, p_slots: b.slots || [], p_parts: b.parts || [], p_goals: b.goals || [],
       p_gender_pref: b.gender_pref === 'same' ? 'same' : 'any', p_note: b.note || '',
     });
-    const slots = (b.slots || []).map((s) => SLOT_LABEL[s]).filter(Boolean).join('・');
-    await notifyAll(deps, r.notify,
-      `【合トレナビ】\n${r.gym_name}で新しい合トレ募集が出ました（${slots}）。\n\n募集を見る\n${link(`/gym/${encodeURIComponent(r.handle)}`)}`);
+    await notifyAll(deps, r.notify, newPostText(deps.baseUrl, r, b.slots));
     return r;
   }));
 
@@ -256,4 +260,4 @@ function productionDeps() {
   };
 }
 
-module.exports = { createPublicRouter, createMemberRouter, productionDeps, parseArticleTitle, parseAreaHandle };
+module.exports = { createPublicRouter, createMemberRouter, productionDeps, parseArticleTitle, parseAreaHandle, notifyAll, newPostText, SLOT_LABEL };

@@ -12,7 +12,7 @@ function setup({ clicks = {}, latest = null, gyms = { 'gym-a': { id: 'g-uuid-1',
     gotoreSourceId: async () => SRC,
     loadClick: async (id) => clicks[id] || null,
     latestClick: async () => latest,
-    pushLine: async (to, text) => { pushed.push({ to, text }); },
+    pushLine: async (to, text, extra) => { pushed.push({ to, text, extra }); },
     rpc: async (fn, args) => {
       calls.push([fn, args]);
       if (fn === 'gt_claim_invite') { if (claimed.has(args.p_click)) return false; claimed.add(args.p_click); return true; }
@@ -70,4 +70,14 @@ test('掲示板が分からないとき（キー無し・存在しないジム�
     assert.match(pushed[0].text, /https:\/\/my\.fitpeak\.co\/my-fitpeak\/gotore\n/);
     assert.ok(!calls.some((c) => c[0] === 'gt_watch'), '存在しない掲示板を通知待ちにしない');
   }
+});
+
+test('案内には「LINEで募集する」「近くの募集を見る」のボタン（postback）を付ける', async () => {
+  const { gl, pushed } = setup({ latest: click() });
+  await gl.onFollow({ lineUserId: 'U1', trafficSourceId: SRC });
+  const items = pushed[0].extra.quickReply.items.map((i) => i.action);
+  assert.deepEqual(items.map((a) => [a.type, a.label, a.data]), [
+    ['postback', 'LINEで募集する', 'action=gotore&s=start'],
+    ['postback', '近くの募集を見る', 'action=gotore&s=list'],
+  ]);
 });

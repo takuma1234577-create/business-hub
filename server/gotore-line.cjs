@@ -37,6 +37,14 @@ function buildMessage({ base, gymName, gymId, watch }) {
   ].join('\n');
 }
 
+// 案内の下のボタン：トークだけで募集を作る・近くの募集を見る（gotore-line-chat.cjs が受ける）
+const INVITE_QUICK_REPLY = {
+  items: [
+    { type: 'action', action: { type: 'postback', label: 'LINEで募集する', data: 'action=gotore&s=start', displayText: 'LINEで募集する' } },
+    { type: 'action', action: { type: 'postback', label: '近くの募集を見る', data: 'action=gotore&s=list', displayText: '近くの募集を見る' } },
+  ],
+};
+
 function createGotoreLine(deps) {
   const base = deps.baseUrl;
 
@@ -50,7 +58,7 @@ function createGotoreLine(deps) {
       const member = await deps.rpc('gt_member_for_line', { p_line: lineUserId });
       await deps.rpc('gt_watch', { p_member: member, p_handle: key, p_on: true });
     }
-    await deps.pushLine(lineUserId, buildMessage({ base, gymName: gym && gym.name, gymId: gym && gym.id, watch }));
+    await deps.pushLine(lineUserId, buildMessage({ base, gymName: gym && gym.name, gymId: gym && gym.id, watch }), { quickReply: INVITE_QUICK_REPLY });
     return true;
   }
 
@@ -91,13 +99,13 @@ function productionDeps() {
         .order('created_at', { ascending: false }).limit(1).maybeSingle();
       return data || null;
     },
-    async pushLine(to, text) {
+    async pushLine(to, text, extra = {}) {
       const { accessToken } = await getLineCredentials(DEFAULT_CHANNEL_ID);
       if (!accessToken) throw new Error('LINEアクセストークンが未設定です');
       const r = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
+        body: JSON.stringify({ to, messages: [{ type: 'text', text, ...extra }] }),
       });
       if (!r.ok) throw new Error(`LINE push ${r.status}: ${await r.text().catch(() => '')}`);
     },
