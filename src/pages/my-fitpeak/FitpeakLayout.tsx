@@ -36,10 +36,11 @@ export default function FitpeakLayout() {
               <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[19px] sm:h-[22px] lg:h-7 w-auto" />
               <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.14em] text-white/70 border-l border-white/25 pl-2.5 whitespace-nowrap">MY PAGE</span>
             </a>
-            <nav className="order-3 sm:order-none w-full sm:w-auto flex items-center justify-between sm:justify-end sm:gap-1" aria-label="公式サイト">
+            <nav className="relative order-3 sm:order-none w-full sm:w-auto flex items-center justify-between sm:justify-end sm:gap-1" aria-label="公式サイト">
               {SITE_NAV.map((g) =>
                 g.items ? (
-                  <div key={g.label} className="relative">
+                  // スマホは nav 全体を基準に横幅いっぱいで出す（ボタン基準だと左右に画面外へはみ出す）
+                  <div key={g.label} className="sm:relative">
                     <button
                       type="button"
                       onClick={() => setOpenMenu(openMenu === g.label ? null : g.label)}
@@ -50,7 +51,7 @@ export default function FitpeakLayout() {
                       <ChevronDown size={12} />
                     </button>
                     {openMenu === g.label && (
-                      <div className="absolute right-0 top-full mt-1 z-30 min-w-[13rem] rounded-[14px] border border-[#e5e5e5] bg-white text-[#111] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
+                      <div className="absolute left-0 right-0 sm:left-auto sm:right-0 top-full mt-1 z-30 sm:min-w-[13rem] rounded-[14px] border border-[#e5e5e5] bg-white text-[#111] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
                         {g.items.map((it) =>
                           it.soon || !it.href ? (
                             <span key={it.name} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm font-bold text-[#999]">
