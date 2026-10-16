@@ -103,7 +103,7 @@ export default function BillingPointsPref() {
                 value={fixedInput[p.subscription_id] || ''}
                 onChange={(e) => setFixedInput((v) => ({ ...v, [p.subscription_id]: e.target.value.replace(/[^\d]/g, '') }))}
                 placeholder="使うポイント"
-                className="flex-1 px-3 py-2 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none focus:border-[#111] transition"
+                className="flex-1 min-w-0 w-full px-3 py-2 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none focus:border-[#111] transition"
               />
               <button
                 type="button"

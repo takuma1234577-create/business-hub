@@ -16,7 +16,9 @@
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   （ユーザー作成・セッション発行に必須）
  *   LINE_LOGIN_CHANNEL_ID / LINE_LOGIN_CHANNEL_SECRET
  *     （Business-hubの「API設定」の line_login_channel_id / line_login_channel_secret が優先）
- *   MY_FITPEAK_BASE_URL  既定 https://my.fitpeak.co
+ *   MY_FITPEAK_BASE_URL  APIの場所（コールバック・LIFF）。既定 https://my.fitpeak.co
+ *   MY_FITPEAK_APP_URL   画面の場所（ログイン後に戻す先）。既定 https://my.fitpeak.co
+ *                        アプリプロキシへ切り替えるときは https://fitpeak.co/a（my-fitpeak-urls.cjs）
  *
  * LINE Developers 側に、コールバックURLの登録が必要:
  *   https://my.fitpeak.co/api/my-fitpeak/auth/line/callback
@@ -35,12 +37,9 @@ const LINE_AUTHORIZE_URL = 'https://access.line.me/oauth2/v2.1/authorize';
 // 友だち追加用LIFF（public/liff/add.html）。My FITPEAKのLINEログインにも ?mode=myfp で使う
 const LIFF_ID = (process.env.MY_FITPEAK_LIFF_ID || '2006537445-rcvSBpCP').trim();
 
-function myFitpeakBase() {
-  return (process.env.MY_FITPEAK_BASE_URL || 'https://my.fitpeak.co').replace(/\/$/, '');
-}
-function callbackUrl() {
-  return `${myFitpeakBase()}/api/my-fitpeak/auth/line/callback`;
-}
+// APIの場所（コールバック）と画面の場所（成功・失敗の戻り先）は my-fitpeak-urls.cjs で分けている
+const myfpUrls = require('./my-fitpeak-urls.cjs');
+const callbackUrl = myfpUrls.lineCallbackUrl;
 
 // service role クライアント（ユーザー作成とセッション発行に必要）
 function getAdmin() {
@@ -217,7 +216,8 @@ router.post('/auth/line', async (req, res) => {
     const result = await issueSessionForLineUser(profile);
     if (!result.tokenHash) return res.status(500).json({ error: 'ログイン用トークンを取得できませんでした' });
 
-    res.json({ tokenHash: result.tokenHash, email: result.email });
+    // appUrl: LIFF（public/liff/add.html）がログイン後に戻す画面の場所。サーバーの設定値だけを返す
+    res.json({ tokenHash: result.tokenHash, email: result.email, appUrl: myfpUrls.myFitpeakAppBase() });
   } catch (err) {
     console.error('POST /api/my-fitpeak/auth/line error:', err.message);
     res.status(500).json({ error: err.message });
@@ -267,7 +267,7 @@ router.get('/auth/line/start', async (req, res) => {
 
 // ── GET /auth/line/callback ────────────────────────────────────────────────
 router.get('/auth/line/callback', async (req, res) => {
-  const fail = (msg) => res.redirect(`${myFitpeakBase()}/my-fitpeak/login?line_error=${encodeURIComponent(msg)}`);
+  const fail = (msg) => res.redirect(myfpUrls.lineLoginFailUrl(msg));
   try {
     const { code, state, error } = req.query || {};
     if (error || !code) return fail('LINEログインがキャンセルされました');
@@ -300,8 +300,7 @@ router.get('/auth/line/callback', async (req, res) => {
     const result = await issueSessionForLineUser(profile);
     if (!result.tokenHash) return fail('ログイン処理に失敗しました');
 
-    const hash = new URLSearchParams({ lt: result.tokenHash, next: redirect }).toString();
-    return res.redirect(`${myFitpeakBase()}/my-fitpeak/login#${hash}`);
+    return res.redirect(myfpUrls.lineLoginSuccessUrl(result.tokenHash, redirect));
   } catch (err) {
     console.error('GET /api/my-fitpeak/auth/line/callback error:', err.message);
     return fail(err.message);
@@ -371,3 +370,14 @@ router.post('/auth/line/handoff/:id/claim', async (req, res) => {
 
 module.exports = router;
 module.exports.issueSessionForLineUser = issueSessionForLineUser;
+// LIFF のトークンを、LINEログインチャネルで検証する（他のルートからも使う）
+module.exports.liffVerifier = {
+  async verifyIdToken(idToken) {
+    const login = await getLoginConfig();
+    return verifyIdToken(idToken, (login.channelId || '').trim());
+  },
+  async verifyAccessToken(accessToken) {
+    const login = await getLoginConfig();
+    return verifyAccessToken(accessToken, (login.channelId || '').trim());
+  },
+};

@@ -1,4 +1,5 @@
 import { fitpeakSupabase } from './supabase'
+import { apiUrl } from './embed'
 
 /**
  * My FITPEAK のAPI呼び出し。ログイン中の顧客のトークンを付けて送る。
@@ -11,7 +12,8 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
     const token = data.session?.access_token
     if (token) headers.set('Authorization', `Bearer ${token}`)
   } catch { /* 未ログインならそのまま送る */ }
-  return fetch(input, { ...init, headers })
+  // 埋め込み時（fitpeak.co）は my.fitpeak.co のAPIへ
+  return fetch(apiUrl(input), { ...init, headers })
 }
 
 /**

@@ -26,7 +26,8 @@ const { getLineCredentials, DEFAULT_CHANNEL_ID, getGoogleAuthClient } = require(
 const adminRouter = express.Router();
 const portalRouter = express.Router();
 
-const MY_FITPEAK_URL = process.env.MY_FITPEAK_URL || 'https://my.fitpeak.co';
+// リンクは my-fitpeak-urls.cjs（/creashot は旧アプリ側＝my.fitpeak.co のまま）
+const myfpUrls = require('./my-fitpeak-urls.cjs');
 const GMAIL_SENDER = process.env.GMAIL_SENDER || 'FITPEAK <takuma1234577@gmail.com>';
 const STICKS_PER_BAG = 28;
 
@@ -659,7 +660,7 @@ async function makeAutoLoginUrl(email, lineUserId, path = '/creashot') {
     token, email: email || '', line_user_id: lineUserId || null,
     expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   });
-  return `${MY_FITPEAK_URL}${path}?alt=${token}`;
+  return myfpUrls.myFitpeakTokenLinkUrl(path, 'alt', token);
 }
 
 /**
@@ -772,8 +773,8 @@ async function runReminderCron() {
         text,
         quickReply: {
           items: [
-            { type: 'action', action: { type: 'uri', label: '飲んだ！を記録', uri: `${MY_FITPEAK_URL}/creashot?intake=1` } },
-            { type: 'action', action: { type: 'uri', label: '通知時間を変える', uri: `${MY_FITPEAK_URL}/creashot#reminder` } },
+            { type: 'action', action: { type: 'uri', label: '飲んだ！を記録', uri: myfpUrls.myFitpeakPageUrl('/creashot?intake=1') } },
+            { type: 'action', action: { type: 'uri', label: '通知時間を変える', uri: myfpUrls.myFitpeakPageUrl('/creashot#reminder') } },
           ],
         },
       });

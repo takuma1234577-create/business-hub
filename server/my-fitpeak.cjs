@@ -546,24 +546,45 @@ router.post('/auth/signup', async (req, res) => {
   }
 });
 
+// line-link の LINE ユーザーを決める。
+// { lineUserId } = LIFF のトークンを検証できた / { viaCode: true } = コード方式 / { error } = 拒否
+async function resolveLinkLineUser(body, verifier) {
+  const { liffAccessToken, liffIdToken, code } = body || {};
+  if (liffIdToken || liffAccessToken) {
+    try {
+      const p = liffIdToken ? await verifier.verifyIdToken(liffIdToken) : await verifier.verifyAccessToken(liffAccessToken);
+      if (p && p.lineUserId) return { lineUserId: p.lineUserId };
+    } catch { /* 下で拒否 */ }
+    return { error: 'invalid' };
+  }
+  if (code) return { viaCode: true };
+  if (body && body.lineUserId) return { error: 'invalid' };
+  return { error: 'missing' };
+}
+
 // POST /line-link - LIFF経由(lineUserId) or コード + メール/パスワードで連携
 router.post('/line-link', async (req, res) => {
   try {
-    const { code, lineUserId: liffLineUserId, email, password } = req.body;
+    const { code, email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: '必須項目が不足しています' });
     }
-    if (!liffLineUserId && !code) {
+    // 画面から送られた lineUserId は信用しない。LIFF のトークンを検証できたときだけ使う
+    const who = await resolveLinkLineUser(req.body || {}, require('./my-fitpeak-line-auth.cjs').liffVerifier);
+    if (who.error === 'missing') {
       return res.status(400).json({ error: 'LINEアカウント情報が不足しています' });
+    }
+    if (who.error) {
+      return res.status(401).json({ error: 'LINEの確認に失敗しました。LINEアプリからもう一度お試しください。' });
     }
 
     const supabase = getSupabase();
     const now = new Date().toISOString();
 
-    let lineUserId = liffLineUserId;
+    let lineUserId = who.lineUserId || null;
 
-    // LIFF経由でlineUserIdが直接来ない場合はコードから取得
-    if (!lineUserId && code) {
+    // LIFF のトークンが無い場合は、LINEで送ったコードから取得
+    if (who.viaCode) {
       const { data: tokenData } = await supabase
         .from('auto_login_tokens')
         .select('*')
@@ -904,3 +925,4 @@ router.put('/notification-prefs', async (req, res) => {
 });
 
 module.exports = router;
+module.exports._internal = { ...(module.exports._internal || {}), resolveLinkLineUser };

@@ -212,7 +212,8 @@ function productionDeps() {
     return client;
   };
   return {
-    baseUrl: (process.env.MY_FITPEAK_BASE_URL || 'https://my.fitpeak.co').replace(/\/$/, ''),
+    // 通知のリンクは画面の場所（MY_FITPEAK_APP_URL。未設定なら my.fitpeak.co）
+    baseUrl: require('./my-fitpeak-urls.cjs').myFitpeakAppBase(),
     async rpc(fn, args = {}) {
       const { data, error } = await db().rpc(fn, args);
       if (error) throw new Error(error.message);
