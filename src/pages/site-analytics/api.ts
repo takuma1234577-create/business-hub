@@ -5,6 +5,12 @@ export const saApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// ページ → 実際のURL。本体はパス(/…)、FITPEAK NAVI は navi.fitpeak.co/… の形で同じ集計に入っている
+export const pageUrl = (path: string) => {
+  const m = path.match(/^([a-z0-9-]+\.fitpeak\.co)(\/.*)$/)
+  return m ? `https://${m[1]}${m[2]}` : `https://fitpeak.co${path.startsWith('/') ? path : `/${path}`}`
+}
+
 export type Preset = 'today' | 'yesterday' | '7d' | '30d' | '90d'
 export type Device = 'all' | 'mobile' | 'desktop'
 

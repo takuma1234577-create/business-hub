@@ -68,7 +68,7 @@ export default function SiteAnalytics() {
           <div className="min-w-0">
             <h1 className="text-lg font-semibold text-slate-900 dark:text-white leading-tight">FITPEAK サイト分析</h1>
             <a href="https://fitpeak.co" target="_blank" rel="noopener noreferrer" className="text-[11px] text-slate-500 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1">
-              fitpeak.co <ExternalLink size={10} />
+              fitpeak.co・navi.fitpeak.co <ExternalLink size={10} />
             </a>
           </div>
         </div>
