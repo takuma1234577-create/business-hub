@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { Package, UserRound, Bell, Crown, ChevronDown, Star } from 'lucide-react'
+import { Package, UserRound, Bell, Crown, ChevronDown, Star, Users } from 'lucide-react'
 
 import { SITE, SITE_NAV } from './lib/siteNav'
 
@@ -70,6 +70,9 @@ export default function FitpeakLayout() {
           <nav className="flex gap-1 -mb-px overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <NavLink to="/my-fitpeak" end className={linkClass}>
               <Package size={16} /> ご注文
+            </NavLink>
+            <NavLink to="/my-fitpeak/gotore" className={linkClass}>
+              <Users size={16} /> 合トレ
             </NavLink>
             <NavLink to="/my-fitpeak/notifications" className={linkClass}>
               <Bell size={16} /> 通知

@@ -11,6 +11,7 @@ import FitpeakPro from './my-fitpeak/FitpeakPro'
 import FitpeakSaved from './my-fitpeak/FitpeakSaved'
 import FitpeakWarrantyRegister from './my-fitpeak/FitpeakWarrantyRegister'
 import FitpeakRedeem from './my-fitpeak/FitpeakRedeem'
+import FitpeakGotore from './my-fitpeak/FitpeakGotore'
 import { type ReactNode, useEffect, useState } from 'react'
 
 function AutoLoginHandler({ children }: { children: ReactNode }) {
@@ -88,6 +89,7 @@ export default function MyFitpeak() {
             <Route path="saved" element={<FitpeakSaved />} />
             <Route path="warranty-register" element={<FitpeakWarrantyRegister />} />
             <Route path="points/use" element={<FitpeakRedeem />} />
+            <Route path="gotore/*" element={<FitpeakGotore />} />
             {/* 旧URL（メールやLINEのリンクから来る人のため） */}
             <Route path="line" element={<Navigate to="/my-fitpeak/account" replace />} />
           </Route>
