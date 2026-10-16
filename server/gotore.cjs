@@ -1,5 +1,5 @@
 /**
- * 合トレ仲間さがし（My FITPEAK）
+ * 合トレナビ（My FITPEAK）
  *
  * fitpeak.co のジム店舗レビュー記事（blogs/gym-review）を読みに来た近所の人どうしを、ジム単位でつなぐ。
  *   公開   GET  /api/gotore/public/gym?handle=…   記事の枠に出す件数（ログイン不要・名前は出さない）
@@ -87,7 +87,7 @@ function createMemberRouter(deps) {
     });
     const slots = (b.slots || []).map((s) => SLOT_LABEL[s]).filter(Boolean).join('・');
     await notifyAll(deps, r.notify,
-      `【合トレ仲間さがし】\n${r.gym_name}で新しい合トレ募集が出ました（${slots}）。\n\n募集を見る\n${link(`/gym/${encodeURIComponent(r.handle)}`)}`);
+      `【合トレナビ】\n${r.gym_name}で新しい合トレ募集が出ました（${slots}）。\n\n募集を見る\n${link(`/gym/${encodeURIComponent(r.handle)}`)}`);
     return r;
   }));
 
@@ -96,7 +96,7 @@ function createMemberRouter(deps) {
   router.post('/posts/:id/request', wrap(async (req, b) => {
     const r = await rpc('gt_request', req, { p_post: req.params.id, p_message: b.message || '' });
     await notifyAll(deps, r.notify,
-      `【合トレ仲間さがし】\n${r.nickname}さんから、${r.gym_name}の募集に「合トレしたい」が届きました。\n\n申請を見る\n${link('')}`);
+      `【合トレナビ】\n${r.nickname}さんから、${r.gym_name}の募集に「合トレしたい」が届きました。\n\n申請を見る\n${link('')}`);
     return r;
   }));
 
@@ -104,7 +104,7 @@ function createMemberRouter(deps) {
     const r = await rpc('gt_request_answer', req, { p_request: req.params.id, p_accept: !!b.accept });
     if (r.match_id) {
       await notifyAll(deps, r.notify,
-        `【合トレ仲間さがし】\n${r.nickname}さんが合トレを承認しました（${r.gym_name}）。チャットで日時を決めましょう。\n\nチャットを開く\n${link(`/chat/${r.match_id}`)}`);
+        `【合トレナビ】\n${r.nickname}さんが合トレを承認しました（${r.gym_name}）。チャットで日時を決めましょう。\n\nチャットを開く\n${link(`/chat/${r.match_id}`)}`);
     }
     return r;
   }));
@@ -114,7 +114,7 @@ function createMemberRouter(deps) {
   router.post('/matches/:id/messages', wrap(async (req, b) => {
     const r = await rpc('gt_message_send', req, { p_match: req.params.id, p_body: b.body || '' });
     await notifyAll(deps, r.notify,
-      `【合トレ仲間さがし】\n${r.nickname}さんからメッセージが届きました。\n\nチャットを開く\n${link(`/chat/${req.params.id}`)}`);
+      `【合トレナビ】\n${r.nickname}さんからメッセージが届きました。\n\nチャットを開く\n${link(`/chat/${req.params.id}`)}`);
     return r;
   }));
 

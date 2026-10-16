@@ -107,7 +107,7 @@ app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
 const loyalty = require(path.join(__dirname, 'loyalty.cjs'));
 const loyaltyDeps = loyalty.productionDeps();
 app.use('/api/my-fitpeak/loyalty', cors(), myFitpeakCustomerAuth, loyalty.createMemberRouter(loyaltyDeps));
-// 合トレ仲間さがし：ジム記事の枠は公開、掲示板・申請・チャットは本人のログインが必須
+// 合トレナビ：ジム記事の枠は公開、掲示板・申請・チャットは本人のログインが必須
 const gotore = require(path.join(__dirname, 'gotore.cjs'));
 const gotoreDeps = gotore.productionDeps();
 app.use('/api/gotore/public', cors(), gotore.createPublicRouter(gotoreDeps));

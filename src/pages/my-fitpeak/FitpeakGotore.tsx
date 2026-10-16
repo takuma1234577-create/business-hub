@@ -4,7 +4,7 @@ import { Bell, BellOff, ChevronLeft, Flag, MessageCircle, Send, ShieldCheck, Use
 import { apiFetch } from './lib/api'
 
 /**
- * 合トレ仲間さがし
+ * 合トレナビ
  * fitpeak.co のジム店舗レビュー記事の枠から来る。ジムごとの掲示板 → 「合トレしたい」→ 募集者が承認 → 2人だけのチャット。
  * 連絡先はマッチするまで出さない。通知は公式LINEに届く。
  *   /my-fitpeak/gotore                 自分の募集・届いた申請・チャット・通知待ちのジム
@@ -125,7 +125,7 @@ function SafetyMenu({ postId, matchId, onDone }: { postId?: string; matchId?: st
 function Rules() {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-relaxed text-white/70">
-      <p className="mb-2 flex items-center gap-1.5 font-bold text-white"><ShieldCheck size={16} style={{ color: GOLD }} />合トレ仲間さがしのルール</p>
+      <p className="mb-2 flex items-center gap-1.5 font-bold text-white"><ShieldCheck size={16} style={{ color: GOLD }} />合トレナビのルール</p>
       <ul className="list-disc space-y-1 pl-5">
         <li>18歳以上の方だけが使えます。</li>
         <li>合トレ（一緒にトレーニングする相手さがし）専用です。恋愛・交際などの出会いを目的とした利用は禁止です。</li>
@@ -306,7 +306,7 @@ function GymBoard() {
     } else load()
   }, [handle]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレ仲間さがし" /><p className="text-white/60">{err}</p></div>
+  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-white/60">{err}</p></div>
   if (!b) return <Spinner />
   const mine = b.posts.some((p) => p.mine)
   const toggleWatch = async () => { await call(`/gyms/${encodeURIComponent(handle)}/watch`, 'POST', { on: !b.watching }); load() }
@@ -317,7 +317,7 @@ function GymBoard() {
 
   return (
     <div>
-      <Back to="/my-fitpeak/gotore" label="合トレ仲間さがし" />
+      <Back to="/my-fitpeak/gotore" label="合トレナビ" />
       <h1 className="text-xl font-bold text-white">{b.gym.name}</h1>
       {handle.startsWith('area:') ? (
         <p className="mb-4 text-sm text-white/50">
@@ -395,7 +395,7 @@ function Chat() {
   if (!m) return <Spinner />
   return (
     <div>
-      <Back to="/my-fitpeak/gotore" label="合トレ仲間さがし" />
+      <Back to="/my-fitpeak/gotore" label="合トレナビ" />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-white">{m.partner.nickname}さん</h1>
@@ -448,7 +448,7 @@ function Home() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold text-white"><Users size={20} style={{ color: GOLD }} />合トレ仲間さがし</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold text-white"><Users size={20} style={{ color: GOLD }} />合トレナビ</h1>
         <p className="mt-1 text-sm text-white/50">同じジムに通う人と、一緒にトレーニングする相手を見つけられます。</p>
       </div>
 
