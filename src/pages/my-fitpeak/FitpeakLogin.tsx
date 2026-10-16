@@ -25,9 +25,16 @@ function readHandoff(): Handoff | null {
   try { sessionStorage.removeItem(HANDOFF_KEY) } catch { /* noop */ }
   return null
 }
-const isMobileBrowser = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+// LINEアプリ内のブラウザは除く（LINEの中なら、そのままLINEでログインできるので引き渡しは要らない）
+const isMobileBrowser = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && !/\bLine\//i.test(navigator.userAgent)
 
 export default function FitpeakLogin() {
+  // タブ名（管理ツールの「業務ツール」のままにしない）
+  useEffect(() => {
+    const prev = document.title
+    document.title = 'ログイン | My FITPEAK'
+    return () => { document.title = prev }
+  }, [])
   const { user, signInWithPassword, signUp } = useFitpeakAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
