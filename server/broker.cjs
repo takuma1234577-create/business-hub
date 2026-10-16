@@ -30,11 +30,19 @@ const SERVICES = {
   chatwork: {
     secret: 'chatwork', host: 'api.chatwork.com', auth: (k) => ({ headers: { 'X-ChatWorkToken': k } }),
     rules: [
-      { m: 'GET', p: /^\/v2\/(me|rooms\/\d+|rooms\/\d+\/(messages|members|tasks|files))$/, tier: 'free' },
+      { m: 'GET', p: /^\/v2\/(me|rooms|rooms\/\d+|rooms\/\d+\/(messages|members|tasks|files))$/, tier: 'free' },
       { m: 'POST', p: /^\/v2\/rooms\/\d+\/messages$/, tier: 'approval' },
     ],
     // 触れるルームを限定する（既定: たお太郎の発注ルームだけ。環境変数 BROKER_CHATWORK_ROOMS=ID,ID で追加）。会計事務所など、他のルームには触れない
-    scope: (path) => { const m = path.match(/^\/v2\/rooms\/(\d+)/); if (!m) return true; return String(process.env.BROKER_CHATWORK_ROOMS || '445627173').split(',').map((x) => x.trim()).includes(m[1]); },
+    // 例外: 秘書（Macの claude 鍵。オーナーの判断が要る連絡の振り分け）は、全ルームの一覧とメッセージを「読む」だけできる。書き込みは発注ルームだけ
+    scope: (path, { method = 'GET', caller } = {}) => {
+      const rooms = String(process.env.BROKER_CHATWORK_ROOMS || '445627173').split(',').map((x) => x.trim());
+      const secretaryRead = caller === 'claude' && method === 'GET';
+      if (path === '/v2/rooms') return secretaryRead;
+      const m = path.match(/^\/v2\/rooms\/(\d+)/); if (!m) return true;
+      if (secretaryRead && /^\/v2\/rooms\/\d+\/messages$/.test(path)) return true;
+      return rooms.includes(m[1]);
+    },
   },
   jev: {
     secret: 'jev', host: 'api.typesafe.ai', auth: (k) => ({ headers: { Authorization: `Bearer ${k}` } }),
@@ -242,7 +250,7 @@ router.post('/call', async (req, res) => {
     // 許可リスト照合（pathの {pixel} などの変数は、サーバーが埋める）
     const rule = matchRule(service, method, path);
     if (!rule) return fail(403, `許可されていない呼び出しです（${service} ${method} ${path}）`);
-    if (svc.scope && !svc.scope(path)) return fail(403, '許可されていないルーム・対象です');
+    if (svc.scope && !svc.scope(path, { method, caller: req.caller })) return fail(403, '許可されていないルーム・対象です');
     if (rule.body) { const why = await bodyCheck(rule.body, path, body); if (why) return fail(403, why); }
     for (const k of Object.keys(query || {})) if (FORBIDDEN_QUERY.test(k)) return fail(400, `クエリ ${k} は指定できません`);
     if (body !== undefined && JSON.stringify(body).length > 200000) return fail(413, '本文が大きすぎます');
