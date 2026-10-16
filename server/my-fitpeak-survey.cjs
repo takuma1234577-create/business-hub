@@ -1,5 +1,5 @@
 /**
- * My FITPEAK：旧 my-fitpeak（別アプリ）から移したアンケート／クーポン／レビュー特典／紹介
+ * My FITPEAK：旧 my-fitpeak（別アプリ）から移したアンケート／クーポン／紹介
  *
  * 会員向け: /api/my-fitpeak/*（my-fitpeak-auth.cjs の後ろ。本人は Supabase の JWT で確認済み）
  *   GET  /survey/status            自分のアンケート回答の有無（回答済みなら商品・評価・推薦文）
@@ -8,16 +8,12 @@
  *   POST /survey/track-click       Amazonレビューボタンを押した記録（自分の回答に付く）
  *   POST /survey/track-step        画面到達の記録（ファネル用）
  *   GET  /coupons                  自分のクーポン一覧
- *   GET  /review-gift/status       レビュー特典の申請状況
- *   POST /review-gift/upload       レビュー投稿スクショを非公開の場所へ保存（fileId を返す）
- *   POST /review-gift/submit       申請 → AI確認 → 確認できたら無料プレゼントの注文リンクを発行
- *   POST /review-gift/resubmit     却下された申請のスクショを出し直す
  *   GET  /referral                 紹介コードと紹介の件数
  *   POST /referral/issue-code      紹介コード＋専用URLを発行（1人1コード）
  *   POST /referral/bind            紹介された側が自分の購入を紐づける
  * 公開: /api/my-fitpeak/public/survey/track-open（LINE配信URL ?lu= を開いた記録。何も返さない）
  * Webhook: /api/webhook/shopify-order（Shopify orders/create。HMAC 必須）
- * 管理画面から: issueReviewGift(deps, claimId)（line-crm.cjs の手動承認）
+ * Amazonレビュー特典（スクショ提出→無料プレゼント）は 2026-10-16 オーナー指示で廃止。
  *
  * 旧アプリとの違い（個人情報を守るため）:
  *   - 画面から送られた lineUserId / email / surveyId / claimId では誰のデータも読まない・書かない。
@@ -35,11 +31,7 @@ const SURVEY_COUPON_AMOUNT = 2000;
 const SURVEY_COUPON_HOURS = 24;
 const REFERRAL_MIN_ORDER = 3000;
 const REFERRAL_GIFT_AMOUNT = 500;
-const PRIVATE_BUCKET = 'documents';
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
 const LINE_USER_ID = /^U[0-9a-f]{32}$/;
-const MAX_AI_ATTEMPTS = 5;
 
 // アンケートの商品（親ASIN）。画面の選択肢と同じ
 const SURVEY_PRODUCTS = {
@@ -59,9 +51,6 @@ const ASIN_TO_SHOPIFY = {
   B0DXFPMTWZ: '8011377410183',
   B0FDLD6F5S: '8128854786183',
   B0G12F9GYQ: '8175971827847',
-};
-const REVIEW_GIFT_PRODUCTS = {
-  wrist_wrap: { label: 'リストラップ', shopifyProductId: '8089731563655', titleKeywords: ['リストラップ'] },
 };
 
 const TRACK_STEPS = new Set(['landing', 'questions', 'submitted', 'pre_review', 'review_cta', 'coupon', 'support_cta', 'completed', 'review_gift_offer', 'review_gift_submitted']);
@@ -188,111 +177,6 @@ async function issueSurveyCoupon(deps, identity) {
       discountUrl: discountUrl(coupon.coupon_code),
     },
   };
-}
-
-// ───────────── レビュー特典 ─────────────
-
-function claimView(c) {
-  if (!c) return null;
-  const status = c.shopify_invoice_url ? 'issued' : c.verification_status || 'pending';
-  return {
-    status,
-    productName: c.product_name || null,
-    invoiceUrl: c.shopify_invoice_url || null,
-    reason: status === 'rejected' ? (c.manual_note || c.verification_result?.reason || null) : null,
-    createdAt: c.created_at || null,
-  };
-}
-
-// 確認済みの申請に、無料（100%OFF＋送料無料）の注文リンクを1回だけ発行する
-async function issueReviewGift(deps, claimId) {
-  const claim = await deps.getClaim(claimId);
-  if (!claim) return { ok: false, error: '申請が見つかりません' };
-  if (claim.verification_status !== 'verified') return { ok: false, error: '確認が完了していません' };
-  if (claim.shopify_invoice_url) return { ok: true, invoiceUrl: claim.shopify_invoice_url, productName: claim.product_name, alreadyIssued: true };
-
-  // 発行中の印を条件付きで付ける（同時に2回発行しない）
-  const locked = await deps.updateClaim(claimId, { shopify_draft_order_id: 'issuing', updated_at: new Date().toISOString() }, { shopify_draft_order_id: null });
-  if (!locked) {
-    const again = await deps.getClaim(claimId);
-    if (again?.shopify_invoice_url) return { ok: true, invoiceUrl: again.shopify_invoice_url, productName: again.product_name, alreadyIssued: true };
-    return { ok: false, error: '発行処理中です。少し待ってから再度お試しください。' };
-  }
-  try {
-    const variant = await deps.resolveGiftVariant(claim.product_choice);
-    if (!variant) throw new Error('プレゼント商品の在庫情報が取得できませんでした');
-    const link = claim.line_user_id ? await deps.shopifyLinkForLine(claim.line_user_id) : null;
-    const email = isRealEmail(claim.user_id) ? claim.user_id : (link?.email || null);
-    const draft = await deps.createDraftOrder({
-      variantId: variant.variantId,
-      productTitle: variant.productTitle,
-      price: variant.price,
-      shopifyCustomerId: link?.customerId || null,
-      email,
-    });
-    await deps.updateClaim(claimId, {
-      shopify_draft_order_id: draft.draftOrderId,
-      shopify_invoice_url: draft.invoiceUrl,
-      issued_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    try {
-      await deps.insertSurveyEvent({ step: 'gift_issued', survey_id: claim.survey_id || null, line_user_id: claim.line_user_id || null, user_id: claim.user_id || null });
-    } catch { /* 記録だけなので無視 */ }
-    return { ok: true, invoiceUrl: draft.invoiceUrl, productName: variant.productTitle };
-  } catch (err) {
-    await deps.updateClaim(claimId, { shopify_draft_order_id: null }, { shopify_draft_order_id: 'issuing' });
-    console.error('[my-fitpeak-survey] レビュー特典の発行に失敗:', err.message);
-    return { ok: false, error: 'プレゼントの発行に失敗しました。時間をおいて再度お試しください。' };
-  }
-}
-
-async function verifyAndIssue(deps, claimId) {
-  const claim = await deps.getClaim(claimId);
-  if ((claim.verification_attempts || 0) >= MAX_AI_ATTEMPTS) {
-    return { status: 'pending', message: '確認に時間がかかっています。担当者が確認してご連絡します。' };
-  }
-  let vr;
-  try {
-    const images = [];
-    if (claim.proof_screenshot_url_2) images.push(await deps.downloadPrivate(storagePath(claim.proof_screenshot_url_2)));
-    images.push(await deps.downloadPrivate(storagePath(claim.proof_screenshot_url)));
-    const kb = await deps.activeKbReasons();
-    vr = await deps.aiVerifyScreenshots({ images, hasTwo: images.length === 2, kb });
-  } catch (err) {
-    console.error('[my-fitpeak-survey] AI確認に失敗:', err.message);
-    return { status: 'pending', message: '確認に時間がかかっています。担当者が確認してご連絡します。' };
-  }
-  const verified = vr && vr.overall_verified === true && Number(vr.confidence || 0) > 60;
-  const star = parseInt(vr?.star_count, 10);
-  await deps.updateClaim(claimId, {
-    verification_status: verified ? 'verified' : 'rejected',
-    verification_result: vr || null,
-    reviewer_name: vr?.reviewer_name || null,
-    star_count: Number.isFinite(star) ? star : null,
-    review_title: vr?.review_title || null,
-    review_body: vr?.review_body || null,
-    verification_attempts: (claim.verification_attempts || 0) + 1,
-    updated_at: new Date().toISOString(),
-  });
-  if (!verified) return { status: 'rejected', reason: vr?.reason || 'スクリーンショットからレビュー投稿を確認できませんでした' };
-  const issued = await issueReviewGift(deps, claimId);
-  if (!issued.ok) return { status: 'verified', message: issued.error };
-  return { status: 'issued', invoiceUrl: issued.invoiceUrl, productName: issued.productName };
-}
-
-// DBには「storage:documents/<path>」で保存する（公開URLにしない）
-const STORAGE_PREFIX = `storage:${PRIVATE_BUCKET}/`;
-const storageRef = (path) => STORAGE_PREFIX + path;
-function storagePath(ref) {
-  const s = String(ref || '');
-  if (!s.startsWith(STORAGE_PREFIX)) throw new Error('非公開保存のスクショではありません');
-  return s.slice(STORAGE_PREFIX.length);
-}
-function ownFileId(identity, fileId) {
-  const s = String(fileId || '');
-  const prefix = `review-gift/${identity.authUserId}/`;
-  return s.startsWith(prefix) && /^[A-Za-z0-9/_.-]+$/.test(s) && !s.includes('..') ? s : null;
 }
 
 // ───────────── 紹介 ─────────────
@@ -499,92 +383,6 @@ function createMemberRouter(deps) {
     } catch (err) { serverError(res, 'GET /coupons', err); }
   });
 
-  // ── レビュー特典
-  router.get('/review-gift/status', async (req, res) => {
-    try {
-      const identity = await me(req, res); if (!identity) return;
-      const claim = await deps.findLatestClaim({ lineUserId: identity.lineUserId, userKey: identity.userKey });
-      res.json({ claim: claimView(claim) });
-    } catch (err) { serverError(res, 'GET /review-gift/status', err); }
-  });
-
-  router.post('/review-gift/upload', async (req, res) => {
-    try {
-      const identity = await me(req, res); if (!identity) return;
-      if (limited(res, 'upload', identity)) return;
-      const contentType = String((req.body && req.body.contentType) || '').toLowerCase();
-      const data = String((req.body && req.body.data) || '').replace(/^data:[^,]+,/, '');
-      if (!IMAGE_TYPES.has(contentType)) return fail(res, 400, '画像ファイル（PNG / JPEG）を選んでください');
-      const buffer = Buffer.from(data, 'base64');
-      if (!buffer.length) return fail(res, 400, '画像が空です');
-      if (buffer.length > MAX_UPLOAD_BYTES) return fail(res, 413, '画像が大きすぎます（10MBまで）');
-      const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
-      const path = `review-gift/${identity.authUserId}/${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-      await deps.uploadPrivate(path, buffer, contentType);
-      res.json({ fileId: path });
-    } catch (err) { serverError(res, 'POST /review-gift/upload', err); }
-  });
-
-  router.post('/review-gift/submit', async (req, res) => {
-    try {
-      const identity = await me(req, res); if (!identity) return;
-      if (limited(res, 'gift', identity)) return;
-      const choice = String((req.body && req.body.productChoice) || 'wrist_wrap');
-      if (!REVIEW_GIFT_PRODUCTS[choice]) return fail(res, 400, 'プレゼント商品を選んでください');
-      const f1 = ownFileId(identity, req.body && req.body.proofFileId);
-      const f2raw = req.body && req.body.proofFileId2;
-      const f2 = f2raw ? ownFileId(identity, f2raw) : null;
-      if (!f1 || (f2raw && !f2)) return fail(res, 400, 'レビュー投稿のスクリーンショットをアップロードしてください');
-
-      const open = await deps.findOpenClaim({ lineUserId: identity.lineUserId, userKey: identity.userKey });
-      if (open) return res.status(409).json({ error: 'この特典は既に申請済みです（お一人様1回限り）', claim: claimView(open) });
-
-      const survey = await deps.findSurveyForIdentity(identity);
-      let claim;
-      try {
-        claim = await deps.insertClaim({
-          survey_id: survey?.id || null,
-          line_user_id: identity.lineUserId,
-          user_id: identity.userKey,
-          product_choice: choice,
-          product_name: REVIEW_GIFT_PRODUCTS[choice].label,
-          proof_screenshot_url: storageRef(f1),
-          proof_screenshot_url_2: f2 ? storageRef(f2) : null,
-          verification_status: 'pending',
-          verification_attempts: 0,
-        });
-      } catch (err) {
-        if (err.code === '23505') return fail(res, 409, 'この特典は既に申請済みです（お一人様1回限り）');
-        throw err;
-      }
-      res.json(await verifyAndIssue(deps, claim.id));
-    } catch (err) { serverError(res, 'POST /review-gift/submit', err); }
-  });
-
-  router.post('/review-gift/resubmit', async (req, res) => {
-    try {
-      const identity = await me(req, res); if (!identity) return;
-      if (limited(res, 'gift', identity)) return;
-      const latest = await deps.findLatestClaim({ lineUserId: identity.lineUserId, userKey: identity.userKey });
-      if (!latest || latest.verification_status !== 'rejected') return fail(res, 404, '再提出できる申請がありません');
-      const f1 = ownFileId(identity, req.body && req.body.proofFileId);
-      const f2raw = req.body && req.body.proofFileId2;
-      const f2 = f2raw ? ownFileId(identity, f2raw) : null;
-      if (!f1 || (f2raw && !f2)) return fail(res, 400, 'レビュー投稿のスクリーンショットをアップロードしてください');
-      const ok = await deps.updateClaim(latest.id, {
-        proof_screenshot_url: storageRef(f1),
-        proof_screenshot_url_2: f2 ? storageRef(f2) : null,
-        verification_status: 'pending',
-        updated_at: new Date().toISOString(),
-      }, { verification_status: 'rejected' });
-      if (!ok) return fail(res, 409, '申請の状態が変わりました。画面を開き直してください。');
-      res.json(await verifyAndIssue(deps, latest.id));
-    } catch (err) {
-      if (err.code === '23505') return fail(res, 409, 'この特典は既に申請済みです（お一人様1回限り）');
-      serverError(res, 'POST /review-gift/resubmit', err);
-    }
-  });
-
   // ── 紹介
   router.get('/referral', async (req, res) => {
     try {
@@ -728,45 +526,6 @@ function createWebhookHandler(deps) {
 
 // ───────────── 本番の依存（Supabase・Shopify・Claude） ─────────────
 
-function verifyPrompt(hasTwo, kb) {
-  const kbText = kb && kb.length ? '\n\n【過去の判定から学習した注意点（必ず考慮すること）】\n' + kb.map((k, i) => `${i + 1}. ${k}`).join('\n') : '';
-  if (hasTwo) {
-    return `あなたはAmazonレビューの投稿証拠スクリーンショットを検証するAIです。
-
-2枚の画像が添付されています。
-- 画像1（レビュー作成画面）: ユーザーが★評価・タイトル・本文を入力した「レビューを書く」画面（投稿前）。
-- 画像2（投稿後・反映後の画面）: そのレビューを実際に投稿し、Amazon上に反映された後の画面。
-
-各画像から reviewer_name / star_count / review_title / review_body を読み取り（不明は null）、画像1と画像2でそれらが実質一致するか確認してください。
-
-判定項目：
-1. is_amazon: 2枚ともAmazonの画面である
-2. is_posted: 画像2がレビュー投稿・反映済みの状態である
-3. name_match / star_match / title_match / body_match: 画像1と画像2で各項目が実質一致する
-4. has_title / has_body: タイトル・本文に意味のある文章が入っている
-${kbText}
-
-以下のJSON形式のみで回答してください：
-{"reviewer_name": null, "star_count": null, "review_title": null, "review_body": null, "is_amazon": false, "is_posted": false, "name_match": false, "star_match": false, "title_match": false, "body_match": false, "has_title": false, "has_body": false, "overall_verified": false, "confidence": 0, "reason": "日本語で簡潔に"}
-
-overall_verified は判定項目が全て true の場合のみ true。confidence が60以下なら false。`;
-  }
-  return `あなたはAmazonレビューの投稿証拠スクリーンショットを検証するAIです。
-
-このスクリーンショットが「FITPEAK製品に対して実際に投稿（送信）済みのAmazonカスタマーレビュー」であることを確認し、reviewer_name / star_count / review_title / review_body を読み取ってください（不明は null）。
-
-判定項目：
-1. is_amazon: Amazonの画面である
-2. is_posted: レビューが投稿・送信完了/反映済みの状態である（下書き・作成途中は false）
-3. has_title / has_body: タイトル・本文に意味のある文章が入っている
-${kbText}
-
-以下のJSON形式のみで回答してください：
-{"reviewer_name": null, "star_count": null, "review_title": null, "review_body": null, "is_amazon": false, "is_posted": false, "has_title": false, "has_body": false, "overall_verified": false, "confidence": 0, "reason": "日本語で簡潔に"}
-
-overall_verified は判定項目が全て true の場合のみ true。confidence が60以下なら false。`;
-}
-
 function productionDeps() {
   let client = null;
   const db = () => {
@@ -900,93 +659,6 @@ function productionDeps() {
       });
     },
 
-    async uploadPrivate(path, buffer, contentType) {
-      must(await db().storage.from(PRIVATE_BUCKET).upload(path, buffer, { contentType, upsert: false }));
-    },
-    async downloadPrivate(path) {
-      const blob = must(await db().storage.from(PRIVATE_BUCKET).download(path));
-      const buf = Buffer.from(await blob.arrayBuffer());
-      return { data: buf.toString('base64'), mediaType: blob.type || 'image/jpeg' };
-    },
-    async activeKbReasons() {
-      const d = must(await db().from('review_gift_verify_kb').select('reason').eq('is_active', true).order('created_at', { ascending: false }).limit(30));
-      return (d || []).map((k) => k.reason);
-    },
-    async aiVerifyScreenshots({ images, hasTwo, kb }) {
-      const anthropic = await require('./shared.cjs').getAnthropicClient();
-      const content = images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: /png|jpeg|webp|gif/.test(im.mediaType) ? im.mediaType : 'image/jpeg', data: im.data } }));
-      content.push({ type: 'text', text: verifyPrompt(hasTwo, kb) });
-      const msg = await anthropic.messages.create({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content }] });
-      const text = msg.content?.[0]?.text || '';
-      try { return JSON.parse((text.match(/\{[\s\S]*\}/) || [text])[0]); }
-      catch { return { overall_verified: false, confidence: 0, reason: 'AI応答の解析に失敗' }; }
-    },
-    async findOpenClaim({ lineUserId, userKey }) {
-      const parts = [];
-      if (lineUserId && LINE_USER_ID.test(lineUserId)) parts.push(`line_user_id.eq.${lineUserId}`);
-      if (userKey && !/[,()"]/.test(userKey)) parts.push(`user_id.eq.${userKey}`);
-      if (!parts.length) return null;
-      const d = must(await db().from('review_gift_claims').select('*').or(parts.join(',')).neq('verification_status', 'rejected').order('created_at', { ascending: false }).limit(1));
-      return (d || [])[0] || null;
-    },
-    async findLatestClaim({ lineUserId, userKey }) {
-      const parts = [];
-      if (lineUserId && LINE_USER_ID.test(lineUserId)) parts.push(`line_user_id.eq.${lineUserId}`);
-      if (userKey && !/[,()"]/.test(userKey)) parts.push(`user_id.eq.${userKey}`);
-      if (!parts.length) return null;
-      const d = must(await db().from('review_gift_claims').select('*').or(parts.join(',')).order('created_at', { ascending: false }).limit(5));
-      const list = d || [];
-      return list.find((c) => c.shopify_invoice_url) || list[0] || null;
-    },
-    async getClaim(id) { return must(await db().from('review_gift_claims').select('*').eq('id', id).maybeSingle()); },
-    async insertClaim(row) { return must(await db().from('review_gift_claims').insert(row).select('id').single()); },
-    async updateClaim(id, patch, onlyIf = {}) {
-      let q = db().from('review_gift_claims').update(patch).eq('id', id);
-      for (const [k, v] of Object.entries(onlyIf)) q = v === null ? q.is(k, null) : q.eq(k, v);
-      const d = must(await q.select('id'));
-      return (d || []).length === 1;
-    },
-    async resolveGiftVariant(choice) {
-      const g = REVIEW_GIFT_PRODUCTS[choice];
-      if (!g) return null;
-      let row = null;
-      if (g.shopifyProductId) row = must(await db().from('shopify_products').select('*').eq('shopify_product_id', g.shopifyProductId).maybeSingle());
-      if (!row) {
-        const all = must(await db().from('shopify_products').select('*').eq('status', 'active')) || [];
-        row = all.find((p) => g.titleKeywords.every((k) => (p.title || '').includes(k))) || null;
-      }
-      if (!row) return null;
-      const variants = Array.isArray(row.variants) ? row.variants : [];
-      const v = variants.find((x) => x.available) || variants[0];
-      if (!v || !v.id) return null;
-      return { variantId: v.id, price: v.price || row.price || '0', productTitle: row.title || g.label };
-    },
-    async createDraftOrder({ variantId, productTitle, price, shopifyCustomerId, email }) {
-      const s = await store();
-      if (!s) throw new Error('Shopify未接続');
-      const draft = {
-        line_items: [{
-          variant_id: Number(variantId),
-          quantity: 1,
-          applied_discount: { description: 'Amazonレビュー投稿特典（100%OFF）', value_type: 'percentage', value: '100.0', amount: String(price || '0'), title: 'レビュー特典' },
-        }],
-        shipping_line: { title: '送料無料（レビュー特典）', price: '0.00' },
-        tags: 'review-gift',
-        note: `Amazonレビュー投稿特典: ${productTitle} 100%OFF + 送料無料`,
-      };
-      if (shopifyCustomerId) draft.customer = { id: Number(shopifyCustomerId) };
-      if (email) draft.email = email;
-      const r = await fetch(`https://${s.shop_domain}/admin/api/2024-01/draft_orders.json`, {
-        method: 'POST',
-        headers: { 'X-Shopify-Access-Token': s.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft_order: draft }),
-      });
-      if (!r.ok) throw new Error(`draft_orders ${r.status}`);
-      const d = (await r.json()).draft_order;
-      if (!d) throw new Error('ドラフト注文の作成に失敗しました');
-      return { draftOrderId: String(d.id), invoiceUrl: d.invoice_url || '' };
-    },
-
     async findReferralCode({ email, lineUserId }) {
       if (email) {
         const d = must(await db().from('referral_codes').select('*').ilike('owner_email', email).eq('source', 'referral_program').limit(1));
@@ -1057,31 +729,10 @@ function productionDeps() {
   };
 }
 
-// 管理画面向け：非公開スクショを短時間だけ見られる URL に変える（line-crm.cjs の一覧で使う）
-async function signScreenshotRefs(rows, sb) {
-  const out = [];
-  for (const r of rows || []) {
-    const copy = { ...r };
-    for (const k of ['proof_screenshot_url', 'proof_screenshot_url_2']) {
-      const v = copy[k];
-      if (typeof v === 'string' && v.startsWith(STORAGE_PREFIX)) {
-        try {
-          const { data } = await sb.storage.from(PRIVATE_BUCKET).createSignedUrl(v.slice(STORAGE_PREFIX.length), 60 * 60);
-          copy[k] = data?.signedUrl || null;
-        } catch { copy[k] = null; }
-      }
-    }
-    out.push(copy);
-  }
-  return out;
-}
-
 module.exports = {
   createMemberRouter,
   createPublicRouter,
   createWebhookHandler,
-  issueReviewGift,
   productionDeps,
-  signScreenshotRefs,
   SURVEY_PRODUCTS,
 };

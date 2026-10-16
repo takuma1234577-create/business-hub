@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const express = require('express');
 const { createFakeDeps } = require('./helpers/myfp-survey-fake.cjs');
-const { createMemberRouter, createPublicRouter, createWebhookHandler, issueReviewGift } = require('../my-fitpeak-survey.cjs');
+const { createMemberRouter, createPublicRouter, createWebhookHandler } = require('../my-fitpeak-survey.cjs');
 
 let deps, base, server;
 
@@ -57,7 +57,7 @@ const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').toString('bas
 
 test('ログインしていなければ会員APIはすべて 401', async () => {
   for (const [m, p] of [['GET', '/m/survey/status'], ['POST', '/m/survey/submit'], ['POST', '/m/survey/coupon'], ['GET', '/m/coupons'],
-    ['GET', '/m/review-gift/status'], ['POST', '/m/review-gift/upload'], ['POST', '/m/review-gift/submit'], ['GET', '/m/referral'],
+    ['GET', '/m/referral'],
     ['POST', '/m/referral/issue-code'], ['POST', '/m/referral/bind'], ['POST', '/m/survey/track-click'], ['POST', '/m/survey/track-step']]) {
     assert.equal((await call(m, p, null, m === 'GET' ? undefined : {})).status, 401, `${m} ${p}`);
   }
@@ -179,82 +179,14 @@ test('LINEから開いた記録(track-open)は公開だが、何も返さず、�
   assert.deepEqual(deps.st.clicks.map((c) => c.line_user_id), [a.lineUserId]);
 });
 
-// ───────────── レビュー特典 ─────────────
+// ───────────── レビュー特典（2026-10-16 オーナー指示で廃止） ─────────────
 
-async function uploadAs(user) {
-  const r = await call('POST', '/m/review-gift/upload', user, { contentType: 'image/png', data: PNG });
-  assert.equal(r.status, 200);
-  return r.body.fileId;
-}
-
-test('スクショは非公開の場所に本人のフォルダで保存し、公開URLは返さない', async () => {
+test('Amazonレビュー特典のAPIは無い（ログインしていても 404）', async () => {
   const a = lineCustomer();
-  const r = await call('POST', '/m/review-gift/upload', a.user, { contentType: 'image/png', data: PNG });
-  assert.equal(r.status, 200);
-  assert.ok(r.body.fileId.startsWith(`review-gift/${a.user.id}/`));
-  assert.equal(JSON.stringify(r.body).includes('http'), false);
-  const bad = await call('POST', '/m/review-gift/upload', a.user, { contentType: 'text/html', data: PNG });
-  assert.equal(bad.status, 400);
-});
-
-test('他人のスクショ(fileId)や外部URLでは申請できない', async () => {
-  const a = lineCustomer();
-  const b = lineCustomer();
-  const fa = await uploadAs(a.user);
-  const r1 = await call('POST', '/m/review-gift/submit', b.user, { productChoice: 'wrist_wrap', proofFileId: fa });
-  assert.equal(r1.status, 400);
-  const r2 = await call('POST', '/m/review-gift/submit', b.user, { productChoice: 'wrist_wrap', proofFileId: 'http://169.254.169.254/latest' });
-  assert.equal(r2.status, 400);
-  assert.equal(deps.st.claims.length, 0);
-});
-
-test('申請→AI確認→本人に1回だけ発行。2回目は 409、状態は本人の分だけ見える', async () => {
-  const a = lineCustomer();
-  const b = lineCustomer();
-  const f = await uploadAs(a.user);
-  const r = await call('POST', '/m/review-gift/submit', a.user, { productChoice: 'wrist_wrap', proofFileId: f, lineUserId: b.lineUserId });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.status, 'issued');
-  assert.ok(r.body.invoiceUrl);
-  assert.equal(deps.st.claims[0].line_user_id, a.lineUserId);
-  assert.equal(deps.st.draftOrders.length, 1);
-  const again = await call('POST', '/m/review-gift/submit', a.user, { productChoice: 'wrist_wrap', proofFileId: await uploadAs(a.user) });
-  assert.equal(again.status, 409);
-  const sb = await call('GET', '/m/review-gift/status', b.user);
-  assert.equal(sb.body.claim, null);
-  const sa = await call('GET', '/m/review-gift/status', a.user);
-  assert.equal(sa.body.claim.status, 'issued');
-  assert.equal(JSON.stringify(sa.body).includes('review-gift/'), false);
-});
-
-test('AIが確認できなければ発行しない。再提出は本人の却下済み申請だけ', async () => {
-  const a = lineCustomer();
-  const b = lineCustomer();
-  deps.st.aiResult = { overall_verified: false, confidence: 30, reason: '投稿前の画面です' };
-  const r = await call('POST', '/m/review-gift/submit', a.user, { productChoice: 'wrist_wrap', proofFileId: await uploadAs(a.user) });
-  assert.equal(r.body.status, 'rejected');
-  assert.equal(deps.st.draftOrders.length, 0);
-  // b は a の申請を再提出できない
-  const rb = await call('POST', '/m/review-gift/resubmit', b.user, { claimId: deps.st.claims[0].id, proofFileId: await uploadAs(b.user) });
-  assert.equal(rb.status, 404);
-  deps.st.aiResult = { overall_verified: true, confidence: 90 };
-  const ra = await call('POST', '/m/review-gift/resubmit', a.user, { proofFileId: await uploadAs(a.user) });
-  assert.equal(ra.body.status, 'issued');
-  assert.equal(deps.st.draftOrders.length, 1);
-});
-
-test('管理画面からの発行(issueReviewGift)は確認済みの申請だけ・1回だけ', async () => {
-  const a = lineCustomer();
-  deps.st.aiResult = { overall_verified: false, confidence: 30 };
-  await call('POST', '/m/review-gift/submit', a.user, { productChoice: 'wrist_wrap', proofFileId: await uploadAs(a.user) });
-  const claimId = deps.st.claims[0].id;
-  const r0 = await issueReviewGift(deps, claimId);
-  assert.equal(r0.ok, false);
-  deps.st.claims[0].verification_status = 'verified';
-  const r1 = await issueReviewGift(deps, claimId);
-  const r2 = await issueReviewGift(deps, claimId);
-  assert.equal(r1.invoiceUrl, r2.invoiceUrl);
-  assert.equal(deps.st.draftOrders.length, 1);
+  for (const [m, p] of [['GET', '/m/review-gift/status'], ['POST', '/m/review-gift/upload'], ['POST', '/m/review-gift/submit'], ['POST', '/m/review-gift/resubmit']]) {
+    assert.equal((await call(m, p, a.user, m === 'GET' ? undefined : {})).status, 404, `${m} ${p}`);
+  }
+  assert.equal(require('../my-fitpeak-survey.cjs').issueReviewGift, undefined);
 });
 
 // ───────────── 紹介 ─────────────

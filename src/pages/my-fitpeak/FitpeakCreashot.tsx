@@ -80,7 +80,7 @@ export default function FitpeakCreashot() {
 
       {toast && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white border border-[#e6e6e6] px-4 py-2 text-sm text-[#111] shadow-xl flex items-center gap-2">
-          <Check size={15} className="text-emerald-300" /> {toast}
+          <Check size={15} className="text-[#047d3b]" /> {toast}
         </div>
       )}
 
@@ -153,13 +153,13 @@ function EmptyCard({ onLinked }: { onLinked: () => void }) {
       </p>
       <div className="mt-5 flex gap-2 max-w-sm mx-auto">
         <input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="注文番号（例: 1234）"
-          className="flex-1 px-3 py-2.5 rounded-lg bg-[#f5f5f7] border border-[#e6e6e6] text-sm text-[#111] placeholder:text-[#9a9a9a]" />
+          className="flex-1 min-w-0 w-full px-3 py-2.5 rounded-lg bg-[#f5f5f7] border border-[#e6e6e6] text-sm text-[#111] placeholder:text-[#9a9a9a]" />
         <button onClick={submit} disabled={busy}
           className="shrink-0 whitespace-nowrap px-4 py-2.5 rounded-lg bg-[#ececec] text-[#111] text-sm hover:bg-[#e0e0e0] transition disabled:opacity-50 flex items-center gap-2">
           {busy ? <Loader2 size={15} className="animate-spin" /> : <Link2 size={15} />} 紐づける
         </button>
       </div>
-      {msg && <p className="mt-3 text-sm text-emerald-300">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-[#047d3b]">{msg}</p>}
       {err && <p className="mt-3 text-sm text-[#c8102e]">{err}</p>}
       <a href="https://fitpeak.co/products/持ち運びクレアチン-creashot" className="mt-5 inline-flex items-center gap-1 text-xs text-[#111] hover:underline">
         クレアショットの定期購入はこちら <ChevronRight size={12} />
@@ -186,7 +186,7 @@ function SubscriptionCard({ sub, data, onChanged, onToast }: {
     sub.status === 'past_due' ? 'bg-red-500/15 text-[#c8102e]'
       : sub.status === 'cancelled' ? 'bg-[#f5f5f7] text-[#6b6b6b]'
         : sub.status === 'paused' ? 'bg-amber-500/15 text-[#a15c00]'
-          : sub.status === 'active' ? 'bg-emerald-500/15 text-emerald-300'
+          : sub.status === 'active' ? 'bg-emerald-500/15 text-[#047d3b]'
             : 'bg-[#f3f3f3] text-[#111]'
 
   const rem = sub.remaining

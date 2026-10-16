@@ -437,7 +437,7 @@ function Chat() {
       ) : (
         <div className="sticky bottom-0 flex gap-2 bg-white py-2">
           <textarea value={text} maxLength={500} rows={1} onChange={(e) => setText(e.target.value)}
-            className="flex-1 resize-none rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-sm text-[#111] outline-none focus:border-[#111]" placeholder="メッセージ" />
+            className="flex-1 min-w-0 resize-none rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-sm text-[#111] outline-none focus:border-[#111]" placeholder="メッセージ" />
           <Btn onClick={send} disabled={busy || !text.trim()}><Send size={16} /></Btn>
         </div>
       )}

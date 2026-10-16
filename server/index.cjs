@@ -117,7 +117,7 @@ const myFitpeakSurveyMember = myFitpeakSurvey.createMemberRouter(myFitpeakSurvey
 app.use('/api/my-fitpeak/public', myFitpeakCors(), myFitpeakSurvey.createPublicRouter(myFitpeakSurveyDeps));
 app.post('/api/webhook/shopify-order', myFitpeakSurvey.createWebhookHandler(myFitpeakSurveyDeps));
 app.use('/api/my-fitpeak', myFitpeakCors(), (req, res, next) => {
-  if (!/^\/(survey|review-gift|referral|coupons)(\/|$)/.test(req.path)) return next();
+  if (!/^\/(survey|referral|coupons)(\/|$)/.test(req.path)) return next();
   myFitpeakCustomerAuth(req, res, (err) => (err ? next(err) : myFitpeakSurveyMember(req, res, next)));
 });
 // 毎日のログインポイント＋クレアショットチャレンジ（本人のログインが必須。管理トークンでの代理操作は不可）

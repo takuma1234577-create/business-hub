@@ -131,7 +131,7 @@ function SubscriptionCard({
   const statusTone =
     sub.status === 'past_due' ? 'bg-red-500/15 text-[#c8102e]'
       : sub.status === 'cancelled' ? 'bg-[#f5f5f7] text-[#6b6b6b]'
-        : sub.status === 'active' ? 'bg-emerald-500/15 text-emerald-300'
+        : sub.status === 'active' ? 'bg-emerald-500/15 text-[#047d3b]'
           : 'bg-[#f3f3f3] text-[#111]'
 
   return (
@@ -182,7 +182,7 @@ function SubscriptionCard({
         )}
 
         {(msg || err) && (
-          <p className={`mt-3 text-sm flex items-start gap-2 ${err ? 'text-[#c8102e]' : 'text-emerald-300'}`}>
+          <p className={`mt-3 text-sm flex items-start gap-2 ${err ? 'text-[#c8102e]' : 'text-[#047d3b]'}`}>
             {err ? <AlertCircle size={15} className="mt-0.5 shrink-0" /> : <Check size={15} className="mt-0.5 shrink-0" />}
             {err || msg}
           </p>
@@ -371,7 +371,7 @@ function ClaimCard({ onLinked }: { onLinked: () => void }) {
           value={orderNumber}
           onChange={(e) => setOrderNumber(e.target.value)}
           placeholder="注文番号（例: 1234）"
-          className="flex-1 px-3 py-2.5 rounded-lg bg-[#f5f5f7] border border-[#e6e6e6] text-sm text-[#111] placeholder:text-[#9a9a9a]"
+          className="flex-1 min-w-0 w-full px-3 py-2.5 rounded-lg bg-[#f5f5f7] border border-[#e6e6e6] text-sm text-[#111] placeholder:text-[#9a9a9a]"
         />
         <button
           onClick={submit}
@@ -382,7 +382,7 @@ function ClaimCard({ onLinked }: { onLinked: () => void }) {
           紐づける
         </button>
       </div>
-      {msg && <p className="mt-3 text-sm text-emerald-300">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-[#047d3b]">{msg}</p>}
       {err && <p className="mt-3 text-sm text-[#c8102e]">{err}</p>}
     </div>
   )

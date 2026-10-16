@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Ticket, Gift, ChevronRight } from 'lucide-react'
+import { Ticket } from 'lucide-react'
 import { apiFetch } from './lib/api'
 
 /** 自分のクーポン一覧（旧 my.fitpeak.co/coupons）。サーバーがログインから本人の分だけ返す */
@@ -19,11 +18,9 @@ const fmt = (d: string | null) => (d ? new Date(d).toLocaleString('ja-JP', { yea
 
 export default function FitpeakCoupons() {
   const [coupons, setCoupons] = useState<Coupon[] | null>(null)
-  const [gift, setGift] = useState<{ status: string; invoiceUrl: string | null } | null>(null)
 
   useEffect(() => {
     apiFetch('/api/my-fitpeak/coupons').then((r) => r.json()).then((d) => setCoupons(d.coupons || [])).catch(() => setCoupons([]))
-    apiFetch('/api/my-fitpeak/review-gift/status').then((r) => r.json()).then((d) => setGift(d.claim || null)).catch(() => { /* ignore */ })
   }, [])
 
   const state = (c: Coupon) => {
@@ -67,16 +64,6 @@ export default function FitpeakCoupons() {
         </div>
       )}
 
-      <Link to="/my-fitpeak/survey/review-gift" className="flex items-center gap-3 rounded-[20px] bg-white border border-[#e6e6e6] p-5">
-        <Gift size={22} className="text-[#111] shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-bold text-[#111]">Amazonレビュー投稿特典</p>
-          <p className="text-[12px] text-[#6b6b6b] mt-0.5">
-            {gift?.status === 'issued' ? 'プレゼント確定済み。お届け先の入力はこちら' : gift?.status === 'rejected' ? '確認できませんでした。もう一度お試しください' : gift ? '確認中です' : 'レビュー投稿でリストラップを無料プレゼント'}
-          </p>
-        </div>
-        <ChevronRight size={18} className="text-[#9a9a9a]" />
-      </Link>
     </div>
   )
 }

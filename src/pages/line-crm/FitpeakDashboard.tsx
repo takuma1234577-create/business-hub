@@ -1,10 +1,8 @@
 import { getLocale } from '../../i18n/store'
-import { uiText } from '@business-hub/i18n/dialogs'
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Gift, Link2 } from 'lucide-react'
+import { ClipboardList, Star, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, MousePointerClick, AlertTriangle, TrendingUp, RefreshCw, Link2 } from 'lucide-react'
 import axios from 'axios'
 import SurveyFollowups from './SurveyFollowups'
-import ReviewGiftAdmin from './ReviewGiftAdmin'
 import ReferralAdmin from './ReferralAdmin'
 
 const api = axios.create({ baseURL: '/api/line-crm' })
@@ -42,7 +40,7 @@ interface Stats {
 interface HeatStep { step: string; label: string; users: number; events: number; rate: number }
 
 export default function FitpeakDashboard() {
-  const [subTab, setSubTab] = useState<'dashboard' | 'followups' | 'review_gifts' | 'referrals'>('dashboard')
+  const [subTab, setSubTab] = useState<'dashboard' | 'followups' | 'referrals'>('dashboard')
   const [heatmap, setHeatmap] = useState<HeatStep[]>([])
   const [view, setView] = useState<'list' | 'detail'>('list')
   const [surveys, setSurveys] = useState<Survey[]>([])
@@ -98,25 +96,16 @@ export default function FitpeakDashboard() {
 
   const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
-  // 本人がLINEでログインして開くページ（IDをURLに載せない。誰の申請かはログインで決まる）
-  const copyReviewUrl = () => {
-    const url = 'https://my.fitpeak.co/my-fitpeak/survey/review-gift'
-    navigator.clipboard?.writeText(url)
-      .then(() => alert(uiText('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url)))
-      .catch(() => window.prompt(uiText('URLをコピーしてLINEで送ってください'), url))
-  }
-
   const ratingColor = (n: number) => {
     if (n >= 4) return 'text-[#06C755]'
     if (n >= 3) return 'text-yellow-500'
     return 'text-red-500'
   }
 
-  const SubNav = ({ active }: { active: 'dashboard' | 'followups' | 'review_gifts' | 'referrals' }) => (
+  const SubNav = ({ active }: { active: 'dashboard' | 'followups' | 'referrals' }) => (
     <div className="flex items-center gap-2 mb-6 flex-wrap">
       <button onClick={() => setSubTab('dashboard')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'dashboard' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>ダッシュボード</button>
       <button onClick={() => setSubTab('referrals')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'referrals' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Link2 size={14} className="inline mr-1" />紹介管理</button>
-      <button onClick={() => setSubTab('review_gifts')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'review_gifts' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Gift size={14} className="inline mr-1" />レビュー特典</button>
       <button onClick={() => setSubTab('followups')} className={`px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${active === 'followups' ? 'bg-[#06C755] text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><RefreshCw size={14} className="inline mr-1" />フォローアップ</button>
     </div>
   )
@@ -127,16 +116,6 @@ export default function FitpeakDashboard() {
       <div>
         <SubNav active="referrals" />
         <ReferralAdmin />
-      </div>
-    )
-  }
-
-  // Sub-tab: レビュー特典
-  if (subTab === 'review_gifts') {
-    return (
-      <div>
-        <SubNav active="review_gifts" />
-        <ReviewGiftAdmin />
       </div>
     )
   }
@@ -161,11 +140,6 @@ export default function FitpeakDashboard() {
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">アンケート詳細</h2>
-          {s.rating === 5 && (
-            <button onClick={() => copyReviewUrl()} className="ml-auto px-3 py-1.5 rounded-lg border border-[#06C755]/40 text-[#06C755] text-sm font-medium flex items-center gap-1 hover:bg-[#06C755]/10">
-              <Link2 size={14} /> レビュー提出URLをコピー
-            </button>
-          )}
         </div>
 
         <div className="space-y-4">
