@@ -24,9 +24,9 @@ const GENDERS: Record<string, string> = { male: '男性', female: '女性', none
 const AGES: Record<string, string> = { '18-24': '18〜24歳', '25-34': '25〜34歳', '35-44': '35〜44歳', '45+': '45歳以上', none: '回答しない' }
 
 type Gym = { handle: string; name: string; pref: string | null; city: string | null }
-type Profile = { nickname: string; gender: string; age_band: string; level: string; bio: string; suspended?: boolean }
 type Post = {
   id: string; nickname: string; gender: string; age_band: string; level: string; bio: string
+  history?: string | null; fav_lifts?: string; usual_slots?: string[]; purposes?: string[]; city?: string | null; gyms?: string[]
   slots: string[]; parts: string[]; goals: string[]; gender_pref: string; note: string
   created_at: string; mine: boolean; requested: boolean
 }
@@ -138,26 +138,33 @@ function Rules() {
 }
 
 // ── プロフィール ──────────────────────────────────────────────────────────
-function ProfileForm({ initial, onSaved }: { initial?: Profile | null; onSaved: () => void }) {
-  const [p, setP] = useState<Profile>(initial || { nickname: '', gender: '', age_band: '', level: '', bio: '' })
+// 表示名・性別・年代・市区町村・通っているジムは My FITPEAK アカウントのプロフィールから（ここでは合トレ固有の項目だけ）
+const HISTORY: Record<string, string> = { '<1y': '1年未満', '1-3y': '1〜3年', '3-5y': '3〜5年', '5y+': '5年以上' }
+type GotoreProfile = { level: string; bio: string; history: string; fav_lifts: string; usual_slots: string[]; purposes: string[] }
+
+function accountUrl(next: string) { return `/my-fitpeak/account?next=${encodeURIComponent(next)}#profile` }
+
+function ProfileForm({ initial, onSaved }: { initial?: Partial<GotoreProfile> | null; onSaved: () => void }) {
+  const [p, setP] = useState<GotoreProfile>({ level: '', bio: '', history: '', fav_lifts: '', usual_slots: [], purposes: [], ...(initial || {}) } as GotoreProfile)
   const [agree, setAgree] = useState(!!initial)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const ok = p.nickname.trim() && p.gender && p.age_band && p.level && agree
+  const ok = p.level && agree
   const save = async () => {
     setErr(''); setBusy(true)
     try { await call('/profile', 'PUT', { ...p, agree }); onSaved() } catch (e: any) { setErr(e.message) } finally { setBusy(false) }
   }
   return (
     <div className="space-y-5">
+      <div><p className="mb-1.5 text-sm text-[#444]">レベル</p><Toggle options={LEVELS} value={[p.level]} onChange={(v) => setP({ ...p, level: v[0] })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">トレーニング歴（任意）</p><Toggle options={HISTORY} value={[p.history || '']} onChange={(v) => setP({ ...p, history: v[0] })} /></div>
       <label className="block">
-        <span className="mb-1.5 block text-sm text-[#444]">ニックネーム（20文字まで）</span>
-        <input value={p.nickname} maxLength={20} onChange={(e) => setP({ ...p, nickname: e.target.value })}
-          className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-[#111] outline-none focus:border-[#111]" placeholder="例：ベンチ100目標" />
+        <span className="mb-1.5 block text-sm text-[#444]">得意種目（任意・40文字まで）</span>
+        <input value={p.fav_lifts || ''} maxLength={40} onChange={(e) => setP({ ...p, fav_lifts: e.target.value })}
+          className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-[#111] outline-none focus:border-[#111]" placeholder="例：ベンチプレス・スクワット" />
       </label>
-      <div><p className="mb-1.5 text-sm text-[#444]">性別</p><Toggle options={GENDERS} value={[p.gender]} onChange={(v) => setP({ ...p, gender: v[0] })} /></div>
-      <div><p className="mb-1.5 text-sm text-[#444]">年代</p><Toggle options={AGES} value={[p.age_band]} onChange={(v) => setP({ ...p, age_band: v[0] })} /></div>
-      <div><p className="mb-1.5 text-sm text-[#444]">トレーニング歴</p><Toggle options={LEVELS} value={[p.level]} onChange={(v) => setP({ ...p, level: v[0] })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">よく行く時間帯（任意・複数可）</p><Toggle multi options={SLOTS} value={p.usual_slots || []} onChange={(v) => setP({ ...p, usual_slots: v })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">合トレの目的（任意・複数可）</p><Toggle multi options={GOALS} value={p.purposes || []} onChange={(v) => setP({ ...p, purposes: v })} /></div>
       <label className="block">
         <span className="mb-1.5 block text-sm text-[#444]">自己紹介（任意・200文字まで）</span>
         <textarea value={p.bio} maxLength={200} rows={3} onChange={(e) => setP({ ...p, bio: e.target.value })}
@@ -174,6 +181,18 @@ function ProfileForm({ initial, onSaved }: { initial?: Profile | null; onSaved: 
   )
 }
 
+// アカウントに足りない項目があるときのお願い（既に使っている人は使えなくはしない）
+function AccountMissing({ missing, next }: { missing: string[]; next: string }) {
+  if (!missing || !missing.length) return null
+  return (
+    <div className="mb-4 rounded-[14px] border border-[#111] bg-white p-4 text-sm leading-relaxed text-[#222]">
+      <p className="font-bold text-[#111]">アカウントのプロフィールに未入力の項目があります</p>
+      <p className="mt-1 text-[#555]">市区町村・通っているジム・お名前・メールアドレスなどを入力してください。お名前・メール・住所はほかの会員には表示されません。</p>
+      <Link to={accountUrl(next)} className="mt-3 inline-block font-bold underline">アカウントのプロフィールを入力する</Link>
+    </div>
+  )
+}
+
 function ProfilePage() {
   const [me, setMe] = useState<any>(null)
   const [params] = useSearchParams()
@@ -183,12 +202,28 @@ function ProfilePage() {
   // LINEの案内から来た人（?b=掲示板ID）は、保存後にその掲示板へ
   const b = params.get('b')
   const next = b && /^[0-9a-f-]{36}$/i.test(b) ? `/my-fitpeak/gotore/b/${b}` : params.get('next')
+  const here = `/my-fitpeak/gotore/profile${b ? `?b=${b}` : next ? `?next=${encodeURIComponent(next)}` : ''}`
+  const missing: string[] = me.account_missing || []
   return (
     <div>
       <Back to={next || '/my-fitpeak/gotore'} label="戻る" />
       <h1 className="mb-1 text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">合トレのプロフィール</h1>
-      <p className="mb-5 text-sm text-[#666]">掲示板で相手に見えるのは、ここで登録した内容だけです。LINEの名前やアイコンは出ません。</p>
-      <Card><ProfileForm initial={me.profile} onSaved={() => nav(next && next.startsWith('/my-fitpeak/') ? next : '/my-fitpeak/gotore')} /></Card>
+      <p className="mb-5 text-sm text-[#666]">掲示板で相手に見えるのは、アカウントの表示名・年代・性別・市区町村・通っているジムと、ここで登録した内容だけです。LINEの名前やアイコン、お名前・メール・住所は出ません。</p>
+      {!me.profile && missing.length > 0 ? (
+        <Card>
+          <p className="text-sm leading-relaxed text-[#222]">合トレナビを使うには、先に My FITPEAK のアカウントのプロフィール（表示名・市区町村・通っているジム・年代・性別・お名前・メールアドレス）を登録してください。</p>
+          <Link to={accountUrl(here)} className="mt-4 block"><Btn>アカウントのプロフィールを登録する</Btn></Link>
+        </Card>
+      ) : (
+        <>
+          <AccountMissing missing={missing} next={here} />
+          {me.profile && (
+            <p className="mb-4 text-sm text-[#444]">表示名：<b className="text-[#111]">{me.profile.nickname}</b>　{GENDERS[me.profile.gender] || ''}・{AGES[me.profile.age_band] || ''}
+              <Link to={accountUrl(here)} className="ml-2 text-[#666] underline">アカウントで変更</Link></p>
+          )}
+          <Card><ProfileForm initial={me.profile} onSaved={() => nav(next && next.startsWith('/my-fitpeak/') ? next : '/my-fitpeak/gotore')} /></Card>
+        </>
+      )}
     </div>
   )
 }
@@ -251,7 +286,7 @@ function PostCard({ p, onChange, needProfile }: { p: Post; onChange: () => void;
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="font-bold text-[#111]">{p.nickname}{p.mine && <span className="ml-2 text-xs font-normal" style={{ color: GOLD }}>あなたの募集</span>}</p>
-          <p className="text-xs text-[#666]">{[GENDERS[p.gender], AGES[p.age_band], LEVELS[p.level]].filter((x) => x && x !== '回答しない').join('・')}・{ago(p.created_at)}</p>
+          <p className="text-xs text-[#666]">{[GENDERS[p.gender], AGES[p.age_band], LEVELS[p.level], p.history ? `歴${HISTORY[p.history] || ''}` : '', p.city || ''].filter((x) => x && x !== '回答しない').join('・')}・{ago(p.created_at)}</p>
         </div>
         {!p.mine && <SafetyMenu postId={p.id} onDone={onChange} />}
       </div>
@@ -260,6 +295,9 @@ function PostCard({ p, onChange, needProfile }: { p: Post; onChange: () => void;
         {p.parts.length > 0 && <Chips items={p.parts} map={PARTS} />}
         {p.goals.length > 0 && <Chips items={p.goals} map={GOALS} />}
         {p.note && <p className="whitespace-pre-wrap pt-1 text-sm text-[#222]">{p.note}</p>}
+        {p.fav_lifts && <p className="text-xs text-[#6b6b6b]">得意種目：{p.fav_lifts}</p>}
+        {p.gyms && p.gyms.length > 0 && <p className="text-xs text-[#6b6b6b]">通っているジム：{p.gyms.join('、')}</p>}
+        {p.usual_slots && p.usual_slots.length > 0 && <p className="text-xs text-[#6b6b6b]">よく行く時間帯：{p.usual_slots.map((x) => SLOTS[x]).filter(Boolean).join('・')}</p>}
         {p.bio && <p className="text-xs text-[#6b6b6b]">自己紹介：{p.bio}</p>}
         {p.gender_pref === 'same' && <p className="text-xs text-[#6b6b6b]">同性のみの募集です</p>}
       </div>
@@ -467,6 +505,8 @@ function Home() {
         <h1 className="flex items-center gap-2 text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight"><Users size={20} style={{ color: GOLD }} />合トレナビ</h1>
         <p className="mt-1 text-sm text-[#666]">同じジムに通う人と、一緒にトレーニングする相手を見つけられます。</p>
       </div>
+
+      {me.profile && <AccountMissing missing={me.account_missing || []} next="/my-fitpeak/gotore" />}
 
       {!me.profile && (
         <Card className="border-[#111]/30">

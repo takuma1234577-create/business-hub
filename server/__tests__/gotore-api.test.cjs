@@ -40,9 +40,10 @@ test.beforeEach(async () => {
 });
 test.afterEach(() => new Promise((r) => server.close(r)));
 
-async function user() {
+async function user(displayName = 'たろう') {
   const authId = (await h.one(`select gen_random_uuid() id`)).id;
   const id = await h.member();
+  await h.account(id, { display_name: displayName });
   await h.db.query(`update members set auth_user_id = $1 where id = $2`, [authId, id]);
   const line = (await h.one(`select line_user_id from members where id = $1`, [id])).line_user_id;
   return { id, line, user: { id: authId, email: `line_${authId}@line.fitpeak.co` } };
@@ -80,9 +81,9 @@ test('会員が見つからなければ 404', async () => {
 test('募集〜申請〜承認〜チャットの各段階で、相手にLINEで知らせる（リンク付き）', async () => {
   await h.gym('gym-a');
   const a = await user();
-  const b = await user();
+  const b = await user('じろう');
   assert.equal((await call('PUT', '/gotore/profile', a, PROFILE)).status, 200);
-  assert.equal((await call('PUT', '/gotore/profile', b, { ...PROFILE, nickname: 'じろう' })).status, 200);
+  assert.equal((await call('PUT', '/gotore/profile', b, PROFILE)).status, 200);
   await call('POST', '/gotore/gyms/gym-a/watch', b, { on: true });
 
   const p = await call('POST', '/gotore/posts', a, { handle: 'gym-a', ...POST });

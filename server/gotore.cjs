@@ -109,8 +109,11 @@ function createMemberRouter(deps) {
 
   router.get('/me', wrap((req) => rpc('gt_me', req, {})));
 
+  // 表示名・性別・年代は My FITPEAK アカウントのプロフィールから（ここでは合トレ固有の項目だけ）
   router.put('/profile', wrap((req, b) => rpc('gt_profile_save', req, {
-    p_nickname: b.nickname, p_gender: b.gender, p_age_band: b.age_band, p_level: b.level, p_bio: b.bio || '', p_agree: !!b.agree,
+    p_level: b.level, p_bio: b.bio || '', p_agree: !!b.agree,
+    p_history: b.history || null, p_fav_lifts: b.fav_lifts || '',
+    p_usual_slots: Array.isArray(b.usual_slots) ? b.usual_slots : [], p_purposes: Array.isArray(b.purposes) ? b.purposes : [],
   })));
 
   router.get('/gyms/:handle', wrap((req) => rpc('gt_gym_board', req, { p_handle: req.params.handle })));

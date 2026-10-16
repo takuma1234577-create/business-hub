@@ -6,6 +6,7 @@ import { MessageCircle, CheckCircle, ExternalLink, User, LogOut } from 'lucide-r
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
 import { displayName, isLineAccount } from './lib/api'
+import AccountProfile from './AccountProfile'
 
 interface LinkInfo {
   id: string
@@ -135,6 +136,9 @@ export default function FitpeakAccount() {
           </div>
         )}
       </section>
+
+      {/* プロフィール（公開項目＋非公開項目） */}
+      <AccountProfile />
 
       {/* ログイン情報 */}
       <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5 sm:p-6">

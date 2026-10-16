@@ -129,6 +129,9 @@ const gotore = require(path.join(__dirname, 'gotore.cjs'));
 const gotoreDeps = gotore.productionDeps();
 app.use('/api/gotore/public', cors(), gotore.createPublicRouter(gotoreDeps));
 app.use('/api/my-fitpeak/gotore', myFitpeakCors(), myFitpeakCustomerAuth, gotore.createMemberRouter(gotoreDeps));
+// My FITPEAK アカウントのプロフィール（公開項目・ジム検索）。非公開項目はサーバーを通らない（DB関数を本人が直接呼ぶ）
+const myFitpeakAccount = require(path.join(__dirname, 'my-fitpeak-account.cjs'));
+app.use('/api/my-fitpeak/account', myFitpeakCors(), myFitpeakCustomerAuth, myFitpeakAccount.createAccountRouter(myFitpeakAccount.productionDeps(gotoreDeps)));
 app.use('/api/my-fitpeak', myFitpeakCors(), myFitpeakCustomerAuth, myFitpeakRoutes);
 
 // FITPEAKサイト分析：計測タグ(fa.js)と収集は公開（fitpeak.co の閲覧者のブラウザから叩く）
