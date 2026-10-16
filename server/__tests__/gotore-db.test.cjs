@@ -243,3 +243,17 @@ test('アプリのサーバー権限（service_role）以外は関数も表も�
   await h.db.exec('set role service_role');
   try { await h.db.query(`select gt_gym_public('gym-a')`); } finally { await h.db.exec('reset role'); }
 });
+
+test('LINEの案内は1クリックにつき1回だけ（webhookとLIFFの両方から来ても二重送信しない）', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  assert.equal(await h.call('gt_claim_invite', { p_click: id, p_line: 'Uabc' }), true);
+  assert.equal(await h.call('gt_claim_invite', { p_click: id, p_line: 'Uabc' }), false);
+});
+
+test('友だち追加しただけの人（まだMy FITPEAKに入っていない）も会員として用意し、同じ人なら同じ会員', async () => {
+  const a = await h.call('gt_member_for_line', { p_line: 'Unew1' });
+  const b = await h.call('gt_member_for_line', { p_line: 'Unew1' });
+  assert.equal(a, b);
+  const existing = await h.member(); // Uline1
+  assert.equal(await h.call('gt_member_for_line', { p_line: 'Uline1' }), existing);
+});

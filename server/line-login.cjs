@@ -476,6 +476,12 @@ router.post('/liff/confirm', async (req, res) => {
       .eq('id', click.source_id).maybeSingle();
     const channelId = source?.channel_id || DEFAULT_CHANNEL_ID;
     const r = await finalizeAdd({ click, source, channelId, prof, friendFlag });
+    // 合トレナビ：もともと友だちの人がジム記事のボタンを押したときも、掲示板とプロフィール設定の案内を送る
+    // （新しく友だちになった人は follow webhook 側で送る。1クリック1回）
+    if (friendFlag) {
+      try { await require('./gotore-line.cjs').production().onLiffFriend({ lineUserId: prof.userId, clickId: click.click_id }); }
+      catch (e) { console.error('[liff/confirm] gotore invite error:', e.message); }
+    }
     res.json({ ok: true, added: r.added, friendFlag });
   } catch (err) {
     console.error('POST /liff/confirm error:', err.message);

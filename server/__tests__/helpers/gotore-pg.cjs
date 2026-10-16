@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MIGRATIONS = ['2026-10-16-gotore.sql'].map((f) => path.join(__dirname, '../../../migrations', f));
+const MIGRATIONS = ['2026-10-16-gotore.sql', '2026-10-16b-gotore-line.sql'].map((f) => path.join(__dirname, '../../../migrations', f));
 
 // 本番 fajqnrqfjugonbssssts の members（2026-10-16 時点。テストに要る列だけ）
 const EXISTING = `
@@ -19,6 +19,7 @@ create table members (
   line_user_id text unique,
   email text,
   nickname text,
+  source text,
   created_at timestamptz default now()
 );
 grant all on all tables in schema public to anon, authenticated, service_role;

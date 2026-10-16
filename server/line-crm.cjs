@@ -3970,6 +3970,13 @@ async function processWebhookEvents(channelId, events) {
           }
         } catch (e) { console.error('[follow] click confirm error:', e.message); }
 
+        // 合トレナビ（ジム記事のボタン）から来た人には、掲示板とプロフィール設定の案内を送り、通常のあいさつは送らない
+        let gotoreHandled = false;
+        if (trafficSourceId) {
+          try { gotoreHandled = await require('./gotore-line.cjs').production().onFollow({ lineUserId, trafficSourceId }); }
+          catch (e) { console.error('[follow] gotore invite error:', e.message); }
+        }
+
         // 経路別タグを付与（付与のみ・タグ連動配信は発火させない）
         if (trafficSourceId && sourceTagIds.length > 0) {
           try {
@@ -3996,7 +4003,7 @@ async function processWebhookEvents(channelId, events) {
           const greetingTemplateId = sourceGreetingTemplateId
             || (channelSettings?.greeting_enabled ? channelSettings?.greeting_template_id : null);
 
-          if (greetingTemplateId && token) {
+          if (greetingTemplateId && token && !gotoreHandled) {
             const { data: tmpl } = await supabase
               .from('message_templates')
               .select('content')
