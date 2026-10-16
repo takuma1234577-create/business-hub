@@ -98,9 +98,9 @@ export default function FitpeakDashboard() {
 
   const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
-  const copyReviewUrl = (surveyId: string, lineUserId: string | null) => {
-    const base = 'https://my.fitpeak.co/survey/review-gift'
-    const url = surveyId ? `${base}?sid=${surveyId}` : lineUserId ? `${base}?line=${lineUserId}` : base
+  // 本人がLINEでログインして開くページ（IDをURLに載せない。誰の申請かはログインで決まる）
+  const copyReviewUrl = () => {
+    const url = 'https://my.fitpeak.co/my-fitpeak/survey/review-gift'
     navigator.clipboard?.writeText(url)
       .then(() => alert(uiText('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url)))
       .catch(() => window.prompt(uiText('URLをコピーしてLINEで送ってください'), url))
@@ -162,7 +162,7 @@ export default function FitpeakDashboard() {
           </button>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">アンケート詳細</h2>
           {s.rating === 5 && (
-            <button onClick={() => copyReviewUrl(s.id, s.line_user_id)} className="ml-auto px-3 py-1.5 rounded-lg border border-[#06C755]/40 text-[#06C755] text-sm font-medium flex items-center gap-1 hover:bg-[#06C755]/10">
+            <button onClick={() => copyReviewUrl()} className="ml-auto px-3 py-1.5 rounded-lg border border-[#06C755]/40 text-[#06C755] text-sm font-medium flex items-center gap-1 hover:bg-[#06C755]/10">
               <Link2 size={14} /> レビュー提出URLをコピー
             </button>
           )}

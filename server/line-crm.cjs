@@ -5369,7 +5369,9 @@ router.get('/fitpeak/review-gifts', async (req, res) => {
         .in('line_user_id', lineIds);
       for (const f of friends || []) friendMap[f.line_user_id] = f;
     }
-    const rows = (data || []).map((c) => ({
+    // 非公開に保存したスクショ（storage:documents/...）は1時間だけ見られるURLにして渡す
+    const signed = await require('./my-fitpeak-survey.cjs').signScreenshotRefs(data || [], getSupabase());
+    const rows = signed.map((c) => ({
       ...c,
       friend: c.line_user_id ? friendMap[c.line_user_id] || null : null,
     }));
@@ -5601,17 +5603,13 @@ router.post('/fitpeak/review-gifts/:id/approve', async (req, res) => {
       })
       .eq('id', id);
 
-    // my-fitpeak の発行エンドポイントを呼ぶ（Shopify無料ドラフト注文）
+    // 無料ドラフト注文を発行（旧アプリの公開APIは使わず、ここから直接・1回だけ）
     let invoiceUrl = claim.shopify_invoice_url || null;
     let issueError = null;
     try {
-      const r = await fetch('https://my.fitpeak.co/api/review-gift/issue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ claimId: id }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok && d.invoiceUrl) invoiceUrl = d.invoiceUrl;
+      const survey = require('./my-fitpeak-survey.cjs');
+      const d = await survey.issueReviewGift(survey.productionDeps(), id);
+      if (d.ok && d.invoiceUrl) invoiceUrl = d.invoiceUrl;
       else issueError = d.error || '発行に失敗しました';
     } catch (e) {
       issueError = e.message;

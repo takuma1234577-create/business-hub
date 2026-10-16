@@ -45,6 +45,138 @@
       ],
       "destination": "/my-fitpeak/line-link",
       "permanent": false
+    },
+    {
+      "source": "/survey",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/survey",
+      "permanent": false
+    },
+    {
+      "source": "/survey/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/survey/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/referral",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/referral",
+      "permanent": false
+    },
+    {
+      "source": "/creashot",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/creashot",
+      "permanent": false
+    },
+    {
+      "source": "/coupons",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/coupons",
+      "permanent": false
+    },
+    {
+      "source": "/orders",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak",
+      "permanent": false
+    },
+    {
+      "source": "/orders/:id",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/orders/:id",
+      "permanent": false
+    },
+    {
+      "source": "/subscriptions",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/subscriptions",
+      "permanent": false
+    },
+    {
+      "source": "/line",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/account",
+      "permanent": false
+    },
+    {
+      "source": "/login",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/login",
+      "permanent": false
+    },
+    {
+      "source": "/sns-campaign",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/coupons",
+      "permanent": false
+    },
+    {
+      "source": "/points",
+      "has": [
+        {
+          "type": "host",
+          "value": "my.fitpeak.co"
+        }
+      ],
+      "destination": "/my-fitpeak/referral",
+      "permanent": false
     }
   ]
 }

@@ -103,6 +103,16 @@ const myFitpeakLineAuthRoutes = require(path.join(__dirname, 'my-fitpeak-line-au
 const myFitpeakCustomerAuth = require(path.join(__dirname, 'my-fitpeak-auth.cjs'));
 // My FITPEAK（顧客向け）: LINEログインは誰でも、その他は顧客自身のログインで通す
 app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
+// 旧 my-fitpeak から移したアンケート／クーポン／レビュー特典／紹介（本人のログインが必須。公開は track-open と Shopify webhook だけ）
+const myFitpeakSurvey = require(path.join(__dirname, 'my-fitpeak-survey.cjs'));
+const myFitpeakSurveyDeps = myFitpeakSurvey.productionDeps();
+const myFitpeakSurveyMember = myFitpeakSurvey.createMemberRouter(myFitpeakSurveyDeps);
+app.use('/api/my-fitpeak/public', cors(), myFitpeakSurvey.createPublicRouter(myFitpeakSurveyDeps));
+app.post('/api/webhook/shopify-order', myFitpeakSurvey.createWebhookHandler(myFitpeakSurveyDeps));
+app.use('/api/my-fitpeak', cors(), (req, res, next) => {
+  if (!/^\/(survey|review-gift|referral|coupons)(\/|$)/.test(req.path)) return next();
+  myFitpeakCustomerAuth(req, res, (err) => (err ? next(err) : myFitpeakSurveyMember(req, res, next)));
+});
 // 毎日のログインポイント＋クレアショットチャレンジ（本人のログインが必須。管理トークンでの代理操作は不可）
 const loyalty = require(path.join(__dirname, 'loyalty.cjs'));
 const loyaltyDeps = loyalty.productionDeps();

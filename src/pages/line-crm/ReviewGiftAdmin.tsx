@@ -110,9 +110,9 @@ export default function ReviewGiftAdmin() {
   const toggleKb = async (id: string) => { try { await api.patch(`/fitpeak/verify-kb/${id}/toggle`); fetchKb() } catch { /* ignore */ } }
   const delKb = async (id: string) => { if (!confirm(uiText('削除しますか？'))) return; try { await api.delete(`/fitpeak/verify-kb/${id}`); fetchKb() } catch { /* ignore */ } }
 
-  const copyUrl = (c: Claim) => {
-    const base = 'https://my.fitpeak.co/survey/review-gift'
-    const url = c.survey_id ? `${base}?sid=${c.survey_id}` : c.line_user_id ? `${base}?line=${c.line_user_id}` : base
+  // 本人がLINEでログインして開くページ（IDをURLに載せない。誰の申請かはログインで決まる）
+  const copyUrl = () => {
+    const url = 'https://my.fitpeak.co/my-fitpeak/survey/review-gift'
     const done = () => alert(uiText('レビュー提出URLをコピーしました。LINEで送ってください:\n\n' + url))
     navigator.clipboard?.writeText(url).then(done).catch(() => window.prompt(uiText('このURLをコピーしてLINEで送ってください'), url))
   }
@@ -253,7 +253,7 @@ export default function ReviewGiftAdmin() {
                       </button>
                     </>
                   )}
-                  <button onClick={() => copyUrl(c)} className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-medium flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-700">
+                  <button onClick={() => copyUrl()} className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-medium flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-700">
                     <Link2 size={14} /> 提出URLをコピー
                   </button>
                   {c.reviewed_by && <span className="text-[11px] text-slate-400 ml-auto">判定: {c.reviewed_by} {fmt(c.reviewed_at)}</span>}
