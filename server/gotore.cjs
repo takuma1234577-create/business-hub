@@ -29,8 +29,47 @@ async function notifyAll(deps, list, text) {
 
 const strip = (o) => { if (o && typeof o === 'object') delete o.notify; return o; };
 
+// 公開APIの簡易レート制限（IPごと・1分あたり）。Vercel では関数インスタンスごとの目安で、主な防御は CDN キャッシュ
+function rateLimiter({ max = 60, windowMs = 60000 } = {}) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim() || 'unknown';
+    let h = hits.get(ip);
+    if (!h || now - h.start >= windowMs) { h = { start: now, n: 0 }; hits.set(ip, h); }
+    h.n += 1;
+    if (hits.size > 5000) for (const [k, v] of hits) if (now - v.start >= windowMs) hits.delete(k);
+    if (h.n > max) {
+      res.set('Retry-After', String(Math.ceil((h.start + windowMs - now) / 1000)));
+      return res.status(429).json({ error: 'too many requests' });
+    }
+    next();
+  };
+}
+
 function createPublicRouter(deps) {
   const router = express.Router();
+  router.use(rateLimiter(deps.rateLimit));
+
+  // 合トレナビのトップ・エリアページ用の集計（件数・ジム名・エリア名・募集の大まかな条件だけ）
+  const cache = new Map();
+  const CACHE_MS = 60000;
+  router.get('/overview', async (req, res) => {
+    try {
+      const pref = req.query.pref ? String(req.query.pref) : null;
+      if (pref && !PREFS.includes(pref)) return res.status(400).json({ error: 'bad pref' });
+      const key = pref || '';
+      const hit = cache.get(key);
+      let body = hit && Date.now() - hit.at < CACHE_MS ? hit.body : null;
+      if (!body) {
+        body = await deps.rpc('gt_public_overview', { p_pref: pref });
+        cache.set(key, { at: Date.now(), body });
+      }
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=120, stale-while-revalidate=600');
+      res.json(body);
+    } catch (err) { sendError(res, err); }
+  });
+
   router.get('/gym', async (req, res) => {
     try {
       const handle = String(req.query.handle || '');
