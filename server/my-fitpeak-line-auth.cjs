@@ -27,6 +27,7 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
+const handoff = require('./my-fitpeak-login-handoff.cjs');
 
 const LINE_VERIFY_URL = 'https://api.line.me/oauth2/v2.1/verify';
 const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token';
@@ -238,7 +239,10 @@ router.get('/auth/line/start', async (req, res) => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
     if (isMobile && req.query.web !== '1' && LIFF_ID) {
       const safe = redirect.startsWith('/') ? redirect : '/my-fitpeak';
-      return res.redirect(`https://liff.line.me/${LIFF_ID}?${new URLSearchParams({ mode: 'myfp', redirect: safe })}`);
+      const q = { mode: 'myfp', redirect: safe };
+      // 元のブラウザへログインを引き渡すためのID（/auth/line/handoff で発行）
+      if (typeof req.query.h === 'string' && /^[A-Za-z0-9_-]{10,64}$/.test(req.query.h)) q.h = req.query.h;
+      return res.redirect(`https://liff.line.me/${LIFF_ID}?${new URLSearchParams(q)}`);
     }
 
     const state = Buffer.from(JSON.stringify({
@@ -301,6 +305,67 @@ router.get('/auth/line/callback', async (req, res) => {
   } catch (err) {
     console.error('GET /api/my-fitpeak/auth/line/callback error:', err.message);
     return fail(err.message);
+  }
+});
+
+// ── LINEアプリ→元のブラウザへのログイン引き渡し（my-fitpeak-login-handoff.cjs） ──
+// スマホのブラウザで「LINEでログイン」→ LINEアプリでログイン → 元のブラウザもログイン状態にする
+
+// 元のブラウザ: 引き渡しを始める
+router.post('/auth/line/handoff', async (req, res) => {
+  try {
+    const admin = getAdmin();
+    // 1日以上前のものは掃除（失敗しても続行）
+    admin.from('myfp_login_handoffs').delete().lt('expires_at', new Date(Date.now() - 86400000).toISOString()).then(() => {}, () => {});
+    const h = await handoff.createHandoff(handoff.supabaseStore(admin));
+    res.json(h);
+  } catch (err) {
+    console.error('POST /api/my-fitpeak/auth/line/handoff error:', err.message);
+    res.status(500).json({ error: 'ログインを開始できませんでした' });
+  }
+});
+
+// LINEアプリ: 確認番号の表示
+router.get('/auth/line/handoff/:id', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await handoff.describeHandoff(handoff.supabaseStore(getAdmin()), req.params.id));
+  } catch (err) {
+    console.error('GET /api/my-fitpeak/auth/line/handoff error:', err.message);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// LINEアプリ: 本人が「ログインする」を押した
+router.post('/auth/line/handoff/:id/approve', async (req, res) => {
+  try {
+    const { idToken, accessToken } = req.body || {};
+    if (!idToken && !accessToken) return res.status(400).json({ error: 'idToken or accessToken required' });
+    const login = await getLoginConfig();
+    const channelId = (login.channelId || '').trim();
+    if (!channelId) return res.status(500).json({ error: 'LINEログインチャネルが未設定です' });
+    const profile = idToken ? await verifyIdToken(idToken, channelId) : await verifyAccessToken(accessToken, channelId);
+    const r = await handoff.approveHandoff(handoff.supabaseStore(getAdmin()), req.params.id, profile);
+    if (!r.ok) return res.status(410).json({ error: '時間切れか、すでに完了しています' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /api/my-fitpeak/auth/line/handoff/approve error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 元のブラウザ: 承認されたか確認し、承認済みならログイン用トークンを受け取る
+router.post('/auth/line/handoff/:id/claim', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const r = await handoff.claimHandoff(handoff.supabaseStore(getAdmin()), req.params.id, (req.body || {}).pollKey);
+    if (r.status !== 'approved') return res.json({ status: r.status });
+    const result = await issueSessionForLineUser(r.profile);
+    if (!result.tokenHash) return res.status(500).json({ error: 'ログイン用トークンを取得できませんでした' });
+    res.json({ status: 'approved', tokenHash: result.tokenHash });
+  } catch (err) {
+    console.error('POST /api/my-fitpeak/auth/line/handoff/claim error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

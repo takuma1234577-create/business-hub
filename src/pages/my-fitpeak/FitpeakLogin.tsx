@@ -11,6 +11,20 @@ function safeNext(v: string | null): string {
   return v && v.startsWith('/my-fitpeak') && !v.startsWith('//') ? v : '/my-fitpeak'
 }
 
+// スマホのブラウザ→LINEアプリでログインしたときに、この画面（元のブラウザ）へログインを引き渡す
+const HANDOFF_KEY = 'myfp_line_handoff'
+type Handoff = { id: string; pollKey: string; code: string; next: string; at: number }
+const HANDOFF_TTL_MS = 10 * 60 * 1000
+function readHandoff(): Handoff | null {
+  try {
+    const h = JSON.parse(sessionStorage.getItem(HANDOFF_KEY) || 'null') as Handoff | null
+    if (h && h.id && h.pollKey && Date.now() - h.at < HANDOFF_TTL_MS) return h
+  } catch { /* 読めなければ無し */ }
+  try { sessionStorage.removeItem(HANDOFF_KEY) } catch { /* noop */ }
+  return null
+}
+const isMobileBrowser = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
 export default function FitpeakLogin() {
   const { user, signInWithPassword, signUp } = useFitpeakAuth()
   const navigate = useNavigate()
@@ -37,6 +51,57 @@ export default function FitpeakLogin() {
 
   // LINEログイン（メール・パスワード不要）
   const [lineLoginLoading, setLineLoginLoading] = useState(false)
+  const [handoffCode, setHandoffCode] = useState<string | null>(null)
+
+  // LINEアプリでの承認を待つ。戻ってきた瞬間（画面が表に出たとき）にもすぐ確認する
+  useEffect(() => {
+    const h = readHandoff()
+    if (!h) return
+    setHandoffCode(h.code)
+    setLineLoginLoading(true)
+    let stopped = false
+    let busy = false
+    const check = async () => {
+      if (stopped || busy || document.visibilityState === 'hidden') return
+      busy = true
+      try {
+        const res = await fetch(`/api/my-fitpeak/auth/line/handoff/${encodeURIComponent(h.id)}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pollKey: h.pollKey }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (data.status === 'pending' && Date.now() - h.at < HANDOFF_TTL_MS) return
+        stopped = true
+        try { sessionStorage.removeItem(HANDOFF_KEY) } catch { /* noop */ }
+        setHandoffCode(null)
+        if (data.status === 'approved' && data.tokenHash) {
+          const { error: otpError } = await fitpeakSupabase.auth.verifyOtp({ token_hash: data.tokenHash, type: 'magiclink' })
+          setLineLoginLoading(false)
+          if (otpError) { setError('LINEログインに失敗しました。お手数ですが、もう一度お試しください。'); return }
+          navigate(h.next)
+          return
+        }
+        setLineLoginLoading(false)
+        setError(data.status === 'expired'
+          ? '時間切れになりました。もう一度「LINEでログイン」を押してください。'
+          : 'LINEログインを完了できませんでした。もう一度お試しください。')
+      } catch { /* 通信エラーは次の確認で再試行 */ } finally { busy = false }
+    }
+    const timer = window.setInterval(check, 2000)
+    const onVisible = () => { void check() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    window.addEventListener('pageshow', onVisible)
+    void check()
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      window.removeEventListener('pageshow', onVisible)
+    }
+  }, [navigate, handoffCode === null ? 0 : 1])
 
   // ブラウザでLINEログインから戻ってきたとき（#lt=<token_hash>）にセッションを作る
   useEffect(() => {
@@ -101,8 +166,20 @@ export default function FitpeakLogin() {
           console.error('LIFF login error:', liffErr)
         }
       }
-      // 通常のブラウザはLINEの認可画面へ
-      window.location.href = `/api/my-fitpeak/auth/line/start?redirect=${encodeURIComponent(nextPath)}`
+      // 通常のブラウザはLINEの認可画面へ。スマホはLINEアプリが開くので、ログインをこの画面へ引き渡す準備をする
+      let h = ''
+      if (isMobileBrowser()) {
+        try {
+          const r = await fetch('/api/my-fitpeak/auth/line/handoff', { method: 'POST' })
+          const d = await r.json()
+          if (r.ok && d.id && d.pollKey) {
+            sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ id: d.id, pollKey: d.pollKey, code: d.code, next: nextPath, at: Date.now() }))
+            setHandoffCode(d.code)
+            h = `&h=${encodeURIComponent(d.id)}`
+          }
+        } catch { /* 引き渡しが用意できなくても、従来どおりLINEでログインは進める */ }
+      }
+      window.location.href = `/api/my-fitpeak/auth/line/start?redirect=${encodeURIComponent(nextPath)}${h}`
     } catch (err) {
       setError(err instanceof Error ? err.message : 'LINEログインに失敗しました')
       setLineLoginLoading(false)
@@ -368,6 +445,11 @@ export default function FitpeakLogin() {
                 <MessageCircle size={18} />
                 {lineLoginLoading ? 'ログイン中...' : 'LINEでログイン'}
               </button>
+              {handoffCode && (
+                <p className="mb-4 -mt-1 text-xs leading-relaxed text-center opacity-80">
+                  LINEアプリで番号 <b className="text-base">{handoffCode}</b> を確かめて「ログインする」を押し、この画面に戻ってください。自動でログインします。
+                </p>
+              )}
 
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-white/10" />
