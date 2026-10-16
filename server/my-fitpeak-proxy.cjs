@@ -34,10 +34,10 @@ function parseQuery(rawQuery) {
 }
 
 function verifyProxySignature(rawQuery, secret, nowMs) {
-  if (!secret) return { ok: false };
+  if (!secret) return { ok: false, reason: 'no-secret' };
   const params = parseQuery(rawQuery);
   const sigs = params.signature;
-  if (!sigs || sigs.length !== 1 || !/^[0-9a-f]{64}$/i.test(sigs[0])) return { ok: false };
+  if (!sigs || sigs.length !== 1 || !/^[0-9a-f]{64}$/i.test(sigs[0])) return { ok: false, reason: 'no-signature' };
   delete params.signature;
 
   const message = Object.keys(params)
@@ -46,11 +46,11 @@ function verifyProxySignature(rawQuery, secret, nowMs) {
     .join('');
   const expected = crypto.createHmac('sha256', secret).update(message).digest();
   const given = Buffer.from(sigs[0], 'hex');
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return { ok: false };
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return { ok: false, reason: 'bad-signature' };
 
   const tsRaw = params.timestamp && params.timestamp.length === 1 ? params.timestamp[0] : '';
-  if (!/^\d{1,12}$/.test(tsRaw)) return { ok: false };
-  if (Math.abs(Math.floor(nowMs / 1000) - Number(tsRaw)) > MAX_SKEW_SEC) return { ok: false };
+  if (!/^\d{1,12}$/.test(tsRaw)) return { ok: false, reason: 'no-timestamp' };
+  if (Math.abs(Math.floor(nowMs / 1000) - Number(tsRaw)) > MAX_SKEW_SEC) return { ok: false, reason: 'stale-timestamp' };
 
   return {
     ok: true,
@@ -104,6 +104,8 @@ function createProxyRouter(deps = {}) {
     const v = verifyProxySignature(rawQuery, getSecret(), now());
     const shop = getShop();
     if (!v.ok || (shop && v.shop !== shop)) {
+      // 理由だけ残す（秘密・署名・クエリの値は出さない）
+      console.warn(`[my-fitpeak/proxy] rejected: ${v.ok ? 'shop-mismatch' : v.reason}`);
       return res.status(401).type('text/plain').send('Unauthorized');
     }
     let assets;

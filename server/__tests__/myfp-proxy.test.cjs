@@ -174,3 +174,11 @@ test('GET 以外は受け付けない', async () => {
   const res = await fetch(`${base}/?${qs({ ...p, signature: sign(p) })}`, { method: 'POST' });
   assert.notEqual(res.status, 200);
 });
+
+// 拒否の理由（秘密は含めない）をログ用に返す
+test('verifyProxySignature: 拒否の理由を返す', () => {
+  const { verifyProxySignature } = require('../my-fitpeak-proxy.cjs')._internal || require('../my-fitpeak-proxy.cjs');
+  assert.equal(verifyProxySignature('shop=a&timestamp=1', '', Date.now()).reason, 'no-secret');
+  assert.equal(verifyProxySignature('shop=a&timestamp=1', 'k', Date.now()).reason, 'no-signature');
+  assert.equal(verifyProxySignature('shop=a&timestamp=1&signature=' + '0'.repeat(64), 'k', Date.now()).reason, 'bad-signature');
+});
