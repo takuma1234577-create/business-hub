@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { Package, UserRound, Bell, Crown, ChevronDown, Star, Users } from 'lucide-react'
+import { Package, UserRound, Bell, Crown, ChevronDown, Star, Users, Ticket, Gift, Repeat } from 'lucide-react'
 
 import { SITE, SITE_NAV } from './lib/siteNav'
 
@@ -76,6 +76,15 @@ export default function FitpeakLayout() {
         <nav className="max-w-3xl mx-auto px-3 sm:px-6 py-2 flex gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none]" aria-label="マイページ">
           <NavLink to="/my-fitpeak" end className={linkClass}>
             <Package size={15} /> ご注文
+          </NavLink>
+          <NavLink to="/my-fitpeak/subscriptions" className={linkClass}>
+            <Repeat size={15} /> 定期便
+          </NavLink>
+          <NavLink to="/my-fitpeak/coupons" className={linkClass}>
+            <Ticket size={15} /> クーポン
+          </NavLink>
+          <NavLink to="/my-fitpeak/referral" className={linkClass}>
+            <Gift size={15} /> 紹介
           </NavLink>
           <NavLink to="/my-fitpeak/gotore" className={linkClass}>
             <Users size={15} /> 合トレ
