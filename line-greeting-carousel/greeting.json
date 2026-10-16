@@ -1,0 +1,612 @@
+{
+ "messages": [
+  {
+   "type": "text",
+   "text": "はじめまして、FITPEAK代表のTakuです。\n友だち追加ありがとうございます！\n\n筋トレの楽しさを、もっと多くの人に。\nFITPEAKのサービスを下にまとめました。気になるものから、のぞいてみてください。\n\n目指せ日本総筋量1%UP！"
+  },
+  {
+   "type": "flex",
+   "altText": "FITPEAKのサービス一覧（マイページ・クレアショット・ギア・NAVI・合トレナビ・最安ナビ・筋トレ偏差値）",
+   "contents": {
+    "type": "carousel",
+    "contents": [
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-myfitpeak.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://liff.line.me/2006537445-rcvSBpCP?mode=myfp&redirect=%2Fmy-fitpeak"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "MY FITPEAK",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "毎日ひらいて、ポイントを貯める",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "LINEでそのままログイン。ご注文・クーポン・ポイントをひとつの場所で。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "マイページを開く",
+          "uri": "https://liff.line.me/2006537445-rcvSBpCP?mode=myfp&redirect=%2Fmy-fitpeak"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "マイページを開く",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-creashot.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://fitpeak.co/products/%E6%8C%81%E3%81%A1%E9%81%8B%E3%81%B3%E3%82%AF%E3%83%AC%E3%82%A2%E3%83%81%E3%83%B3-creashot?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=creashot"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "CREASHOT",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "持ち運べるクレアチン",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "スティック1本で、いつでもどこでも。定期便のお申し込み・ご予約はこちら。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "クレアショットを見る",
+          "uri": "https://fitpeak.co/products/%E6%8C%81%E3%81%A1%E9%81%8B%E3%81%B3%E3%82%AF%E3%83%AC%E3%82%A2%E3%83%81%E3%83%B3-creashot?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=creashot"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "クレアショットを見る",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-gear.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://fitpeak.co/collections/fitpeak%E7%AD%8B%E3%83%88%E3%83%AC%E3%82%AE%E3%82%A2%E4%B8%80%E8%A6%A7?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=gear"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "TRAINING GEAR",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "FITPEAKのトレーニングギア",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "リストラップ、パワーグリップ、トレーニングベルト。自社開発のギアをそろえています。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "ギアを見る",
+          "uri": "https://fitpeak.co/collections/fitpeak%E7%AD%8B%E3%83%88%E3%83%AC%E3%82%AE%E3%82%A2%E4%B8%80%E8%A6%A7?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=gear"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "ギアを見る",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-navi.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://navi.fitpeak.co/?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=navi"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "FITPEAK NAVI",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "ホームジムの機材選び",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "部屋の広さと予算に合わせて、ホームジムの機材をさがせます。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "NAVIを開く",
+          "uri": "https://navi.fitpeak.co/?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=navi"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "NAVIを開く",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-gotore.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://liff.line.me/2006537445-rcvSBpCP?mode=myfp&redirect=%2Fmy-fitpeak%2Fgotore"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "合トレナビ",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "近くのジムで、合トレ仲間を",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "ジムごとの掲示板で、一緒にトレーニングする仲間をさがせます。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "掲示板を見る",
+          "uri": "https://liff.line.me/2006537445-rcvSBpCP?mode=myfp&redirect=%2Fmy-fitpeak%2Fgotore"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "掲示板を見る",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-compare.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://fitpeak.co/pages/compare?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=compare"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "筋トレ最安ナビ",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "プロテインの最安値がわかる",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "プロテイン・クレアチン・アミノ酸の最安ランキングと、大型セールの日程。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "最安値を見る",
+          "uri": "https://fitpeak.co/pages/compare?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=compare"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "最安値を見る",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     },
+     {
+      "type": "bubble",
+      "size": "kilo",
+      "hero": {
+       "type": "image",
+       "url": "https://cdn.shopify.com/s/files/1/0632/0658/8551/files/line-greeting-score.jpg?v=1",
+       "size": "full",
+       "aspectRatio": "1:1",
+       "aspectMode": "cover",
+       "action": {
+        "type": "uri",
+        "uri": "https://fitpeak.co/pages/strength-score?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=score"
+       }
+      },
+      "body": {
+       "type": "box",
+       "layout": "vertical",
+       "spacing": "sm",
+       "paddingAll": "18px",
+       "paddingBottom": "8px",
+       "contents": [
+        {
+         "type": "text",
+         "text": "筋トレ偏差値",
+         "size": "xxs",
+         "weight": "bold",
+         "color": "#86868b"
+        },
+        {
+         "type": "text",
+         "text": "あなたの重量は、何位？",
+         "size": "md",
+         "weight": "bold",
+         "color": "#1d1d1f",
+         "wrap": true
+        },
+        {
+         "type": "text",
+         "text": "筋トレ偏差値、1RM、総負荷量、PFC。トレーニングに役立つ計算ツール。",
+         "size": "xs",
+         "color": "#6e6e73",
+         "wrap": true,
+         "maxLines": 3
+        }
+       ]
+      },
+      "footer": {
+       "type": "box",
+       "layout": "vertical",
+       "paddingAll": "14px",
+       "paddingTop": "6px",
+       "contents": [
+        {
+         "type": "box",
+         "layout": "vertical",
+         "cornerRadius": "999px",
+         "backgroundColor": "#111111",
+         "paddingAll": "10px",
+         "action": {
+          "type": "uri",
+          "label": "測ってみる",
+          "uri": "https://fitpeak.co/pages/strength-score?utm_source=line&utm_medium=greeting&utm_campaign=welcome_carousel&utm_content=score"
+         },
+         "contents": [
+          {
+           "type": "text",
+           "text": "測ってみる",
+           "size": "sm",
+           "weight": "bold",
+           "color": "#ffffff",
+           "align": "center"
+          }
+         ]
+        }
+       ]
+      },
+      "styles": {
+       "body": {
+        "backgroundColor": "#ffffff"
+       },
+       "footer": {
+        "backgroundColor": "#ffffff"
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}
