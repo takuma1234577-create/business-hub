@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { createGotoreLine } = require('../gotore-line.cjs');
 
 const SRC = 'src-gotore';
-function setup({ clicks = {}, latest = null, gyms = { 'gym-a': { name: 'ONE STEP' } } } = {}) {
+function setup({ clicks = {}, latest = null, gyms = { 'gym-a': { id: 'g-uuid-1', name: 'ONE STEP' } } } = {}) {
   const pushed = [], calls = [], claimed = new Set();
   const deps = {
     baseUrl: 'https://my.fitpeak.co',
@@ -32,8 +32,9 @@ test('友だち追加されたら、そのジムの掲示板とプロフィー�
   assert.equal(pushed.length, 1);
   assert.equal(pushed[0].to, 'U1');
   assert.match(pushed[0].text, /ONE STEP/);
-  assert.match(pushed[0].text, /https:\/\/my\.fitpeak\.co\/my-fitpeak\/gotore\/gym\/gym-a/);
-  assert.match(pushed[0].text, /https:\/\/my\.fitpeak\.co\/my-fitpeak\/gotore\/profile\?next=%2Fmy-fitpeak%2Fgotore%2Fgym%2Fgym-a/);
+  // 記事名（日本語）を含む長いURLにせず、掲示板のIDで短くする（LINEで読みやすく）
+  assert.match(pushed[0].text, /^https:\/\/my\.fitpeak\.co\/my-fitpeak\/gotore\/b\/g-uuid-1$/m);
+  assert.match(pushed[0].text, /^https:\/\/my\.fitpeak\.co\/my-fitpeak\/gotore\/profile\?b=g-uuid-1$/m);
 });
 
 test('「募集が出たらLINEで知らせる」から来た人は、通知待ちにも自動で登録する', async () => {

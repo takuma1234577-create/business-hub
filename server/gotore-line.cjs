@@ -14,8 +14,10 @@ function validKey(k) {
   return typeof k === 'string' && k.length > 0 && k.length <= 400 && !k.includes('/') ? k : null;
 }
 
-function buildMessage({ base, gymName, board, watch }) {
-  const profile = `${base}/my-fitpeak/gotore/profile?next=${encodeURIComponent(board.replace(base, ''))}`;
+function buildMessage({ base, gymName, gymId, watch }) {
+  // 記事名（日本語）を含むキーだとURLが数百文字になるので、掲示板のIDで短くする
+  const board = gymId ? `${base}/my-fitpeak/gotore/b/${gymId}` : `${base}/my-fitpeak/gotore`;
+  const profile = gymId ? `${base}/my-fitpeak/gotore/profile?b=${gymId}` : `${base}/my-fitpeak/gotore/profile`;
   const lead = !gymName
     ? '合トレナビでは、同じジム・同じエリアに通う人と合トレ仲間を探せます。'
     : watch
@@ -48,8 +50,7 @@ function createGotoreLine(deps) {
       const member = await deps.rpc('gt_member_for_line', { p_line: lineUserId });
       await deps.rpc('gt_watch', { p_member: member, p_handle: key, p_on: true });
     }
-    const board = gym ? `${base}/my-fitpeak/gotore/gym/${encodeURIComponent(key)}` : `${base}/my-fitpeak/gotore`;
-    await deps.pushLine(lineUserId, buildMessage({ base, gymName: gym && gym.name, board, watch }));
+    await deps.pushLine(lineUserId, buildMessage({ base, gymName: gym && gym.name, gymId: gym && gym.id, watch }));
     return true;
   }
 

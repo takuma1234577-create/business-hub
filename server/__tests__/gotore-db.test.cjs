@@ -257,3 +257,11 @@ test('友だち追加しただけの人（まだMy FITPEAKに入っていない�
   const existing = await h.member(); // Uline1
   assert.equal(await h.call('gt_member_for_line', { p_line: 'Uline1' }), existing);
 });
+
+test('短いリンク用：掲示板のIDから記事のキーを引ける（知らないIDは null）', async () => {
+  await h.gym('gym-a');
+  const pub = await h.call('gt_gym_public', { p_handle: 'gym-a' });
+  assert.ok(pub.gym.id);
+  assert.equal(await h.call('gt_gym_handle', { p_id: pub.gym.id }), 'gym-a');
+  assert.equal(await h.call('gt_gym_handle', { p_id: '00000000-0000-4000-8000-000000000000' }), null);
+});

@@ -143,3 +143,13 @@ test('地域別ランキング記事のエリア掲示板（area:都道府県:�
     assert.equal((await call('GET', `/public/gym?handle=${encodeURIComponent(bad)}`)).status, 404, bad);
   }
 });
+
+test('短いリンク /gotore/b/:id は掲示板のキーを返す', async () => {
+  await h.gym('gym-a');
+  const a = await user();
+  const id = (await h.call('gt_gym_public', { p_handle: 'gym-a' })).gym.id;
+  const r = await call('GET', `/gotore/b/${id}`, a);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.handle, 'gym-a');
+  assert.equal((await call('GET', '/gotore/b/not-a-uuid', a)).status, 404);
+});

@@ -76,6 +76,16 @@ function createMemberRouter(deps) {
 
   router.get('/gyms/:handle', wrap((req) => rpc('gt_gym_board', req, { p_handle: req.params.handle })));
 
+  // LINEの案内の短いリンク（/my-fitpeak/gotore/b/<掲示板ID>）から掲示板のキーを引く
+  router.get('/b/:id', async (req, res) => {
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.params.id)) return res.status(404).json({ error: '掲示板が見つかりません' });
+      const handle = await deps.rpc('gt_gym_handle', { p_id: req.params.id });
+      if (!handle) return res.status(404).json({ error: '掲示板が見つかりません' });
+      res.json({ handle });
+    } catch (err) { sendError(res, err); }
+  });
+
   router.get('/area', wrap((req) => rpc('gt_area', req, { p_pref: String(req.query.pref || ''), p_city: req.query.city ? String(req.query.city) : null })));
 
   router.post('/gyms/:handle/watch', wrap((req, b) => rpc('gt_watch', req, { p_handle: req.params.handle, p_on: b.on !== false })));

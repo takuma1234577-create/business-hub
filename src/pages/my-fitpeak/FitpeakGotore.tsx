@@ -180,7 +180,9 @@ function ProfilePage() {
   const nav = useNavigate()
   useEffect(() => { call('/me').then(setMe).catch(() => setMe({})) }, [])
   if (!me) return <Spinner />
-  const next = params.get('next')
+  // LINEの案内から来た人（?b=掲示板ID）は、保存後にその掲示板へ
+  const b = params.get('b')
+  const next = b && /^[0-9a-f-]{36}$/i.test(b) ? `/my-fitpeak/gotore/b/${b}` : params.get('next')
   return (
     <div>
       <Back to={next || '/my-fitpeak/gotore'} label="戻る" />
@@ -369,6 +371,20 @@ function GymBoard() {
   )
 }
 
+// LINEの案内の短いリンク（/my-fitpeak/gotore/b/<掲示板ID>）→ 掲示板へ
+function ShortLink() {
+  const { id = '' } = useParams()
+  const nav = useNavigate()
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    call<{ handle: string }>(`/b/${encodeURIComponent(id)}`)
+      .then((r) => nav(gymUrl(r.handle), { replace: true }))
+      .catch((e) => setErr(e.message))
+  }, [id, nav])
+  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-white/60">{err}</p></div>
+  return <Spinner />
+}
+
 // ── チャット ──────────────────────────────────────────────────────────────
 function Chat() {
   const { id = '' } = useParams()
@@ -555,6 +571,7 @@ export default function FitpeakGotore() {
       <Route index element={<Home />} />
       <Route path="profile" element={<ProfilePage />} />
       <Route path="gym/:handle" element={<GymBoard />} />
+      <Route path="b/:id" element={<ShortLink />} />
       <Route path="chat/:id" element={<Chat />} />
     </Routes>
   )
