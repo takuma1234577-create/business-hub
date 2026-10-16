@@ -371,3 +371,14 @@ router.post('/auth/line/handoff/:id/claim', async (req, res) => {
 
 module.exports = router;
 module.exports.issueSessionForLineUser = issueSessionForLineUser;
+// LIFF のトークンを、LINEログインチャネルで検証する（他のルートからも使う）
+module.exports.liffVerifier = {
+  async verifyIdToken(idToken) {
+    const login = await getLoginConfig();
+    return verifyIdToken(idToken, (login.channelId || '').trim());
+  },
+  async verifyAccessToken(accessToken) {
+    const login = await getLoginConfig();
+    return verifyAccessToken(accessToken, (login.channelId || '').trim());
+  },
+};

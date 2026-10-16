@@ -240,11 +240,17 @@ export default function FitpeakLogin() {
     if (!email && !password) return
     setLinking(true)
     try {
+      // LINEユーザーはサーバーがLIFFのトークンで確かめる（IDそのものは送らない）
+      let liffAccessToken: string | null = null
+      if (lineUserId) {
+        const liff = (await import('@line/liff')).default
+        liffAccessToken = liff.getAccessToken()
+      }
       const res = await fetch('/api/my-fitpeak/line-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(lineUserId ? { lineUserId } : { code }),
+          ...(liffAccessToken ? { liffAccessToken } : { code }),
           email: email.trim(),
           password,
         }),
