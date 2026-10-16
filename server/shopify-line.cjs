@@ -33,7 +33,8 @@ async function pushLineMessage(lineUserId, messages, channelId = DEFAULT_CHANNEL
 }
 
 // ── 自動ログイン用トークン付きURLを生成 ──
-const MY_FITPEAK_URL = process.env.MY_FITPEAK_URL || 'https://my.fitpeak.co';
+// トークン付きリンクは my.fitpeak.co のまま（my-fitpeak-urls.cjs）
+const myfpUrls = require('./my-fitpeak-urls.cjs');
 
 async function generateAutoLoginUrl(lineUserId, path = '/') {
   // LINE紐づけからメールアドレスを取得（あれば）
@@ -54,7 +55,7 @@ async function generateAutoLoginUrl(lineUserId, path = '/') {
 
   // 連携済みの場合はalt（自動ログイン）、未連携の場合はcode（連携フロー）
   const paramName = link?.shopify_email ? 'alt' : 'code';
-  return `${MY_FITPEAK_URL}${path}?${paramName}=${token}`;
+  return myfpUrls.myFitpeakTokenLinkUrl(path, paramName, token);
 }
 
 // ── Shopifyストア情報取得 ──

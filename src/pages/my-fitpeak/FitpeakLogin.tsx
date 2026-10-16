@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useFitpeakAuth } from './lib/auth'
 import { fitpeakSupabase } from './lib/supabase'
 import { CheckCircle, MessageCircle } from 'lucide-react'
+import { apiUrl, assetUrl, isEmbedded, loginHash, clearLoginHash } from './lib/embed'
 
-const LIFF_ID = import.meta.env.VITE_LIFF_ID || ''
+// LIFF は my.fitpeak.co でしか動かないので、fitpeak.co に埋め込んだときは使わない
+const LIFF_ID = isEmbedded() ? '' : (import.meta.env.VITE_LIFF_ID || '')
 
 // ログイン後の戻り先。My FITPEAK の中のパスだけ（外部サイトへの転送に使われないように）
 function safeNext(v: string | null): string {
@@ -65,7 +67,7 @@ export default function FitpeakLogin() {
       if (stopped || busy || document.visibilityState === 'hidden') return
       busy = true
       try {
-        const res = await fetch(`/api/my-fitpeak/auth/line/handoff/${encodeURIComponent(h.id)}/claim`, {
+        const res = await fetch(apiUrl(`/api/my-fitpeak/auth/line/handoff/${encodeURIComponent(h.id)}/claim`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pollKey: h.pollKey }),
@@ -105,7 +107,8 @@ export default function FitpeakLogin() {
 
   // ブラウザでLINEログインから戻ってきたとき（#lt=<token_hash>）にセッションを作る
   useEffect(() => {
-    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
+    const rawHash = loginHash()
+    const hash = rawHash.startsWith('#') ? rawHash.slice(1) : ''
     if (!hash) return
     const params = new URLSearchParams(hash)
     const tokenHash = params.get('lt')
@@ -118,6 +121,7 @@ export default function FitpeakLogin() {
         type: 'magiclink',
       })
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      clearLoginHash()
       setLineLoginLoading(false)
       if (otpError) {
         setError('LINEログインに失敗しました。お手数ですが、もう一度お試しください。')
@@ -146,7 +150,7 @@ export default function FitpeakLogin() {
             const idToken = liff.getIDToken()
             const accessToken = liff.getAccessToken()
             if (idToken || accessToken) {
-              const res = await fetch('/api/my-fitpeak/auth/line', {
+              const res = await fetch(apiUrl('/api/my-fitpeak/auth/line'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken, accessToken }),
@@ -170,7 +174,7 @@ export default function FitpeakLogin() {
       let h = ''
       if (isMobileBrowser()) {
         try {
-          const r = await fetch('/api/my-fitpeak/auth/line/handoff', { method: 'POST' })
+          const r = await fetch(apiUrl('/api/my-fitpeak/auth/line/handoff'), { method: 'POST' })
           const d = await r.json()
           if (r.ok && d.id && d.pollKey) {
             sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ id: d.id, pollKey: d.pollKey, code: d.code, next: nextPath, at: Date.now() }))
@@ -179,7 +183,7 @@ export default function FitpeakLogin() {
           }
         } catch { /* 引き渡しが用意できなくても、従来どおりLINEでログインは進める */ }
       }
-      window.location.href = `/api/my-fitpeak/auth/line/start?redirect=${encodeURIComponent(nextPath)}${h}`
+      window.location.href = apiUrl(`/api/my-fitpeak/auth/line/start?redirect=${encodeURIComponent(nextPath)}${h}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'LINEログインに失敗しました')
       setLineLoginLoading(false)
@@ -213,7 +217,7 @@ export default function FitpeakLogin() {
     if (!code || lineUserId) return
     async function verifyCode() {
       try {
-        await fetch(`/api/my-fitpeak/line-link/verify?code=${code}`)
+        await fetch(apiUrl(`/api/my-fitpeak/line-link/verify?code=${code}`))
       } catch { /* ignore */ }
     }
     verifyCode()
@@ -230,7 +234,7 @@ export default function FitpeakLogin() {
   // ログイン済み + 非LINEコンテキストならダッシュボードへリダイレクト
   // ただしLINEログインから戻ってきた直後（#lt=）は、その処理が終わるまで待つ
   useEffect(() => {
-    if (user && !isLineContext && !lineLoginLoading && !window.location.hash.includes('lt=')) {
+    if (user && !isLineContext && !lineLoginLoading && !loginHash().includes('lt=')) {
       navigate(nextPath)
     }
   }, [user, isLineContext, lineLoginLoading, navigate, nextPath])
@@ -246,7 +250,7 @@ export default function FitpeakLogin() {
         const liff = (await import('@line/liff')).default
         liffAccessToken = liff.getAccessToken()
       }
-      const res = await fetch('/api/my-fitpeak/line-link', {
+      const res = await fetch(apiUrl('/api/my-fitpeak/line-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,7 +277,7 @@ export default function FitpeakLogin() {
     if (!email.trim()) { setError('上のメールアドレス欄に入力してから、もう一度押してください'); return }
     setResetting(true); setError(''); setSuccess('')
     try {
-      const res = await fetch('/api/my-fitpeak/auth/reset-password', {
+      const res = await fetch(apiUrl('/api/my-fitpeak/auth/reset-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
@@ -310,7 +314,7 @@ export default function FitpeakLogin() {
         // 新規登録
         if (isLineContext) {
           // LINE連携モード: サーバーAPIで登録
-          const res = await fetch('/api/my-fitpeak/auth/signup', {
+          const res = await fetch(apiUrl('/api/my-fitpeak/auth/signup'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: email.trim(), password }),
@@ -354,13 +358,16 @@ export default function FitpeakLogin() {
   if (linkDone) {
     return (
       <div className="fp-root min-h-screen bg-white flex flex-col">
+      {/* fitpeak.co に埋め込んだときはテーマのヘッダーがあるので出さない */}
+      {!isEmbedded() && (
       <header className="bg-[#0b0b0b]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-12 sm:h-14 flex items-center">
           <a href="https://fitpeak.co" aria-label="FITPEAK 公式サイトへ" className="inline-flex items-center min-h-[44px]">
-            <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
+            <img src={assetUrl('/fitpeak-wordmark-white.png')} alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
           </a>
         </div>
       </header>
+      )}
       <div className="flex-1 flex items-center justify-center px-5 py-12">
         <div className="fp-rise w-full max-w-[400px]">
           <div className="text-center">
@@ -384,13 +391,16 @@ export default function FitpeakLogin() {
 
   return (
     <div className="fp-root min-h-screen bg-white flex flex-col">
+      {/* fitpeak.co に埋め込んだときはテーマのヘッダーがあるので出さない */}
+      {!isEmbedded() && (
       <header className="bg-[#0b0b0b]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-12 sm:h-14 flex items-center">
           <a href="https://fitpeak.co" aria-label="FITPEAK 公式サイトへ" className="inline-flex items-center min-h-[44px]">
-            <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
+            <img src={assetUrl('/fitpeak-wordmark-white.png')} alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
           </a>
         </div>
       </header>
+      )}
       <div className="flex-1 flex items-start sm:items-center justify-center px-5 pt-12 pb-16 sm:py-16">
       <div className="fp-rise w-full max-w-[400px]">
         <div className="text-center mb-9">

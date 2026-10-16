@@ -3349,7 +3349,7 @@ function verifyLineSignature(rawBody, signature, secret) {
 // k=weekly   … 今週のメニュー（準備中の案内。ボタンからは外したがキーは残す）
 // すべて応答メッセージ（reply）なので、月の配信通数を使わない
 const MENU_UTM = 'utm_source=line&utm_medium=richmenu';
-const MY_FITPEAK_LOGIN = 'https://my.fitpeak.co/api/my-fitpeak/auth/line/start?redirect=';
+const MY_FITPEAK_LOGIN = `${require('./my-fitpeak-urls.cjs').myFitpeakApiBase()}/api/my-fitpeak/auth/line/start?redirect=`;
 const MY_FITPEAK_URL = `${MY_FITPEAK_LOGIN}/my-fitpeak`;
 const MY_FITPEAK_NOTIFY_URL = `${MY_FITPEAK_LOGIN}/my-fitpeak/notifications`;
 const GEAR_URL = `https://fitpeak.co/collections/fitpeak%E7%AD%8B%E3%83%88%E3%83%AC%E3%82%AE%E3%82%A2%E4%B8%80%E8%A6%A7?${MENU_UTM}`;

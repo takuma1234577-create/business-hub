@@ -37,7 +37,6 @@ const publicRouter = express.Router();
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-07';
 const BASE_URL = process.env.BUSINESS_HUB_URL || 'https://business-hub-beige.vercel.app';
-const MY_FITPEAK_URL = process.env.MY_FITPEAK_URL || 'https://my.fitpeak.co';
 
 // ===========================================================================
 // Supabase（service role 専用）

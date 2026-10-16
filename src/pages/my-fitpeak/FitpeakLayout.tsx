@@ -3,8 +3,11 @@ import { Outlet, NavLink } from 'react-router-dom'
 import { Package, UserRound, Bell, Crown, ChevronDown, Star, Users, Ticket, Gift, Repeat } from 'lucide-react'
 
 import { SITE, SITE_NAV } from './lib/siteNav'
+import { isEmbedded } from './lib/embed'
 
 export default function FitpeakLayout() {
+  // fitpeak.co に埋め込んだとき（アプリプロキシ）は、テーマのヘッダー・フッターがあるので自前のものは出さない
+  const embedded = isEmbedded()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   useEffect(() => {
     const previousTitle = document.title
@@ -25,6 +28,7 @@ export default function FitpeakLayout() {
   return (
     <div className="fp-root min-h-screen bg-[#f5f5f7] overflow-x-hidden">
       {/* 公式サイト（fitpeak.co）と同じ黒ヘッダー＋白ロゴ＋太字メニュー */}
+      {!embedded && (
       <header className="bg-[#0b0b0b] text-white">
         <div className="max-w-5xl mx-auto px-3 sm:px-6">
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 py-1 sm:py-0 sm:h-16">
@@ -71,6 +75,7 @@ export default function FitpeakLayout() {
           </div>
         </div>
       </header>
+      )}
 
       <div className="sticky top-0 z-20 border-b border-black/[0.08] bg-[#f5f5f7]/85 backdrop-blur-xl">
         <nav className="max-w-3xl mx-auto px-3 sm:px-6 py-2 flex gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none]" aria-label="マイページ">
@@ -108,6 +113,7 @@ export default function FitpeakLayout() {
         <Outlet />
       </main>
 
+      {!embedded && (
       <footer className="bg-[#0b0b0b] text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-8">
           <a href={SITE} aria-label="FITPEAK 公式サイトへ" className="inline-block">
@@ -121,6 +127,7 @@ export default function FitpeakLayout() {
           <p className="mt-6 pt-5 border-t border-white/20 text-[11px] text-white/70">合同会社SVPコーポレーション</p>
         </div>
       </footer>
+      )}
     </div>
   )
 }

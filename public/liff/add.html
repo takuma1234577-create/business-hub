@@ -109,7 +109,11 @@ function fpRun(){
       if (handoffId && liff.isInClient()) { clearTimeout(fallbackTimer); return myfpHandoff(handoffId, body); }
       return fetch(location.origin + '/api/my-fitpeak/auth/line', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
         .then(function(r){ return r.json().then(function(d){ if (!r.ok || !d.tokenHash) throw new Error(d.error || 'login failed'); return d; }); })
-        .then(function(d){ location.replace(MYFP_BASE + '/my-fitpeak/login#' + new URLSearchParams({ lt: d.tokenHash, next: myfpRedirect }).toString()); });
+        .then(function(d){
+          // 戻す画面の場所はサーバーの設定(MY_FITPEAK_APP_URL)。切替前は従来どおり my.fitpeak.co。token_hash は # にだけ載せる
+          var app = (typeof d.appUrl === 'string' && /^https:\/\/[A-Za-z0-9.-]+(\/[A-Za-z0-9._-]+)*$/.test(d.appUrl)) ? d.appUrl : MYFP_BASE;
+          location.replace(app + '/my-fitpeak/login#' + new URLSearchParams({ lt: d.tokenHash, next: myfpRedirect }).toString());
+        });
     }).catch(function(e){ console.error(e); myfpWebFallback(); });
     return;
   }
