@@ -216,7 +216,7 @@ function PostForm({ handle, myGender, onDone }: { handle: string; myGender: stri
         <span className="mb-1.5 block text-sm text-white/70">ひとこと（任意・200文字まで）</span>
         <textarea value={note} maxLength={200} rows={3} onChange={(e) => setNote(e.target.value)}
           className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-white outline-none focus:border-[#c8a960]"
-          placeholder="例：ベンチの補助をお願いできる方を探しています。重量は問いません" />
+          placeholder={handle.startsWith('area:') ? '例：〇〇ジム渋谷店に通っています。ベンチの補助をお願いできる方を探しています' : '例：ベンチの補助をお願いできる方を探しています。重量は問いません'} />
       </label>
       {myGender && myGender !== 'none' && (
         <label className="flex items-center gap-2 text-sm text-white/80">
@@ -319,7 +319,14 @@ function GymBoard() {
     <div>
       <Back to="/my-fitpeak/gotore" label="合トレ仲間さがし" />
       <h1 className="text-xl font-bold text-white">{b.gym.name}</h1>
-      <p className="mb-4 text-sm text-white/50">{b.gym.pref}{b.gym.city}・<a href={articleUrl(handle)} className="underline hover:text-white">ジムの記事を見る</a></p>
+      {handle.startsWith('area:') ? (
+        <p className="mb-4 text-sm text-white/50">
+          {b.gym.pref}{b.gym.city || ''}のどのジムに通う人でも使えるエリア掲示板です。通っているジム名は「ひとこと」に書いてください。
+          <a href={`https://fitpeak.co/pages/gym-area?pref=${encodeURIComponent(b.gym.pref || '')}${b.gym.city ? `&city=${encodeURIComponent(b.gym.city)}` : ''}`} className="ml-1 underline hover:text-white">近くのジムを探す</a>
+        </p>
+      ) : (
+        <p className="mb-4 text-sm text-white/50">{b.gym.pref}{b.gym.city}・<a href={articleUrl(handle)} className="underline hover:text-white">ジムの記事を見る</a></p>
+      )}
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2">
         <Card>

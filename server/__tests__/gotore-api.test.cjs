@@ -129,3 +129,17 @@ test('LINEへの送信が失敗しても、募集自体は成功する', async (
   pushFails = true;
   assert.equal((await call('POST', '/gotore/posts', a, { handle: 'gym-a', ...POST })).status, 200);
 });
+
+test('地域別ランキング記事のエリア掲示板（area:都道府県:市区町村）は記事を見に行かずに作る', async () => {
+  const r = await call('GET', `/public/gym?handle=${encodeURIComponent('area:東京都:渋谷区')}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.gym.name, '渋谷区のジム（エリア全体）');
+  assert.equal(r.body.gym.pref, '東京都');
+  assert.equal(r.body.gym.city, '渋谷区');
+  const p = await call('GET', `/public/gym?handle=${encodeURIComponent('area:北海道:')}`);
+  assert.equal(p.body.gym.name, '北海道のジム（エリア全体）');
+  assert.equal(p.body.gym.city, null);
+  for (const bad of ['area:ほげ県:渋谷区', 'area:東京都:<script>', 'area:東京都:' + 'あ'.repeat(30) + '市']) {
+    assert.equal((await call('GET', `/public/gym?handle=${encodeURIComponent(bad)}`)).status, 404, bad);
+  }
+});

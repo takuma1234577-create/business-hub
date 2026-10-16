@@ -38,7 +38,7 @@ function createPublicRouter(deps) {
       let r = await deps.rpc('gt_gym_public', { p_handle: handle });
       if (!r.gym) {
         // 初めて見るジム：記事が実在するときだけ登録する（名前は記事の題名から取る。送られてきた名前は信用しない）
-        const a = await deps.lookupArticle(handle);
+        const a = handle.startsWith('area:') ? parseAreaHandle(handle) : await deps.lookupArticle(handle);
         if (!a) return res.status(404).json({ error: 'not found' });
         await deps.rpc('gt_gym_upsert', { p_handle: handle, p_name: a.name, p_pref: a.pref, p_city: a.city });
         r = await deps.rpc('gt_gym_public', { p_handle: handle });
@@ -132,6 +132,17 @@ function createMemberRouter(deps) {
   return router;
 }
 
+const PREFS = '北海道,青森県,岩手県,宮城県,秋田県,山形県,福島県,茨城県,栃木県,群馬県,埼玉県,千葉県,東京都,神奈川県,新潟県,富山県,石川県,福井県,山梨県,長野県,岐阜県,静岡県,愛知県,三重県,滋賀県,京都府,大阪府,兵庫県,奈良県,和歌山県,鳥取県,島根県,岡山県,広島県,山口県,徳島県,香川県,愛媛県,高知県,福岡県,佐賀県,長崎県,熊本県,大分県,宮崎県,鹿児島県,沖縄県'.split(',');
+
+// 地域別ランキング記事のエリア掲示板「area:東京都:渋谷区」（市区町村は空でもよい＝都道府県全体）
+function parseAreaHandle(handle) {
+  const m = String(handle).match(/^area:([^:]+):([^:]*)$/);
+  if (!m || !PREFS.includes(m[1])) return null;
+  const city = m[2];
+  if (city && !/^[ぁ-んァ-ヶ一-龠々ヶー]{1,15}[市区町村郡]$/.test(city) && !/^[ぁ-んァ-ヶ一-龠々ヶー]{1,10}市[ぁ-んァ-ヶ一-龠々ヶー]{1,6}区$/.test(city)) return null;
+  return { name: `${city || m[1]}のジム（エリア全体）`, pref: m[1], city: city || null };
+}
+
 // fitpeak.co の記事の題名「店名（都道府県市区町村）の評価は…」から店名と所在地を取る
 function parseArticleTitle(title) {
   const m = String(title || '').match(/^(.+?)（([^（）]+?)）の評価/);
@@ -188,4 +199,4 @@ function productionDeps() {
   };
 }
 
-module.exports = { createPublicRouter, createMemberRouter, productionDeps, parseArticleTitle };
+module.exports = { createPublicRouter, createMemberRouter, productionDeps, parseArticleTitle, parseAreaHandle };
