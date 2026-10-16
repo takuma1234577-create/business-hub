@@ -63,6 +63,10 @@ function createPublicRouter(deps) {
       let body = hit && Date.now() - hit.at < CACHE_MS ? hit.body : null;
       if (!body) {
         body = await deps.rpc('gt_public_overview', { p_pref: pref });
+        // 近未来UI用の集計（時間帯・部位・相性診断用の一覧）。失敗しても件数は返す
+        let pulse = null;
+        try { pulse = await deps.rpc('gt_public_pulse', { p_pref: pref }); } catch (e) { console.error('[gotore] pulse:', e && e.message); }
+        body = { ...body, pulse };
         cache.set(key, { at: Date.now(), body });
       }
       res.set('Cache-Control', 'public, max-age=60, s-maxage=120, stale-while-revalidate=600');
