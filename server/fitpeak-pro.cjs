@@ -22,7 +22,8 @@ const adminRouter = express.Router();
 const portalRouter = express.Router();
 
 const PRO_TAG = 'fitpeak-pro';
-const MY_FITPEAK_URL = process.env.MY_FITPEAK_URL || 'https://my.fitpeak.co';
+// 会員ページのリンクは my-fitpeak-urls.cjs（画面の場所 MY_FITPEAK_APP_URL で一斉に切り替わる）
+const myfpUrls = require('./my-fitpeak-urls.cjs');
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let _core = null;
@@ -384,7 +385,8 @@ async function makeAutoLoginUrl(email, lineUserId, path) {
     token, email: email || '', line_user_id: lineUserId || null,
     expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   });
-  return `${MY_FITPEAK_URL}${path}?alt=${token}`;
+  // トークン付きリンクは my.fitpeak.co のまま（fitpeak.co のURLにトークンを出さない）
+  return myfpUrls.myFitpeakTokenLinkUrl(path, 'alt', token);
 }
 
 function jstLabel(iso) {
@@ -426,7 +428,7 @@ async function sendWelcome(sub, plan) {
     await creashot.sendGmail({
       to: sub.email,
       subject: '【FITPEAK PRO】ご登録ありがとうございます',
-      body: [...lines, '', '▼My FITPEAK', `${MY_FITPEAK_URL}/my-fitpeak`, '', '――', 'FITPEAK（合同会社SVPコーポレーション）', 'このメールはFITPEAK PROのご登録に関する大切なお知らせです。'].join('\n'),
+      body: [...lines, '', '▼My FITPEAK', myfpUrls.myFitpeakPageUrl('/my-fitpeak'), '', '――', 'FITPEAK（合同会社SVPコーポレーション）', 'このメールはFITPEAK PROのご登録に関する大切なお知らせです。'].join('\n'),
     });
     await core().logEvent(sub.id, 'pro_welcome_email_sent', 'system', {});
   }

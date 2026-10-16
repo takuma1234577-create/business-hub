@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { fitpeakSupabase } from './supabase'
+import { apiOrigin, apiUrl, isEmbedded } from './embed'
 import type { User, Session } from '@supabase/supabase-js'
 
 interface AuthContextType {
@@ -44,7 +45,7 @@ async function sendSiteAttr(session: Session | null) {
   if (!attr) return
   attrSending = true
   try {
-    const r = await fetch('/api/public/site-analytics/signup-attr', {
+    const r = await fetch(apiUrl('/api/public/site-analytics/signup-attr'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify(attr),
@@ -55,6 +56,11 @@ async function sendSiteAttr(session: Session | null) {
 }
 
 captureSiteAttr()
+
+// メールのリンクの戻り先。埋め込み時もトークン入りのURLが fitpeak.co に来ないよう my.fitpeak.co にする
+function authRedirectOrigin() {
+  return isEmbedded() ? apiOrigin() : window.location.origin
+}
 
 export function FitpeakAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -81,7 +87,7 @@ export function FitpeakAuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string) => {
     const { error } = await fitpeakSupabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: authRedirectOrigin() },
     })
     return { error: error?.message || null }
   }
@@ -103,7 +109,7 @@ export function FitpeakAuthProvider({ children }: { children: ReactNode }) {
     const { error } = await fitpeakSupabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: authRedirectOrigin() },
     })
     return { error: error?.message || null }
   }

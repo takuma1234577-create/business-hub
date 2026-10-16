@@ -1,6 +1,6 @@
 import { getLocale } from '../../i18n/store'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react'
 import { apiFetch } from './lib/api'
 
@@ -64,12 +64,12 @@ export default function FitpeakWarrantyRegister() {
             （{new Date(result.warrantyExpiresAt).toLocaleDateString(getLocale())} まで）
           </p>
           {result.upsell && (
-            <a
-              href="/my-fitpeak/pro"
+            <Link
+              to="/my-fitpeak/pro"
               className="block mt-5 py-3 rounded-full bg-[#111] text-white text-sm font-bold text-center"
             >
               FITPEAK PROなら保証を2年に延長できます
-            </a>
+            </Link>
           )}
         </section>
       </div>

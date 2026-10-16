@@ -7,7 +7,10 @@ const app = express();
 
 // Middleware
 app.set('trust proxy', 1);
-app.use(cors());
+// My FITPEAK 会員API（/api/my-fitpeak/*）は * にせず fitpeak.co / my.fitpeak.co だけに限る（my-fitpeak-cors.cjs）
+const { myFitpeakCors, isMyFitpeakApiPath } = require(path.join(__dirname, 'my-fitpeak-cors.cjs'));
+const globalCors = cors();
+app.use((req, res, next) => (isMyFitpeakApiPath(req.path) ? next() : globalCors(req, res, next)));
 app.use(
   express.json({
     limit: '50mb',
@@ -101,18 +104,22 @@ app.use('/api/ebay-oauth', cors(), ebayOAuthRoutes);
 const myFitpeakRoutes = require(path.join(__dirname, 'my-fitpeak.cjs'));
 const myFitpeakLineAuthRoutes = require(path.join(__dirname, 'my-fitpeak-line-auth.cjs'));
 const myFitpeakCustomerAuth = require(path.join(__dirname, 'my-fitpeak-auth.cjs'));
+// Shopify アプリプロキシ（https://fitpeak.co/a/my-fitpeak/...）の入口。署名検証のみ・DBに触らない
+app.use('/api/my-fitpeak/proxy', require(path.join(__dirname, 'my-fitpeak-proxy.cjs')).createProxyRouter());
+// 画面を fitpeak.co/a へ移すときの引っ越し（本人の Bearer セッションのみ・管理トークン不可）
+app.use('/api/my-fitpeak', myFitpeakCors(), require(path.join(__dirname, 'my-fitpeak-migrate.cjs')).createMigrateRouter());
 // My FITPEAK（顧客向け）: LINEログインは誰でも、その他は顧客自身のログインで通す
-app.use('/api/my-fitpeak', cors(), myFitpeakLineAuthRoutes);
+app.use('/api/my-fitpeak', myFitpeakCors(), myFitpeakLineAuthRoutes);
 // 毎日のログインポイント＋クレアショットチャレンジ（本人のログインが必須。管理トークンでの代理操作は不可）
 const loyalty = require(path.join(__dirname, 'loyalty.cjs'));
 const loyaltyDeps = loyalty.productionDeps();
-app.use('/api/my-fitpeak/loyalty', cors(), myFitpeakCustomerAuth, loyalty.createMemberRouter(loyaltyDeps));
+app.use('/api/my-fitpeak/loyalty', myFitpeakCors(), myFitpeakCustomerAuth, loyalty.createMemberRouter(loyaltyDeps));
 // 合トレナビ：ジム記事の枠は公開、掲示板・申請・チャットは本人のログインが必須
 const gotore = require(path.join(__dirname, 'gotore.cjs'));
 const gotoreDeps = gotore.productionDeps();
 app.use('/api/gotore/public', cors(), gotore.createPublicRouter(gotoreDeps));
-app.use('/api/my-fitpeak/gotore', cors(), myFitpeakCustomerAuth, gotore.createMemberRouter(gotoreDeps));
-app.use('/api/my-fitpeak', cors(), myFitpeakCustomerAuth, myFitpeakRoutes);
+app.use('/api/my-fitpeak/gotore', myFitpeakCors(), myFitpeakCustomerAuth, gotore.createMemberRouter(gotoreDeps));
+app.use('/api/my-fitpeak', myFitpeakCors(), myFitpeakCustomerAuth, myFitpeakRoutes);
 
 // FITPEAKサイト分析：計測タグ(fa.js)と収集は公開（fitpeak.co の閲覧者のブラウザから叩く）
 const siteAnalytics = require(path.join(__dirname, 'site-analytics.cjs'));

@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate, useSearchParams, useLocation } from 'react-router-dom'
 import { FitpeakAuthProvider, useFitpeakAuth } from './my-fitpeak/lib/auth'
 import { fitpeakSupabase } from './my-fitpeak/lib/supabase'
+import { apiUrl } from './my-fitpeak/lib/embed'
+import MoveToAppLocation from './my-fitpeak/MoveToAppLocation'
 import FitpeakLayout from './my-fitpeak/FitpeakLayout'
 import FitpeakLogin from './my-fitpeak/FitpeakLogin'
 import FitpeakHome from './my-fitpeak/FitpeakHome'
@@ -26,7 +28,7 @@ function AutoLoginHandler({ children }: { children: ReactNode }) {
 
     async function autoLogin() {
       try {
-        const res = await fetch('/api/my-fitpeak/auth/auto-login', {
+        const res = await fetch(apiUrl('/api/my-fitpeak/auth/auto-login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: altToken }),
@@ -75,6 +77,8 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 export default function MyFitpeak() {
   return (
     <FitpeakAuthProvider>
+      {/* 画面を fitpeak.co/a へ移したあと、my.fitpeak.co に来た人を移す（切替前・埋め込み時は何もしない） */}
+      <MoveToAppLocation />
       <AutoLoginHandler>
         <Routes>
           <Route path="login" element={<FitpeakLogin />} />

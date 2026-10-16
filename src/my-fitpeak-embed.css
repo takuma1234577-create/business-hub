@@ -1,0 +1,97 @@
+/*
+ * My FITPEAK を fitpeak.co に埋め込むときのCSS（src/my-fitpeak-embed.tsx 専用）。
+ * - Tailwind の preflight（全体リセット）は入れない。テーマの見た目を壊さないよう、下の #myfp-root 配下だけのリセットにする
+ * - ユーティリティは !important にして、テーマのCSS（レイヤー外）に負けないようにする
+ * - Tailwind の変数は :root に出さず値を直接埋め込む（テーマの CSS 変数とぶつけない）
+ * - クラスを拾う対象は My FITPEAK の画面だけ
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme) theme(reference inline);
+@import "tailwindcss/utilities.css" layer(utilities) important source(none);
+@source "./pages/MyFitpeak.tsx";
+@source "./pages/my-fitpeak";
+
+@theme inline reference {
+  --font-sans: "Noto Sans JP", system-ui, sans-serif;
+}
+
+/* ── #myfp-root 配下だけのリセット（Tailwind preflight 相当） ── */
+#myfp-root,
+#myfp-root *,
+#myfp-root ::before,
+#myfp-root ::after {
+  box-sizing: border-box;
+  border: 0 solid;
+  margin: 0;
+  padding: 0;
+}
+#myfp-root {
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  font-family: "Noto Sans JP", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+#myfp-root h1, #myfp-root h2, #myfp-root h3, #myfp-root h4, #myfp-root h5, #myfp-root h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+}
+#myfp-root p { font-size: inherit; line-height: inherit; letter-spacing: inherit; }
+#myfp-root a { color: inherit; text-decoration: inherit; }
+#myfp-root b, #myfp-root strong { font-weight: bolder; }
+#myfp-root ol, #myfp-root ul, #myfp-root menu { list-style: none; }
+#myfp-root img, #myfp-root svg, #myfp-root video, #myfp-root canvas, #myfp-root iframe { display: block; vertical-align: middle; }
+#myfp-root img, #myfp-root video { max-width: 100%; height: auto; }
+#myfp-root button, #myfp-root input, #myfp-root select, #myfp-root optgroup, #myfp-root textarea {
+  font: inherit;
+  font-feature-settings: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  border-radius: 0;
+  background-color: transparent;
+  opacity: 1;
+  box-shadow: none;
+  min-height: 0;
+  min-width: 0;
+  outline-offset: 0;
+}
+#myfp-root button, #myfp-root input:where([type='button'], [type='reset'], [type='submit']) {
+  appearance: button;
+  cursor: pointer;
+}
+#myfp-root button::after, #myfp-root button::before { content: none; }
+#myfp-root ::placeholder { opacity: 1; color: #999; }
+#myfp-root textarea { resize: vertical; }
+#myfp-root table { text-indent: 0; border-color: inherit; border-collapse: collapse; }
+#myfp-root hr { height: 0; color: inherit; border-top-width: 1px; }
+#myfp-root [hidden]:where(:not([hidden='until-found'])) { display: none !important; }
+
+/* ── src/index.css の My FITPEAK 部分（.fp-root 配下） ── */
+#myfp-root .fp-root input,
+#myfp-root .fp-root select,
+#myfp-root .fp-root textarea {
+  font-size: 16px !important;
+}
+#myfp-root .fp-root {
+  color: #111;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  letter-spacing: 0.04em;
+  -webkit-font-smoothing: antialiased;
+}
+#myfp-root .fp-root ::selection { background: #111; color: #fff; }
+#myfp-root .fp-root nav::-webkit-scrollbar { display: none; }
+@keyframes fp-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+#myfp-root .fp-root .fp-page > *,
+#myfp-root .fp-root .fp-rise {
+  animation: fp-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  #myfp-root .fp-root .fp-page > *,
+  #myfp-root .fp-root .fp-rise { animation: none; }
+}
