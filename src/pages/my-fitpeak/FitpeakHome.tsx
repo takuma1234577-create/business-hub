@@ -144,10 +144,10 @@ export default function FitpeakHome() {
 
   const statusBadge = (order: Order) => {
     const s = order.source === 'amazon' ? order.status : order.fulfillmentStatus
-    if (s === 'fulfilled' || s === 'Shipped') return { label: '出荷済み', cls: 'bg-green-400/10 text-green-400' }
-    if (s === 'partial') return { label: '一部出荷', cls: 'bg-amber-400/10 text-amber-400' }
-    if (s === 'Canceled') return { label: 'キャンセル', cls: 'bg-red-400/10 text-red-400' }
-    return { label: '準備中', cls: 'bg-white/5 text-white/50' }
+    if (s === 'fulfilled' || s === 'Shipped') return { label: '出荷済み', cls: 'bg-[#06c755]/10 text-[#067a3a]' }
+    if (s === 'partial') return { label: '一部出荷', cls: 'bg-amber-400/10 text-[#a15c00]' }
+    if (s === 'Canceled') return { label: 'キャンセル', cls: 'bg-[#c8102e]/5 text-[#c8102e]' }
+    return { label: '準備中', cls: 'bg-[#f6f6f6] text-[#666]' }
   }
 
   const yen = (v: string) => `¥${Number(v || 0).toLocaleString(getLocale())}`
@@ -155,7 +155,7 @@ export default function FitpeakHome() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -166,20 +166,20 @@ export default function FitpeakHome() {
       <LoyaltyCard />
 
       {/* 会員の状態（LINE連携） */}
-      <section className="rounded-2xl bg-[#151515] border border-white/10 p-5">
+      <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-lg font-bold text-white truncate">{displayName(user)}</p>
+            <p className="text-lg font-bold text-[#111] truncate">{displayName(user)}</p>
             <div className="flex items-center gap-1.5 mt-1">
               {lineLinked ? (
                 <>
-                  <CheckCircle size={14} className="text-[#06C755]" />
-                  <span className="text-xs text-[#06C755]">LINE連携済み・通知が届きます</span>
+                  <CheckCircle size={14} className="text-[#047d3b]" />
+                  <span className="text-xs text-[#047d3b]">LINE連携済み・通知が届きます</span>
                 </>
               ) : (
                 <>
-                  <MessageCircle size={14} className="text-white/40" />
-                  <span className="text-xs text-white/40">LINE未連携</span>
+                  <MessageCircle size={14} className="text-[#6b6b6b]" />
+                  <span className="text-xs text-[#6b6b6b]">LINE未連携</span>
                 </>
               )}
             </div>
@@ -187,7 +187,7 @@ export default function FitpeakHome() {
           {!lineLinked && (
             <Link
               to="/my-fitpeak/account"
-              className="shrink-0 px-4 py-2.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition"
+              className="shrink-0 px-4 py-2.5 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-bold transition"
             >
               LINEと連携
             </Link>
@@ -198,12 +198,12 @@ export default function FitpeakHome() {
       {/* 注文 */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-base font-bold text-white">ご注文</h1>
+          <h1 className="text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">ご注文</h1>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => { setClaimOpen((v) => !v); setAmazonOpen(false) }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/5 transition"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-[#666] hover:text-[#111] hover:bg-[#f3f3f3] transition"
             >
               <Plus size={14} />
               別のメール・ゲスト購入
@@ -211,7 +211,7 @@ export default function FitpeakHome() {
             <button
               type="button"
               onClick={() => { setAmazonOpen((v) => !v); setClaimOpen(false) }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/5 transition"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-[#666] hover:text-[#111] hover:bg-[#f3f3f3] transition"
             >
               <Plus size={14} />
               Amazon
@@ -220,8 +220,8 @@ export default function FitpeakHome() {
         </div>
 
         {claimOpen && (
-          <div className="rounded-xl bg-[#151515] border border-white/10 p-4 mb-4">
-            <p className="text-xs text-white/40 mb-3">
+          <div className="rounded-[14px] bg-white border border-[#e6e6e6] p-4 mb-4">
+            <p className="text-xs text-[#6b6b6b] mb-3">
               別のメールアドレスやゲスト購入で注文した公式サイトのご注文を、このアカウントに追加できます。
               注文番号と、ご注文時のメールアドレス・郵便番号・電話番号のいずれかを入力してください。
             </p>
@@ -232,7 +232,7 @@ export default function FitpeakHome() {
                 value={claimNumber}
                 onChange={(e) => { setClaimNumber(e.target.value); setClaimError('') }}
                 placeholder="注文番号（例: #1234）"
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+                className="w-full px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] transition"
               />
               <input
                 type="text"
@@ -240,23 +240,23 @@ export default function FitpeakHome() {
                 onChange={(e) => { setClaimProof(e.target.value); setClaimError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleClaim()}
                 placeholder="注文時のメール／郵便番号／電話番号"
-                className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+                className="w-full px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] transition"
               />
               <button
                 onClick={handleClaim}
                 disabled={claimBusy || !claimNumber.trim() || !claimProof.trim()}
-                className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-semibold transition disabled:opacity-40"
+                className="w-full py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition disabled:opacity-40"
               >
                 {claimBusy ? '確認中' : 'この注文を追加'}
               </button>
             </div>
-            {claimError && <p className="text-red-400 text-xs mt-2">{claimError}</p>}
+            {claimError && <p className="text-[#c8102e] text-xs mt-2">{claimError}</p>}
           </div>
         )}
 
         {amazonOpen && (
-          <div className="rounded-xl bg-[#151515] border border-white/10 p-4 mb-4">
-            <p className="text-xs text-white/40 mb-2">Amazonの注文番号を入力すると、ここに保存され、発送状況が自動で更新されます</p>
+          <div className="rounded-[14px] bg-white border border-[#e6e6e6] p-4 mb-4">
+            <p className="text-xs text-[#6b6b6b] mb-2">Amazonの注文番号を入力すると、ここに保存され、発送状況が自動で更新されます</p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -264,36 +264,36 @@ export default function FitpeakHome() {
                 onChange={(e) => { setAmazonInput(e.target.value); setAmazonError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleAmazonSearch()}
                 placeholder="例: 250-1234567-1234567"
-                className="flex-1 min-w-0 px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#FF9900]/50 transition"
+                className="flex-1 min-w-0 px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#FF9900]/50 transition"
               />
               <button
                 onClick={handleAmazonSearch}
                 disabled={amazonSearching || !amazonInput.trim()}
-                className="px-4 py-3 rounded-lg bg-[#FF9900] hover:bg-[#e88d00] text-black text-sm font-semibold transition disabled:opacity-40 flex items-center gap-1.5"
+                className="px-4 py-3 rounded-full bg-[#FF9900] hover:bg-[#e88d00] text-black text-sm font-bold transition disabled:opacity-40 flex items-center gap-1.5"
               >
                 <Search size={16} />
                 {amazonSearching ? '検索中' : '追加'}
               </button>
             </div>
-            {amazonError && <p className="text-red-400 text-xs mt-2">{amazonError}</p>}
+            {amazonError && <p className="text-[#c8102e] text-xs mt-2">{amazonError}</p>}
           </div>
         )}
 
         {ordersLoading && allOrders.length === 0 ? (
           <div className="space-y-3" aria-busy="true" aria-label="注文を読み込み中">
             {[0, 1].map((i) => (
-              <div key={i} className="p-5 rounded-xl bg-[#151515] border border-white/10 animate-pulse">
-                <div className="h-3 w-24 rounded bg-white/10" />
-                <div className="h-4 w-2/3 rounded bg-white/10 mt-3" />
-                <div className="h-3 w-1/3 rounded bg-white/5 mt-3" />
+              <div key={i} className="p-5 rounded-[14px] bg-white border border-[#e6e6e6] animate-pulse">
+                <div className="h-3 w-24 rounded bg-[#eeeeee]" />
+                <div className="h-4 w-2/3 rounded bg-[#eeeeee] mt-3" />
+                <div className="h-3 w-1/3 rounded bg-[#f6f6f6] mt-3" />
               </div>
             ))}
           </div>
         ) : allOrders.length === 0 ? (
-          <div className="rounded-2xl bg-[#151515] border border-white/10 text-center py-14 px-6">
-            <Package size={36} className="mx-auto text-white/15 mb-4" />
-            <p className="text-white/60 text-sm">ご注文はまだありません</p>
-            <p className="text-white/30 text-xs mt-1.5">
+          <div className="rounded-[20px] bg-white border border-[#e6e6e6] text-center py-14 px-6">
+            <Package size={36} className="mx-auto text-[#bbb] mb-4" />
+            <p className="text-[#555] text-sm">ご注文はまだありません</p>
+            <p className="text-[#808080] text-xs mt-1.5">
               公式サイトでのご注文がここに表示されます。Amazonでのご注文は上のボタンから追加できます。
             </p>
           </div>
@@ -310,32 +310,32 @@ export default function FitpeakHome() {
                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${badge.cls}`}>
                           {badge.label}
                         </span>
-                        <span className="text-[10px] text-white/30">
+                        <span className="text-[10px] text-[#808080]">
                           {isAmazon ? 'Amazon' : '公式サイト'}
                         </span>
-                        <span className="text-[10px] text-white/30">
+                        <span className="text-[10px] text-[#808080]">
                           {new Date(order.date).toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                       </div>
                       <div className="mt-2 space-y-0.5">
                         {order.items.map((item, i) => (
-                          <p key={i} className="text-sm text-white/80 truncate">
+                          <p key={i} className="text-sm text-[#222] truncate">
                             <span translate="no">{item.title}</span>{item.variant ? `（${item.variant}）` : ''}
-                            {item.quantity > 1 && <span className="text-white/40"> × {item.quantity}</span>}
+                            {item.quantity > 1 && <span className="text-[#6b6b6b]"> × {item.quantity}</span>}
                           </p>
                         ))}
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold text-white">{yen(order.total)}</p>
-                      <p className="text-[10px] text-white/30 mt-0.5">{order.name}</p>
+                      <p className="text-sm font-semibold text-[#111]">{yen(order.total)}</p>
+                      <p className="text-[10px] text-[#808080] mt-0.5">{order.name}</p>
                     </div>
                   </div>
 
                   {order.trackingNumber && (
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-                      <Truck size={14} className="text-white/40" />
-                      <span className="text-xs text-white/50">
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#efefef]">
+                      <Truck size={14} className="text-[#6b6b6b]" />
+                      <span className="text-xs text-[#666]">
                         {order.trackingCompany} {order.trackingNumber}
                       </span>
                     </div>
@@ -345,11 +345,11 @@ export default function FitpeakHome() {
 
               if (isAmazon) {
                 return (
-                  <div key={`amazon-${order.id}`} className="relative p-4 sm:p-5 rounded-xl bg-[#151515] border border-white/10">
+                  <div key={`amazon-${order.id}`} className="relative p-4 sm:p-5 rounded-[14px] bg-white border border-[#e6e6e6]">
                     <button
                       type="button"
                       onClick={() => removeAmazon(order.name)}
-                      className="absolute top-3 right-3 p-2 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/5 transition"
+                      className="absolute top-3 right-3 p-2 rounded-lg text-[#aaa] hover:text-[#111] hover:bg-[#f3f3f3] transition"
                       aria-label="このAmazon注文を一覧から外す"
                     >
                       <X size={14} />
@@ -358,12 +358,12 @@ export default function FitpeakHome() {
                     <button
                       type="button"
                       onClick={() => setAmazonReturnFor(amazonReturnFor === order.name ? null : order.name)}
-                      className="inline-block text-xs text-white/50 hover:text-white mr-4 mt-3"
+                      className="inline-block text-xs text-[#666] hover:text-[#111] mr-4 mt-3"
                     >
                       返品する
                     </button>
                     {amazonReturnFor === order.name && (
-                      <div className="mt-3 rounded-lg bg-[#FF9900]/10 border border-[#FF9900]/30 p-3 text-xs text-white/70">
+                      <div className="mt-3 rounded-lg bg-[#FF9900]/10 border border-[#FF9900]/30 p-3 text-xs text-[#444]">
                         Amazonでご購入の商品は、Amazonで返品のお手続きをお願いします。下のリンクからAmazonのご注文履歴を開き、該当の注文の「商品の返品」を選んでください。
                         <a href="https://www.amazon.co.jp/gp/css/order-history" target="_blank" rel="noopener noreferrer" className="block text-[#FF9900] hover:underline mt-2">
                           Amazonの注文履歴を開く
@@ -386,13 +386,13 @@ export default function FitpeakHome() {
                 <Link
                   key={`shopify-${order.id}`}
                   to={`/my-fitpeak/orders/${order.id}`}
-                  className="block p-4 sm:p-5 rounded-xl bg-[#151515] border border-white/10 hover:border-white/25 transition"
+                  className="block p-4 sm:p-5 rounded-[14px] bg-white border border-[#e6e6e6] hover:border-[#111] transition"
                 >
                   {body}
-                  <div className="flex items-center justify-between gap-1 mt-3 text-xs text-white/40">
+                  <div className="flex items-center justify-between gap-1 mt-3 text-xs text-[#6b6b6b]">
                     <span>
                       {order.returnBadge ? (
-                        <span className={order.returnBadge.result === 'approved' ? 'text-green-400' : 'text-red-400'}>
+                        <span className={order.returnBadge.result === 'approved' ? 'text-[#067a3a]' : 'text-[#c8102e]'}>
                           {order.returnBadge.requestType === 'return' ? '返品' : '交換'}・{order.returnBadge.result === 'approved' ? '承認済み' : '不承認'}
                         </span>
                       ) : (

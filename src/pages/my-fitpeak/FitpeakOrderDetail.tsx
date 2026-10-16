@@ -144,7 +144,7 @@ export default function FitpeakOrderDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -152,42 +152,42 @@ export default function FitpeakOrderDetail() {
   if (!order) {
     return (
       <div className="text-center py-20">
-        <p className="text-white/40">注文が見つかりません</p>
-        <Link to="/my-fitpeak" className="text-[#c8a960] text-sm hover:underline mt-2 inline-block">ご注文一覧に戻る</Link>
+        <p className="text-[#6b6b6b]">注文が見つかりません</p>
+        <Link to="/my-fitpeak" className="text-[#111] text-sm hover:underline mt-2 inline-block">ご注文一覧に戻る</Link>
       </div>
     )
   }
 
   return (
     <div>
-      <Link to="/my-fitpeak" className="inline-flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition">
+      <Link to="/my-fitpeak" className="inline-flex items-center gap-2 text-[#6b6b6b] hover:text-[#111] text-sm mb-6 transition">
         <ArrowLeft size={16} /> ご注文一覧に戻る
       </Link>
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white">{order.name}</h1>
-          <p className="text-xs text-white/30 mt-1">
+          <h1 className="text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">{order.name}</h1>
+          <p className="text-xs text-[#808080] mt-1">
             {new Date(order.date).toLocaleDateString(getLocale(), { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <span className="text-lg font-semibold text-white">¥{Number(order.total || 0).toLocaleString(getLocale())}</span>
+        <span className="text-lg font-semibold text-[#111]">¥{Number(order.total || 0).toLocaleString(getLocale())}</span>
       </div>
 
-      <section className="bg-[#151515] border border-white/10 rounded-xl p-5 mb-4">
-        <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <Package size={16} className="text-[#c8a960]" /> 注文商品
+      <section className="bg-white border border-[#e6e6e6] rounded-[14px] p-5 mb-4">
+        <h2 className="text-sm font-bold text-[#111] mb-4 flex items-center gap-2">
+          <Package size={16} className="text-[#111]" /> 注文商品
         </h2>
         <div className="space-y-3">
           {order.items.map((item, i) => (
             <div key={i} className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white"><span translate="no">{item.title}</span></p>
-                {item.variant && <p className="text-xs text-white/40">{item.variant}</p>}
+                <p className="text-sm text-[#111]"><span translate="no">{item.title}</span></p>
+                {item.variant && <p className="text-xs text-[#6b6b6b]">{item.variant}</p>}
               </div>
               <div className="text-right">
-                <p className="text-sm text-white/60">{item.price}円</p>
-                <p className="text-xs text-white/30">x{item.quantity}</p>
+                <p className="text-sm text-[#555]">{item.price}円</p>
+                <p className="text-xs text-[#808080]">x{item.quantity}</p>
               </div>
             </div>
           ))}
@@ -195,11 +195,11 @@ export default function FitpeakOrderDetail() {
       </section>
 
       {order.shippingAddress && (
-        <section className="bg-[#151515] border border-white/10 rounded-xl p-5 mb-4">
-          <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <MapPin size={16} className="text-blue-400" /> 配送先
+        <section className="bg-white border border-[#e6e6e6] rounded-[14px] p-5 mb-4">
+          <h2 className="text-sm font-bold text-[#111] mb-3 flex items-center gap-2">
+            <MapPin size={16} className="text-[#1d4ed8]" /> 配送先
           </h2>
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-[#555]">
             <span translate="no">{order.shippingAddress.name}</span><br />
             {order.shippingAddress.zip} {order.shippingAddress.province}{order.shippingAddress.city}{order.shippingAddress.address1}
           </p>
@@ -207,19 +207,19 @@ export default function FitpeakOrderDetail() {
       )}
 
       {order.fulfillments.length > 0 && (
-        <section className="bg-[#151515] border border-white/10 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <Truck size={16} className="text-green-400" /> 配送状況
+        <section className="bg-white border border-[#e6e6e6] rounded-[14px] p-5">
+          <h2 className="text-sm font-bold text-[#111] mb-4 flex items-center gap-2">
+            <Truck size={16} className="text-[#067a3a]" /> 配送状況
           </h2>
           {order.fulfillments.map((f, i) => (
             <div key={i} className="space-y-3">
               <div className="flex items-center gap-3">
-                <CheckCircle size={16} className={f.shipmentStatus === 'delivered' ? 'text-green-400' : 'text-white/20'} />
+                <CheckCircle size={16} className={f.shipmentStatus === 'delivered' ? 'text-[#067a3a]' : 'text-[#aaa]'} />
                 <div>
-                  <p className="text-sm text-white font-medium">
+                  <p className="text-sm text-[#111] font-medium">
                     {SHIPMENT_LABELS[f.shipmentStatus] || f.shipmentStatus || '確認中'}
                   </p>
-                  <p className="text-xs text-white/40">
+                  <p className="text-xs text-[#6b6b6b]">
                     {f.trackingCompany} / {f.trackingNumber}
                   </p>
                 </div>
@@ -229,12 +229,12 @@ export default function FitpeakOrderDetail() {
                   href={f.trackingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block text-xs text-[#c8a960] hover:underline"
+                  className="inline-block text-xs text-[#111] hover:underline"
                 >
                   追跡情報を確認する
                 </a>
               )}
-              <p className="text-xs text-white/30">
+              <p className="text-xs text-[#808080]">
                 出荷日: {new Date(f.createdAt).toLocaleDateString(getLocale())}
               </p>
             </div>
@@ -243,13 +243,13 @@ export default function FitpeakOrderDetail() {
       )}
 
       {/* 返品・交換 */}
-      <section className="bg-[#151515] border border-white/10 rounded-xl p-5 mt-4">
-        <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <RotateCcw size={16} className="text-[#c8a960]" /> 返品・交換
+      <section className="bg-white border border-[#e6e6e6] rounded-[14px] p-5 mt-4">
+        <h2 className="text-sm font-bold text-[#111] mb-4 flex items-center gap-2">
+          <RotateCcw size={16} className="text-[#111]" /> 返品・交換
         </h2>
 
         {resultMsg && (
-          <div className={`rounded-lg p-3 mb-4 text-sm ${resultMsg.ok ? 'bg-green-400/10 text-green-300' : 'bg-red-400/10 text-red-300'}`}>
+          <div className={`rounded-lg p-3 mb-4 text-sm ${resultMsg.ok ? 'bg-[#06c755]/10 text-[#067a3a]' : 'bg-[#c8102e]/5 text-[#c8102e]'}`}>
             {resultMsg.ok ? '申請が承認されました。' : '申請は承認されませんでした。'}
             {resultMsg.text && <span className="block text-xs mt-1 opacity-80">{resultMsg.text}</span>}
           </div>
@@ -257,24 +257,24 @@ export default function FitpeakOrderDetail() {
 
         {order.returnInfo?.latest && !resultMsg && (
           <div className="mb-4 text-sm">
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${order.returnInfo.latest.result === 'approved' ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${order.returnInfo.latest.result === 'approved' ? 'bg-[#06c755]/10 text-[#067a3a]' : 'bg-[#c8102e]/5 text-[#c8102e]'}`}>
               {order.returnInfo.latest.requestType === 'return' ? '返品' : '交換'}・{order.returnInfo.latest.result === 'approved' ? '承認' : '不承認'}
             </span>
-            <span className="text-xs text-white/40 ml-2">{new Date(order.returnInfo.latest.at).toLocaleDateString(getLocale())}</span>
-            {order.returnInfo.latest.message && <p className="text-xs text-white/50 mt-2">{order.returnInfo.latest.message}</p>}
+            <span className="text-xs text-[#6b6b6b] ml-2">{new Date(order.returnInfo.latest.at).toLocaleDateString(getLocale())}</span>
+            {order.returnInfo.latest.message && <p className="text-xs text-[#666] mt-2">{order.returnInfo.latest.message}</p>}
           </div>
         )}
 
         {!order.returnInfo ? (
-          <p className="text-xs text-white/40">返品の状況を取得できませんでした。時間をおいて開き直してください。</p>
+          <p className="text-xs text-[#6b6b6b]">返品の状況を取得できませんでした。時間をおいて開き直してください。</p>
         ) : order.returnInfo.canRequest ? (
           <>
             {!formOpen && (
               <>
-                <p className="text-xs text-white/40 mb-3">
+                <p className="text-xs text-[#6b6b6b] mb-3">
                   ご購入から{order.returnInfo.deadline.maxDays}日以内（あと{order.returnInfo.deadline.remaining}日）に申請できます。証拠写真をもとにAIが審査し、承認されると返金または交換の手続きに進みます。
                 </p>
-                <button type="button" onClick={() => setFormOpen(true)} className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-semibold transition">
+                <button type="button" onClick={() => setFormOpen(true)} className="w-full py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition">
                   返品・交換を申請する
                 </button>
               </>
@@ -284,35 +284,35 @@ export default function FitpeakOrderDetail() {
                 <div className="grid grid-cols-2 gap-2">
                   {(['return', 'exchange'] as const).map((t) => (
                     <button key={t} type="button" onClick={() => setReqType(t)}
-                      className={`py-2.5 rounded-lg text-sm border transition ${reqType === t ? 'border-[#c8a960] text-white bg-[#c8a960]/10' : 'border-white/10 text-white/50'}`}>
+                      className={`py-2.5 rounded-lg text-sm border transition ${reqType === t ? 'border-[#111] text-[#111] bg-[#f2f2f2]' : 'border-[#e6e6e6] text-[#666]'}`}>
                       {t === 'return' ? '返品（返金）' : '交換'}
                     </button>
                   ))}
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">理由</label>
+                  <label className="text-xs text-[#6b6b6b] block mb-1.5">理由</label>
                   <select value={reason} onChange={(e) => setReason(e.target.value)}
-                    className="w-full px-3 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none">
-                    {Object.entries(REASONS).map(([k, v]) => <option key={k} value={k} className="bg-[#151515]">{v}</option>)}
+                    className="w-full px-3 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none">
+                    {Object.entries(REASONS).map(([k, v]) => <option key={k} value={k} className="bg-white">{v}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">補足（任意。「その他」は必須）</label>
+                  <label className="text-xs text-[#6b6b6b] block mb-1.5">補足（任意。「その他」は必須）</label>
                   <textarea value={detailText} onChange={(e) => setDetailText(e.target.value)} rows={3}
-                    className="w-full px-3 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none" />
+                    className="w-full px-3 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none" />
                 </div>
                 {reqType === 'exchange' && (
                   <div>
-                    <label className="text-xs text-white/40 block mb-1.5">交換品のお届け先住所</label>
+                    <label className="text-xs text-[#6b6b6b] block mb-1.5">交換品のお届け先住所</label>
                     <input type="text" value={address} onChange={(e) => setAddress(e.target.value)}
-                      className="w-full px-3 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none" />
+                      className="w-full px-3 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none" />
                   </div>
                 )}
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">証拠写真（最大5枚）</label>
+                  <label className="text-xs text-[#6b6b6b] block mb-1.5">証拠写真（最大5枚）</label>
                   <div className="flex flex-wrap gap-2">
                     {images.map((src, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-[#e6e6e6]">
                         <img src={src} alt="" className="w-full h-full object-cover" />
                         <button type="button" onClick={() => setImages((p) => p.filter((_, j) => j !== i))}
                           className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-white" aria-label="写真を外す"><X size={12} /></button>
@@ -320,19 +320,19 @@ export default function FitpeakOrderDetail() {
                     ))}
                     {images.length < 5 && (
                       <button type="button" onClick={() => fileRef.current?.click()}
-                        className="w-16 h-16 rounded-lg border border-dashed border-white/20 text-white/40 flex items-center justify-center">
+                        className="w-16 h-16 rounded-lg border border-dashed border-[#d9d9d9] text-[#6b6b6b] flex items-center justify-center">
                         <ImagePlus size={20} />
                       </button>
                     )}
                   </div>
                   <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addImages(e.target.files)} />
                 </div>
-                {formError && <p className="text-red-400 text-xs">{formError}</p>}
+                {formError && <p className="text-[#c8102e] text-xs">{formError}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setFormOpen(false)} disabled={submitting}
-                    className="px-4 py-3 rounded-lg text-sm text-white/50 border border-white/10">やめる</button>
+                    className="px-4 py-3 rounded-lg text-sm text-[#666] border border-[#e6e6e6]">やめる</button>
                   <button type="button" onClick={submitReturn} disabled={submitting}
-                    className="flex-1 py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-semibold transition disabled:opacity-50">
+                    className="flex-1 py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition disabled:opacity-50">
                     {submitting ? '審査中…（数十秒かかります）' : '申請して審査を受ける'}
                   </button>
                 </div>
@@ -340,7 +340,7 @@ export default function FitpeakOrderDetail() {
             )}
           </>
         ) : (
-          <p className="text-xs text-white/40">{order.returnInfo.blockedReason}</p>
+          <p className="text-xs text-[#6b6b6b]">{order.returnInfo.blockedReason}</p>
         )}
       </section>
     </div>

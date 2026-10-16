@@ -14,7 +14,7 @@ import { apiFetch } from './lib/api'
  */
 
 const API = '/api/my-fitpeak/gotore'
-const GOLD = '#c8a960'
+const GOLD = '#111'
 
 export const SLOTS: Record<string, string> = { wd_am: '平日朝', wd_pm: '平日昼', wd_night: '平日夜', we_am: '土日朝', we_pm: '土日昼', we_night: '土日夜' }
 export const PARTS: Record<string, string> = { chest: '胸', back: '背中', legs: '脚', shoulders: '肩', arms: '腕', full: '全身', cardio: '有酸素' }
@@ -53,12 +53,12 @@ const ago = (iso: string) => {
 }
 
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-white/10 bg-[#141414] p-4 sm:p-5 ${className}`}>{children}</div>
+  return <div className={`rounded-[20px] border border-[#e6e6e6] bg-white p-4 sm:p-5 ${className}`}>{children}</div>
 }
 function Chips({ items, map }: { items: string[]; map: Record<string, string> }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {items.map((k) => <span key={k} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/80">{map[k] || k}</span>)}
+      {items.map((k) => <span key={k} className="rounded-full bg-[#f3f3f3] px-2.5 py-1 text-xs text-[#222]">{map[k] || k}</span>)}
     </div>
   )
 }
@@ -70,7 +70,7 @@ function Toggle({ options, value, onChange, multi }: { options: Record<string, s
         return (
           <button key={k} type="button"
             onClick={() => onChange(multi ? (on ? value.filter((x) => x !== k) : [...value, k]) : [k])}
-            className={`rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-[#c8a960] bg-[#c8a960]/15 text-white' : 'border-white/15 text-white/60 hover:text-white'}`}>
+            className={`rounded-full border px-3 py-1.5 text-sm transition ${on ? 'border-[#111] bg-[#f2f2f2] text-[#111]' : 'border-[#d9d9d9] text-[#555] hover:text-[#111]'}`}>
             {label}
           </button>
         )
@@ -79,19 +79,19 @@ function Toggle({ options, value, onChange, multi }: { options: Record<string, s
   )
 }
 function ErrorText({ msg }: { msg: string }) {
-  return msg ? <p className="text-sm text-red-400">{msg}</p> : null
+  return msg ? <p className="text-sm text-[#c8102e]">{msg}</p> : null
 }
 function Spinner() {
-  return <div className="flex justify-center py-16"><div className="h-7 w-7 animate-spin rounded-full border-2 border-[#c8a960] border-t-transparent" /></div>
+  return <div className="flex justify-center py-16"><div className="h-7 w-7 animate-spin rounded-full border-2 border-[#111] border-t-transparent" /></div>
 }
 function Btn({ children, onClick, disabled, kind = 'gold', type = 'button' }: { children: ReactNode; onClick?: () => void; disabled?: boolean; kind?: 'gold' | 'ghost'; type?: 'button' | 'submit' }) {
   const cls = kind === 'gold'
-    ? 'bg-[#c8a960] text-black hover:brightness-110'
-    : 'border border-white/15 text-white/80 hover:text-white'
-  return <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-40 ${cls}`}>{children}</button>
+    ? 'bg-[#111] text-white hover:bg-[#333]'
+    : 'border border-[#d9d9d9] text-[#222] hover:text-[#111]'
+  return <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-1.5 rounded-[14px] px-4 py-2.5 text-sm font-bold transition disabled:opacity-40 ${cls}`}>{children}</button>
 }
 function Back({ to, label }: { to: string; label: string }) {
-  return <Link to={to} className="mb-4 inline-flex items-center gap-1 text-sm text-white/50 hover:text-white"><ChevronLeft size={16} />{label}</Link>
+  return <Link to={to} className="mb-4 inline-flex items-center gap-1 text-sm text-[#666] hover:text-[#111]"><ChevronLeft size={16} />{label}</Link>
 }
 
 // 通報（理由を聞いてから送る）とブロック
@@ -110,11 +110,11 @@ function SafetyMenu({ postId, matchId, onDone }: { postId?: string; matchId?: st
   }
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen(!open)} className="p-1 text-white/30 hover:text-white/70" aria-label="通報・ブロック"><Flag size={15} /></button>
+      <button type="button" onClick={() => setOpen(!open)} className="p-1 text-[#808080] hover:text-[#111]" aria-label="通報・ブロック"><Flag size={15} /></button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-white/10 bg-[#1b1b1b] py-1 text-sm shadow-xl">
-          <button type="button" onClick={report} className="block w-full px-4 py-2 text-left text-white/80 hover:bg-white/5">通報する</button>
-          <button type="button" onClick={block} className="block w-full px-4 py-2 text-left text-red-300 hover:bg-white/5">ブロックする</button>
+        <div className="absolute right-0 top-7 z-20 w-40 rounded-[14px] border border-[#e6e6e6] bg-white py-1 text-sm shadow-xl">
+          <button type="button" onClick={report} className="block w-full px-4 py-2 text-left text-[#222] hover:bg-[#f3f3f3]">通報する</button>
+          <button type="button" onClick={block} className="block w-full px-4 py-2 text-left text-[#c8102e] hover:bg-[#f3f3f3]">ブロックする</button>
         </div>
       )}
       {msg && <p className="absolute right-0 top-8 w-56 rounded-lg bg-black/90 p-2 text-xs text-white/80">{msg}</p>}
@@ -124,8 +124,8 @@ function SafetyMenu({ postId, matchId, onDone }: { postId?: string; matchId?: st
 
 function Rules() {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-relaxed text-white/70">
-      <p className="mb-2 flex items-center gap-1.5 font-bold text-white"><ShieldCheck size={16} style={{ color: GOLD }} />合トレナビのルール</p>
+    <div className="rounded-[14px] border border-[#e6e6e6] bg-[#f6f6f6] p-4 text-sm leading-relaxed text-[#444]">
+      <p className="mb-2 flex items-center gap-1.5 font-bold text-[#111]"><ShieldCheck size={16} style={{ color: GOLD }} />合トレナビのルール</p>
       <ul className="list-disc space-y-1 pl-5">
         <li>18歳以上の方だけが使えます。</li>
         <li>合トレ（一緒にトレーニングする相手さがし）専用です。恋愛・交際などの出会いを目的とした利用は禁止です。</li>
@@ -151,21 +151,21 @@ function ProfileForm({ initial, onSaved }: { initial?: Profile | null; onSaved: 
   return (
     <div className="space-y-5">
       <label className="block">
-        <span className="mb-1.5 block text-sm text-white/70">ニックネーム（20文字まで）</span>
+        <span className="mb-1.5 block text-sm text-[#444]">ニックネーム（20文字まで）</span>
         <input value={p.nickname} maxLength={20} onChange={(e) => setP({ ...p, nickname: e.target.value })}
-          className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-white outline-none focus:border-[#c8a960]" placeholder="例：ベンチ100目標" />
+          className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-[#111] outline-none focus:border-[#111]" placeholder="例：ベンチ100目標" />
       </label>
-      <div><p className="mb-1.5 text-sm text-white/70">性別</p><Toggle options={GENDERS} value={[p.gender]} onChange={(v) => setP({ ...p, gender: v[0] })} /></div>
-      <div><p className="mb-1.5 text-sm text-white/70">年代</p><Toggle options={AGES} value={[p.age_band]} onChange={(v) => setP({ ...p, age_band: v[0] })} /></div>
-      <div><p className="mb-1.5 text-sm text-white/70">トレーニング歴</p><Toggle options={LEVELS} value={[p.level]} onChange={(v) => setP({ ...p, level: v[0] })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">性別</p><Toggle options={GENDERS} value={[p.gender]} onChange={(v) => setP({ ...p, gender: v[0] })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">年代</p><Toggle options={AGES} value={[p.age_band]} onChange={(v) => setP({ ...p, age_band: v[0] })} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">トレーニング歴</p><Toggle options={LEVELS} value={[p.level]} onChange={(v) => setP({ ...p, level: v[0] })} /></div>
       <label className="block">
-        <span className="mb-1.5 block text-sm text-white/70">自己紹介（任意・200文字まで）</span>
+        <span className="mb-1.5 block text-sm text-[#444]">自己紹介（任意・200文字まで）</span>
         <textarea value={p.bio} maxLength={200} rows={3} onChange={(e) => setP({ ...p, bio: e.target.value })}
-          className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-white outline-none focus:border-[#c8a960]" placeholder="例：BIG3中心。週3で夜に通っています" />
+          className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-[#111] outline-none focus:border-[#111]" placeholder="例：BIG3中心。週3で夜に通っています" />
       </label>
       <Rules />
-      <label className="flex items-start gap-2 text-sm text-white/80">
-        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1 accent-[#c8a960]" />
+      <label className="flex items-start gap-2 text-sm text-[#222]">
+        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1 accent-[#111]" />
         18歳以上であり、上のルールに同意します
       </label>
       <ErrorText msg={err} />
@@ -186,8 +186,8 @@ function ProfilePage() {
   return (
     <div>
       <Back to={next || '/my-fitpeak/gotore'} label="戻る" />
-      <h1 className="mb-1 text-xl font-bold text-white">合トレのプロフィール</h1>
-      <p className="mb-5 text-sm text-white/50">掲示板で相手に見えるのは、ここで登録した内容だけです。LINEの名前やアイコンは出ません。</p>
+      <h1 className="mb-1 text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">合トレのプロフィール</h1>
+      <p className="mb-5 text-sm text-[#666]">掲示板で相手に見えるのは、ここで登録した内容だけです。LINEの名前やアイコンは出ません。</p>
       <Card><ProfileForm initial={me.profile} onSaved={() => nav(next && next.startsWith('/my-fitpeak/') ? next : '/my-fitpeak/gotore')} /></Card>
     </div>
   )
@@ -211,22 +211,22 @@ function PostForm({ handle, myGender, onDone }: { handle: string; myGender: stri
   }
   return (
     <div className="space-y-4">
-      <div><p className="mb-1.5 text-sm text-white/70">行ける時間帯（複数可）</p><Toggle multi options={SLOTS} value={slots} onChange={setSlots} /></div>
-      <div><p className="mb-1.5 text-sm text-white/70">一緒にやりたい部位（任意）</p><Toggle multi options={PARTS} value={parts} onChange={setParts} /></div>
-      <div><p className="mb-1.5 text-sm text-white/70">目的（任意）</p><Toggle multi options={GOALS} value={goals} onChange={setGoals} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">行ける時間帯（複数可）</p><Toggle multi options={SLOTS} value={slots} onChange={setSlots} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">一緒にやりたい部位（任意）</p><Toggle multi options={PARTS} value={parts} onChange={setParts} /></div>
+      <div><p className="mb-1.5 text-sm text-[#444]">目的（任意）</p><Toggle multi options={GOALS} value={goals} onChange={setGoals} /></div>
       <label className="block">
-        <span className="mb-1.5 block text-sm text-white/70">ひとこと（任意・200文字まで）</span>
+        <span className="mb-1.5 block text-sm text-[#444]">ひとこと（任意・200文字まで）</span>
         <textarea value={note} maxLength={200} rows={3} onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-white outline-none focus:border-[#c8a960]"
+          className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-[#111] outline-none focus:border-[#111]"
           placeholder={handle.startsWith('area:') ? '例：〇〇ジム渋谷店に通っています。ベンチの補助をお願いできる方を探しています' : '例：ベンチの補助をお願いできる方を探しています。重量は問いません'} />
       </label>
       {myGender && myGender !== 'none' && (
-        <label className="flex items-center gap-2 text-sm text-white/80">
-          <input type="checkbox" checked={same} onChange={(e) => setSame(e.target.checked)} className="accent-[#c8a960]" />
+        <label className="flex items-center gap-2 text-sm text-[#222]">
+          <input type="checkbox" checked={same} onChange={(e) => setSame(e.target.checked)} className="accent-[#111]" />
           同性（{GENDERS[myGender]}）の人にだけ表示する
         </label>
       )}
-      <p className="text-xs text-white/40">募集は30日で自動的に締め切られます。連絡先は書けません。</p>
+      <p className="text-xs text-[#6b6b6b]">募集は30日で自動的に締め切られます。連絡先は書けません。</p>
       <ErrorText msg={err} />
       <Btn onClick={submit} disabled={!slots.length || busy}>{busy ? '送信中…' : 'この内容で募集する'}</Btn>
     </div>
@@ -247,11 +247,11 @@ function PostCard({ p, onChange, needProfile }: { p: Post; onChange: () => void;
     try { await call(`/posts/${p.id}/close`, 'POST'); onChange() } catch (e: any) { setErr(e.message) }
   }
   return (
-    <Card className={p.mine ? 'border-[#c8a960]/40' : ''}>
+    <Card className={p.mine ? 'border-[#111]/30' : ''}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="font-bold text-white">{p.nickname}{p.mine && <span className="ml-2 text-xs font-normal" style={{ color: GOLD }}>あなたの募集</span>}</p>
-          <p className="text-xs text-white/50">{[GENDERS[p.gender], AGES[p.age_band], LEVELS[p.level]].filter((x) => x && x !== '回答しない').join('・')}・{ago(p.created_at)}</p>
+          <p className="font-bold text-[#111]">{p.nickname}{p.mine && <span className="ml-2 text-xs font-normal" style={{ color: GOLD }}>あなたの募集</span>}</p>
+          <p className="text-xs text-[#666]">{[GENDERS[p.gender], AGES[p.age_band], LEVELS[p.level]].filter((x) => x && x !== '回答しない').join('・')}・{ago(p.created_at)}</p>
         </div>
         {!p.mine && <SafetyMenu postId={p.id} onDone={onChange} />}
       </div>
@@ -259,9 +259,9 @@ function PostCard({ p, onChange, needProfile }: { p: Post; onChange: () => void;
         <Chips items={p.slots} map={SLOTS} />
         {p.parts.length > 0 && <Chips items={p.parts} map={PARTS} />}
         {p.goals.length > 0 && <Chips items={p.goals} map={GOALS} />}
-        {p.note && <p className="whitespace-pre-wrap pt-1 text-sm text-white/80">{p.note}</p>}
-        {p.bio && <p className="text-xs text-white/40">自己紹介：{p.bio}</p>}
-        {p.gender_pref === 'same' && <p className="text-xs text-white/40">同性のみの募集です</p>}
+        {p.note && <p className="whitespace-pre-wrap pt-1 text-sm text-[#222]">{p.note}</p>}
+        {p.bio && <p className="text-xs text-[#6b6b6b]">自己紹介：{p.bio}</p>}
+        {p.gender_pref === 'same' && <p className="text-xs text-[#6b6b6b]">同性のみの募集です</p>}
       </div>
       <div className="mt-4">
         {p.mine ? (
@@ -274,7 +274,7 @@ function PostCard({ p, onChange, needProfile }: { p: Post; onChange: () => void;
         ) : asking ? (
           <div className="space-y-2">
             <textarea value={message} maxLength={200} rows={2} onChange={(e) => setMessage(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#c8a960]"
+              className="w-full rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2 text-sm text-[#111] outline-none focus:border-[#111]"
               placeholder="ひとこと（任意）例：火曜と木曜の夜なら行けます" />
             <ErrorText msg={err} />
             <div className="flex gap-2"><Btn onClick={send} disabled={busy}>送る</Btn><Btn kind="ghost" onClick={() => setAsking(false)}>やめる</Btn></div>
@@ -308,7 +308,7 @@ function GymBoard() {
     } else load()
   }, [handle]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-white/60">{err}</p></div>
+  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-[#555]">{err}</p></div>
   if (!b) return <Spinner />
   const mine = b.posts.some((p) => p.mine)
   const toggleWatch = async () => { await call(`/gyms/${encodeURIComponent(handle)}/watch`, 'POST', { on: !b.watching }); load() }
@@ -320,25 +320,25 @@ function GymBoard() {
   return (
     <div>
       <Back to="/my-fitpeak/gotore" label="合トレナビ" />
-      <h1 className="text-xl font-bold text-white">{b.gym.name}</h1>
+      <h1 className="text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">{b.gym.name}</h1>
       {handle.startsWith('area:') ? (
-        <p className="mb-4 text-sm text-white/50">
+        <p className="mb-4 text-sm text-[#666]">
           {b.gym.pref}{b.gym.city || ''}のどのジムに通う人でも使えるエリア掲示板です。通っているジム名は「ひとこと」に書いてください。
-          <a href={`https://fitpeak.co/pages/gym-area?pref=${encodeURIComponent(b.gym.pref || '')}${b.gym.city ? `&city=${encodeURIComponent(b.gym.city)}` : ''}`} className="ml-1 underline hover:text-white">近くのジムを探す</a>
+          <a href={`https://fitpeak.co/pages/gym-area?pref=${encodeURIComponent(b.gym.pref || '')}${b.gym.city ? `&city=${encodeURIComponent(b.gym.city)}` : ''}`} className="ml-1 underline hover:text-[#111]">近くのジムを探す</a>
         </p>
       ) : (
-        <p className="mb-4 text-sm text-white/50">{b.gym.pref}{b.gym.city}・<a href={articleUrl(handle)} className="underline hover:text-white">ジムの記事を見る</a></p>
+        <p className="mb-4 text-sm text-[#666]">{b.gym.pref}{b.gym.city}・<a href={articleUrl(handle)} className="underline hover:text-[#111]">ジムの記事を見る</a></p>
       )}
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2">
         <Card>
-          <p className="text-sm text-white/60">このジムの募集</p>
-          <p className="text-2xl font-bold text-white">{b.posts.length}<span className="ml-1 text-sm font-normal text-white/50">件</span></p>
+          <p className="text-sm text-[#555]">このジムの募集</p>
+          <p className="text-2xl font-black text-[#111]">{b.posts.length}<span className="ml-1 text-sm font-normal text-[#666]">件</span></p>
           {!mine && !showForm && <div className="mt-3"><Btn onClick={openForm}>自分も募集する</Btn></div>}
         </Card>
         <Card>
-          <p className="text-sm text-white/60">募集が出たら知らせてほしい人</p>
-          <p className="text-2xl font-bold text-white">{b.watchers}<span className="ml-1 text-sm font-normal text-white/50">人</span></p>
+          <p className="text-sm text-[#555]">募集が出たら知らせてほしい人</p>
+          <p className="text-2xl font-black text-[#111]">{b.watchers}<span className="ml-1 text-sm font-normal text-[#666]">人</span></p>
           <div className="mt-3">
             <Btn kind={b.watching ? 'ghost' : 'gold'} onClick={toggleWatch}>
               {b.watching ? <><BellOff size={16} />通知をやめる</> : <><Bell size={16} />募集が出たらLINEで知らせる</>}
@@ -349,7 +349,7 @@ function GymBoard() {
 
       {showForm && (
         <Card className="mb-5">
-          <p className="mb-4 font-bold text-white">{b.gym.name}で合トレ仲間を募集する</p>
+          <p className="mb-4 font-bold text-[#111]">{b.gym.name}で合トレ仲間を募集する</p>
           <PostForm handle={handle} myGender={b.my_gender} onDone={() => { setShowForm(false); load() }} />
         </Card>
       )}
@@ -361,8 +361,8 @@ function GymBoard() {
         ))}
         {b.posts.length === 0 && !showForm && (
           <Card className="text-center">
-            <p className="mb-1 font-bold text-white">まだ募集はありません</p>
-            <p className="mb-4 text-sm text-white/60">最初の1人になりませんか？ 募集を出すと、このジムの通知待ちの人{b.watchers > 0 ? `（${b.watchers}人）` : ''}にLINEで届きます。</p>
+            <p className="mb-1 font-bold text-[#111]">まだ募集はありません</p>
+            <p className="mb-4 text-sm text-[#555]">最初の1人になりませんか？ 募集を出すと、このジムの通知待ちの人{b.watchers > 0 ? `（${b.watchers}人）` : ''}にLINEで届きます。</p>
             <Btn onClick={openForm}>募集する</Btn>
           </Card>
         )}
@@ -381,7 +381,7 @@ function ShortLink() {
       .then((r) => nav(gymUrl(r.handle), { replace: true }))
       .catch((e) => setErr(e.message))
   }, [id, nav])
-  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-white/60">{err}</p></div>
+  if (err) return <div><Back to="/my-fitpeak/gotore" label="合トレナビ" /><p className="text-[#555]">{err}</p></div>
   return <Spinner />
 }
 
@@ -407,37 +407,37 @@ function Chat() {
     setErr(''); setBusy(true)
     try { await call(`/matches/${id}/messages`, 'POST', { body: text }); setText(''); load() } catch (e: any) { setErr(e.message) } finally { setBusy(false) }
   }
-  if (err && !m) return <div><Back to="/my-fitpeak/gotore" label="戻る" /><p className="text-white/60">{err}</p></div>
+  if (err && !m) return <div><Back to="/my-fitpeak/gotore" label="戻る" /><p className="text-[#555]">{err}</p></div>
   if (!m) return <Spinner />
   return (
     <div>
       <Back to="/my-fitpeak/gotore" label="合トレナビ" />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-white">{m.partner.nickname}さん</h1>
-          <p className="text-xs text-white/50">{[GENDERS[m.partner.gender], AGES[m.partner.age_band], LEVELS[m.partner.level]].filter((x) => x && x !== '回答しない').join('・')}・<Link to={gymUrl(m.gym.handle)} className="underline">{m.gym.name}</Link></p>
+          <h1 className="text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">{m.partner.nickname}さん</h1>
+          <p className="text-xs text-[#666]">{[GENDERS[m.partner.gender], AGES[m.partner.age_band], LEVELS[m.partner.level]].filter((x) => x && x !== '回答しない').join('・')}・<Link to={gymUrl(m.gym.handle)} className="underline">{m.gym.name}</Link></p>
         </div>
         <SafetyMenu matchId={m.id} onDone={() => nav('/my-fitpeak/gotore')} />
       </div>
-      <p className="mb-4 rounded-xl bg-white/[0.04] p-3 text-xs leading-relaxed text-white/60">日時が決まったら、初回は{m.gym.name}の中で待ち合わせましょう。合トレ以外の誘い・勧誘があったら、右上から通報・ブロックできます。</p>
+      <p className="mb-4 rounded-[14px] bg-[#f6f6f6] p-3 text-xs leading-relaxed text-[#555]">日時が決まったら、初回は{m.gym.name}の中で待ち合わせましょう。合トレ以外の誘い・勧誘があったら、右上から通報・ブロックできます。</p>
       <div className="mb-4 space-y-2">
         {m.messages.map((x: any, i: number) => (
           <div key={i} className={`flex ${x.mine ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${x.mine ? 'bg-[#c8a960] text-black' : 'bg-white/10 text-white'}`}>
+            <div className={`max-w-[80%] whitespace-pre-wrap rounded-[20px] px-3.5 py-2 text-sm ${x.mine ? 'bg-[#111] text-white' : 'bg-[#eeeeee] text-[#111]'}`}>
               {x.body}
-              <div className={`mt-0.5 text-[10px] ${x.mine ? 'text-black/50' : 'text-white/40'}`}>{ago(x.at)}</div>
+              <div className={`mt-0.5 text-[10px] ${x.mine ? 'text-white/60' : 'text-[#6b6b6b]'}`}>{ago(x.at)}</div>
             </div>
           </div>
         ))}
-        {m.messages.length === 0 && <p className="py-6 text-center text-sm text-white/50">マッチしました。まずはあいさつと、行ける曜日・時間を送ってみましょう。</p>}
+        {m.messages.length === 0 && <p className="py-6 text-center text-sm text-[#666]">マッチしました。まずはあいさつと、行ける曜日・時間を送ってみましょう。</p>}
         <div ref={bottom} />
       </div>
       {m.closed ? (
-        <p className="text-center text-sm text-white/50">このチャットは終了しています</p>
+        <p className="text-center text-sm text-[#666]">このチャットは終了しています</p>
       ) : (
-        <div className="sticky bottom-0 flex gap-2 bg-[#0a0a0a] py-2">
+        <div className="sticky bottom-0 flex gap-2 bg-white py-2">
           <textarea value={text} maxLength={500} rows={1} onChange={(e) => setText(e.target.value)}
-            className="flex-1 resize-none rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-[#c8a960]" placeholder="メッセージ" />
+            className="flex-1 resize-none rounded-[12px] border border-[#d2d2d7] bg-white px-3 py-2.5 text-sm text-[#111] outline-none focus:border-[#111]" placeholder="メッセージ" />
           <Btn onClick={send} disabled={busy || !text.trim()}><Send size={16} /></Btn>
         </div>
       )}
@@ -452,7 +452,7 @@ function Home() {
   const [err, setErr] = useState('')
   const load = useCallback(() => call('/me').then(setMe).catch((e) => setErr(e.message)), [])
   useEffect(() => { load() }, [load])
-  if (err) return <p className="text-white/60">{err}</p>
+  if (err) return <p className="text-[#555]">{err}</p>
   if (!me) return <Spinner />
 
   const answer = async (rid: string, accept: boolean) => {
@@ -464,28 +464,28 @@ function Home() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold text-white"><Users size={20} style={{ color: GOLD }} />合トレナビ</h1>
-        <p className="mt-1 text-sm text-white/50">同じジムに通う人と、一緒にトレーニングする相手を見つけられます。</p>
+        <h1 className="flex items-center gap-2 text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight"><Users size={20} style={{ color: GOLD }} />合トレナビ</h1>
+        <p className="mt-1 text-sm text-[#666]">同じジムに通う人と、一緒にトレーニングする相手を見つけられます。</p>
       </div>
 
       {!me.profile && (
-        <Card className="border-[#c8a960]/40">
-          <p className="mb-1 font-bold text-white">まずはプロフィールを登録しましょう</p>
-          <p className="mb-3 text-sm text-white/60">募集や「合トレしたい」を送るのに必要です（1分で終わります）。</p>
+        <Card className="border-[#111]/30">
+          <p className="mb-1 font-bold text-[#111]">まずはプロフィールを登録しましょう</p>
+          <p className="mb-3 text-sm text-[#555]">募集や「合トレしたい」を送るのに必要です（1分で終わります）。</p>
           <Link to="/my-fitpeak/gotore/profile"><Btn>プロフィールを登録する</Btn></Link>
         </Card>
       )}
 
       {pending.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-bold text-white/70">届いた「合トレしたい」</h2>
+          <h2 className="mb-2 text-sm font-bold text-[#444]">届いた「合トレしたい」</h2>
           <div className="space-y-3">
             {pending.map((r: any) => (
               <Card key={r.id}>
-                <p className="font-bold text-white">{r.nickname}<span className="ml-2 text-xs font-normal text-white/50">{[GENDERS[r.gender], AGES[r.age_band], LEVELS[r.level]].filter((x) => x && x !== '回答しない').join('・')}</span></p>
-                <p className="text-xs text-white/50">{r.gym.name}・{ago(r.created_at)}</p>
-                {r.message && <p className="mt-2 whitespace-pre-wrap text-sm text-white/80">{r.message}</p>}
-                {r.bio && <p className="mt-1 text-xs text-white/40">自己紹介：{r.bio}</p>}
+                <p className="font-bold text-[#111]">{r.nickname}<span className="ml-2 text-xs font-normal text-[#666]">{[GENDERS[r.gender], AGES[r.age_band], LEVELS[r.level]].filter((x) => x && x !== '回答しない').join('・')}</span></p>
+                <p className="text-xs text-[#666]">{r.gym.name}・{ago(r.created_at)}</p>
+                {r.message && <p className="mt-2 whitespace-pre-wrap text-sm text-[#222]">{r.message}</p>}
+                {r.bio && <p className="mt-1 text-xs text-[#6b6b6b]">自己紹介：{r.bio}</p>}
                 <div className="mt-3 flex gap-2"><Btn onClick={() => answer(r.id, true)}>承認してチャットする</Btn><Btn kind="ghost" onClick={() => answer(r.id, false)}>見送る</Btn></div>
               </Card>
             ))}
@@ -495,17 +495,17 @@ function Home() {
 
       {me.matches.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-bold text-white/70">チャット</h2>
+          <h2 className="mb-2 text-sm font-bold text-[#444]">チャット</h2>
           <div className="space-y-2">
             {me.matches.map((m: any) => (
               <Link key={m.id} to={`/my-fitpeak/gotore/chat/${m.id}`} className="block">
-                <Card className="hover:border-white/25">
+                <Card className="hover:border-[#111]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-bold text-white">{m.partner_nickname}さん<span className="ml-2 text-xs font-normal text-white/40">{m.gym.name}</span></p>
-                      <p className="truncate text-sm text-white/50">{m.closed ? '終了したチャット' : (m.last_message || 'マッチしました。あいさつを送りましょう')}</p>
+                      <p className="font-bold text-[#111]">{m.partner_nickname}さん<span className="ml-2 text-xs font-normal text-[#6b6b6b]">{m.gym.name}</span></p>
+                      <p className="truncate text-sm text-[#666]">{m.closed ? '終了したチャット' : (m.last_message || 'マッチしました。あいさつを送りましょう')}</p>
                     </div>
-                    <MessageCircle size={18} className="shrink-0 text-white/30" />
+                    <MessageCircle size={18} className="shrink-0 text-[#808080]" />
                   </div>
                 </Card>
               </Link>
@@ -515,13 +515,13 @@ function Home() {
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-bold text-white/70">あなたの募集</h2>
-        {openPosts.length === 0 ? <p className="text-sm text-white/40">出している募集はありません。ジムの記事か、下の「通知待ちのジム」から募集できます。</p> : (
+        <h2 className="mb-2 text-sm font-bold text-[#444]">あなたの募集</h2>
+        {openPosts.length === 0 ? <p className="text-sm text-[#6b6b6b]">出している募集はありません。ジムの記事か、下の「通知待ちのジム」から募集できます。</p> : (
           <div className="space-y-2">
             {openPosts.map((p: any) => (
-              <Link key={p.id} to={gymUrl(p.gym.handle)} className="block"><Card className="hover:border-white/25">
-                <p className="font-bold text-white">{p.gym.name}</p>
-                <p className="text-xs text-white/50">{p.slots.map((s: string) => SLOTS[s]).join('・')}・申請{p.requests.length}件・{new Date(p.expires_at).toLocaleDateString('ja-JP')}まで</p>
+              <Link key={p.id} to={gymUrl(p.gym.handle)} className="block"><Card className="hover:border-[#111]">
+                <p className="font-bold text-[#111]">{p.gym.name}</p>
+                <p className="text-xs text-[#666]">{p.slots.map((s: string) => SLOTS[s]).join('・')}・申請{p.requests.length}件・{new Date(p.expires_at).toLocaleDateString('ja-JP')}まで</p>
               </Card></Link>
             ))}
           </div>
@@ -530,11 +530,11 @@ function Home() {
 
       {me.sent.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-bold text-white/70">送った「合トレしたい」</h2>
+          <h2 className="mb-2 text-sm font-bold text-[#444]">送った「合トレしたい」</h2>
           <div className="space-y-2">
             {me.sent.map((r: any) => (
               <Card key={r.id}>
-                <p className="text-sm text-white">{r.nickname}さん（{r.gym.name}）</p>
+                <p className="text-sm text-[#111]">{r.nickname}さん（{r.gym.name}）</p>
                 <p className="text-xs" style={{ color: r.status === 'accepted' ? GOLD : undefined }}>
                   {r.status === 'pending' ? '返事待ち' : r.status === 'accepted' ? <Link to={`/my-fitpeak/gotore/chat/${r.match_id}`} className="underline">承認されました。チャットを開く</Link> : '今回は見送られました'}
                 </p>
@@ -545,21 +545,21 @@ function Home() {
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-bold text-white/70">通知待ちのジム</h2>
-        {me.watches.length === 0 ? <p className="text-sm text-white/40">fitpeak.co のジム記事で「募集が出たらLINEで知らせる」を押すと、ここに入ります。</p> : (
+        <h2 className="mb-2 text-sm font-bold text-[#444]">通知待ちのジム</h2>
+        {me.watches.length === 0 ? <p className="text-sm text-[#6b6b6b]">fitpeak.co のジム記事で「募集が出たらLINEで知らせる」を押すと、ここに入ります。</p> : (
           <div className="space-y-2">
             {me.watches.map((g: any) => (
-              <Link key={g.handle} to={gymUrl(g.handle)} className="block"><Card className="hover:border-white/25">
-                <div className="flex items-center justify-between"><div><p className="font-bold text-white">{g.name}</p><p className="text-xs text-white/50">{g.pref}{g.city}</p></div>
+              <Link key={g.handle} to={gymUrl(g.handle)} className="block"><Card className="hover:border-[#111]">
+                <div className="flex items-center justify-between"><div><p className="font-bold text-[#111]">{g.name}</p><p className="text-xs text-[#666]">{g.pref}{g.city}</p></div>
                   <span className="text-sm" style={{ color: GOLD }}>募集{g.open_posts}件</span></div>
               </Card></Link>
             ))}
           </div>
         )}
-        <p className="mt-3 text-sm"><a href="https://fitpeak.co/pages/gym-navi" className="underline text-white/60 hover:text-white">ジムナビで近くのジムを探す</a></p>
+        <p className="mt-3 text-sm"><a href="https://fitpeak.co/pages/gym-navi" className="underline text-[#555] hover:text-[#111]">ジムナビで近くのジムを探す</a></p>
       </section>
 
-      {me.profile && <p className="text-sm"><Link to="/my-fitpeak/gotore/profile" className="text-white/50 underline hover:text-white">プロフィールを編集</Link></p>}
+      {me.profile && <p className="text-sm"><Link to="/my-fitpeak/gotore/profile" className="text-[#666] underline hover:text-[#111]">プロフィールを編集</Link></p>}
       <Rules />
     </div>
   )

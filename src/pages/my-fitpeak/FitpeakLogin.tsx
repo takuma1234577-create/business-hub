@@ -347,81 +347,97 @@ export default function FitpeakLogin() {
   // LINE連携完了画面
   if (linkDone) {
     return (
-      <div className="fp-root min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-10 mx-auto mb-2" />
-            <p className="text-white/40 text-sm">My FITPEAK</p>
-          </div>
-          <div className="bg-[#151515] border border-white/10 rounded-2xl p-6 sm:p-8 text-center">
-            <CheckCircle size={48} className="mx-auto text-[#06C755] mb-4" />
-            <h2 className="text-lg font-semibold text-white mb-2">連携完了</h2>
-            <p className="text-sm text-white/80 mb-6">{success}</p>
+      <div className="fp-root min-h-screen bg-white flex flex-col">
+      <header className="bg-[#0b0b0b]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-12 sm:h-14 flex items-center">
+          <a href="https://fitpeak.co" aria-label="FITPEAK 公式サイトへ" className="inline-flex items-center min-h-[44px]">
+            <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
+          </a>
+        </div>
+      </header>
+      <div className="flex-1 flex items-center justify-center px-5 py-12">
+        <div className="fp-rise w-full max-w-[400px]">
+          <div className="text-center">
+            <CheckCircle size={52} strokeWidth={1.6} className="mx-auto text-[#047d3b] mb-5" />
+            <p className="text-xs font-bold tracking-[0.14em] text-[#6b6b6b]">MY FITPEAK</p>
+            <h2 className="mt-2 text-[28px] font-black tracking-[-0.01em] leading-tight text-[#111]">連携完了</h2>
+            <p className="mt-3 mb-8 text-[15px] leading-relaxed text-[#444]">{success}</p>
             <button
               type="button"
               onClick={() => navigate('/my-fitpeak')}
-              className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a55] text-black text-sm font-semibold transition"
+              className="w-full h-12 rounded-full bg-[#111] hover:bg-[#333] text-white text-[15px] font-bold transition-colors"
             >
               Myページへ
             </button>
           </div>
         </div>
       </div>
+      </div>
     )
   }
 
   return (
-    <div className="fp-root min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-10 mx-auto mb-2" />
-          <p className="text-white/40 text-sm">My FITPEAK</p>
+    <div className="fp-root min-h-screen bg-white flex flex-col">
+      <header className="bg-[#0b0b0b]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-12 sm:h-14 flex items-center">
+          <a href="https://fitpeak.co" aria-label="FITPEAK 公式サイトへ" className="inline-flex items-center min-h-[44px]">
+            <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[17px] sm:h-5 w-auto" />
+          </a>
+        </div>
+      </header>
+      <div className="flex-1 flex items-start sm:items-center justify-center px-5 pt-12 pb-16 sm:py-16">
+      <div className="fp-rise w-full max-w-[400px]">
+        <div className="text-center mb-9">
+          <p className="text-xs font-bold tracking-[0.14em] text-[#6b6b6b]">MY FITPEAK</p>
+          <h1 className="mt-2 text-[30px] sm:text-[34px] font-black tracking-[-0.01em] leading-tight text-[#111]">
+            {mode === 'reset' ? 'パスワードの再設定' : mode === 'signup' ? '会員登録' : 'ログイン'}
+          </h1>
+          <p className="mt-3 text-[15px] text-[#666]">ご注文・ポイント・合トレをひとつの場所で。</p>
         </div>
 
-        <div className="bg-[#151515] border border-white/10 rounded-2xl p-6 sm:p-8">
+        <div>
           {isLineContext && mode !== 'reset' && (
-            <div className="flex items-center gap-3 mb-5 p-3 rounded-lg bg-[#06C755]/5 border border-[#06C755]/20">
-              <MessageCircle size={20} className="text-[#06C755] shrink-0" />
+            <div className="flex items-center gap-3 mb-6 p-4 rounded-[16px] bg-[#06C755]/[0.06]">
+              <MessageCircle size={20} className="text-[#047d3b] shrink-0" />
               <div>
-                <p className="text-xs text-[#06C755]">LINE連携モード</p>
+                <p className="text-xs text-[#047d3b]">LINE連携モード</p>
                 {lineDisplayName && (
-                  <p className="text-xs text-white/90 mt-0.5">{lineDisplayName}</p>
+                  <p className="text-xs text-[#222] mt-0.5">{lineDisplayName}</p>
                 )}
-                <p className="text-[10px] text-white/50 mt-0.5">ログインまたは会員登録するとLINEと自動連携されます</p>
+                <p className="text-[10px] text-[#666] mt-0.5">ログインまたは会員登録するとLINEと自動連携されます</p>
               </div>
             </div>
           )}
 
           {mode === 'reset' ? (
-            <div className="space-y-4">
-              <h2 className="text-white text-sm font-semibold text-center">パスワードを再設定</h2>
-              <p className="text-white/50 text-xs text-center leading-relaxed">
+            <div className="space-y-5">
+              <p className="text-[#666] text-sm text-center leading-relaxed">
                 登録済みのメールアドレスを入力してください。<br />パスワード再設定用のメールをお送りします。
               </p>
 
               <div>
-                <label className="block text-xs font-medium text-white/50 mb-1.5">メールアドレス</label>
+                <label className="block text-xs font-bold text-[#444] mb-2">メールアドレス</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="example@email.com"
-                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 focus:ring-1 focus:ring-[#c8a960]/30 transition"
+                  className="w-full h-12 px-4 rounded-[12px] bg-white border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] focus:ring-4 focus:ring-black/[0.06] transition"
                 />
               </div>
 
               {error && (
-                <p className="text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>
+                <p className="text-[#c8102e] text-xs bg-[#c8102e]/5 px-4 py-3 rounded-[12px]">{error}</p>
               )}
               {success && (
-                <p className="text-green-400 text-xs bg-green-400/10 px-3 py-2 rounded-lg">{success}</p>
+                <p className="text-[#067a3a] text-xs bg-[#06c755]/10 px-4 py-3 rounded-[12px]">{success}</p>
               )}
 
               <button
                 type="button"
                 onClick={handleResetPassword}
                 disabled={resetting || !email.trim()}
-                className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a55] text-black text-sm font-semibold transition disabled:opacity-50"
+                className="w-full h-12 rounded-full bg-[#111] hover:bg-[#333] text-white text-[15px] font-bold transition-colors disabled:opacity-40"
               >
                 {resetting ? '送信中...' : 'リセットメールを送信'}
               </button>
@@ -429,7 +445,7 @@ export default function FitpeakLogin() {
               <button
                 type="button"
                 onClick={() => { setMode('login'); setError(''); setSuccess('') }}
-                className="w-full text-center text-xs text-white/50 hover:text-white/80 underline underline-offset-4 cursor-pointer transition py-2"
+                className="w-full text-center text-xs text-[#666] hover:text-[#111] underline underline-offset-4 cursor-pointer transition py-2"
               >
                 ログインに戻る
               </button>
@@ -440,29 +456,29 @@ export default function FitpeakLogin() {
                 type="button"
                 onClick={handleLineLogin}
                 disabled={lineLoginLoading}
-                className="w-full mb-4 py-3 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full mb-4 h-12 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-[15px] font-bold transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 <MessageCircle size={18} />
                 {lineLoginLoading ? 'ログイン中...' : 'LINEでログイン'}
               </button>
               {handoffCode && (
-                <p className="mb-4 -mt-1 text-xs leading-relaxed text-center opacity-80">
+                <p className="mb-4 -mt-1 text-xs leading-relaxed text-center text-[#444]">
                   LINEアプリで番号 <b className="text-base">{handoffCode}</b> を確かめて「ログインする」を押し、この画面に戻ってください。自動でログインします。
                 </p>
               )}
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px bg-white/10" />
-                <span className="text-[10px] text-white/30">メールアドレスでログイン</span>
-                <div className="flex-1 h-px bg-white/10" />
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 h-px bg-[#e5e5ea]" />
+                <span className="text-[11px] text-[#6b6b6b]">メールアドレスでログイン</span>
+                <div className="flex-1 h-px bg-[#e5e5ea]" />
               </div>
 
-              <div className="flex gap-1 mb-6 bg-white/5 rounded-lg p-1">
+              <div className="flex gap-1 mb-6 bg-[#f0f0f2] rounded-full p-1">
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(''); setSuccess('') }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                    mode === 'login' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
+                  className={`flex-1 h-9 text-sm font-bold rounded-full transition-all duration-200 ${
+                    mode === 'login' ? 'bg-white text-[#111] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6b6b6b] hover:text-[#111]'
                   }`}
                 >
                   ログイン
@@ -470,8 +486,8 @@ export default function FitpeakLogin() {
                 <button
                   type="button"
                   onClick={() => { setMode('signup'); setError(''); setSuccess('') }}
-                  className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                    mode === 'signup' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
+                  className={`flex-1 h-9 text-sm font-bold rounded-full transition-all duration-200 ${
+                    mode === 'signup' ? 'bg-white text-[#111] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6b6b6b] hover:text-[#111]'
                   }`}
                 >
                   会員登録
@@ -480,18 +496,18 @@ export default function FitpeakLogin() {
 
               <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/50 mb-1.5">メールアドレス</label>
+                  <label className="block text-xs font-bold text-[#444] mb-2">メールアドレス</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="example@email.com"
-                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 focus:ring-1 focus:ring-[#c8a960]/30 transition"
+                    className="w-full h-12 px-4 rounded-[12px] bg-white border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] focus:ring-4 focus:ring-black/[0.06] transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-white/50 mb-1.5">パスワード</label>
+                  <label className="block text-xs font-bold text-[#444] mb-2">パスワード</label>
                   <input
                     type="password"
                     value={password}
@@ -499,24 +515,24 @@ export default function FitpeakLogin() {
                     required
                     minLength={6}
                     placeholder={mode === 'signup' ? '6文字以上' : ''}
-                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 focus:ring-1 focus:ring-[#c8a960]/30 transition"
+                    className="w-full h-12 px-4 rounded-[12px] bg-white border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] focus:ring-4 focus:ring-black/[0.06] transition"
                   />
                 </div>
 
                 {error && (
-                  <p className="text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>
+                  <p className="text-[#c8102e] text-xs bg-[#c8102e]/5 px-4 py-3 rounded-[12px]">{error}</p>
                 )}
                 {success && (
-                  <p className="text-green-400 text-xs bg-green-400/10 px-3 py-2 rounded-lg">{success}</p>
+                  <p className="text-[#067a3a] text-xs bg-[#06c755]/10 px-4 py-3 rounded-[12px]">{success}</p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading || linking}
-                  className={`w-full py-3 rounded-lg text-sm font-semibold transition disabled:opacity-50 ${
+                  className={`w-full h-12 rounded-full text-[15px] font-bold transition-colors disabled:opacity-40 ${
                     isLineContext
                       ? 'bg-[#06C755] hover:bg-[#05b34c] text-white'
-                      : 'bg-[#c8a960] hover:bg-[#b89a55] text-black'
+                      : 'bg-[#111] hover:bg-[#333] text-white'
                   }`}
                 >
                   {loading || linking
@@ -532,20 +548,24 @@ export default function FitpeakLogin() {
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPassword(''); setMode('reset'); setError(''); setSuccess('') }}
-                  className="w-full text-center text-xs text-white/50 hover:text-white/80 underline underline-offset-4 cursor-pointer transition py-3 mt-2"
+                  className="w-full text-center text-xs text-[#666] hover:text-[#111] underline underline-offset-4 cursor-pointer transition py-3 mt-2"
                 >
                   パスワードを忘れた方はこちら
                 </button>
               )}
 
               {mode === 'signup' && (
-                <p className="text-white/30 text-xs mt-4 text-center leading-relaxed">
+                <p className="text-[#6b6b6b] text-xs mt-5 text-center leading-relaxed">
                   公式サイトでのご購入時と同じメールアドレスで登録すると、注文履歴や配送状況が自動で連携されます。
                 </p>
               )}
             </>
           )}
         </div>
+        <p className="mt-10 pt-6 border-t border-[#e5e5ea] text-center text-xs">
+          <a href="https://fitpeak.co" className="text-[#444] hover:text-[#111] transition-colors">FITPEAK 公式サイトへ戻る ›</a>
+        </p>
+      </div>
       </div>
     </div>
   )

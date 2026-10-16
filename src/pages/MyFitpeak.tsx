@@ -50,8 +50,8 @@ function AutoLoginHandler({ children }: { children: ReactNode }) {
 
   if (processing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
+        <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -63,8 +63,8 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useFitpeakAuth()
   const location = useLocation()
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-      <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
+      <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
     </div>
   )
   // ログイン後に元のページへ戻す（ポイント利用ページなど、外から直接来る入口のため）

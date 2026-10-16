@@ -59,30 +59,30 @@ export default function FitpeakRedeem() {
   if (balance === null) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl bg-[#151515] border border-white/10 p-5">
+      <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5">
         <div className="flex items-center gap-2">
-          <Gift size={18} className="text-[#c8a960]" />
-          <h1 className="text-base font-bold text-white">My FITPEAKポイントを使う</h1>
+          <Gift size={18} className="text-[#111]" />
+          <h1 className="text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">My FITPEAKポイントを使う</h1>
         </div>
         <div className="flex items-baseline justify-between mt-4">
-          <span className="text-xs text-white/50">保有ポイント</span>
-          <span className="text-2xl font-bold text-white">{balance.toLocaleString()}pt</span>
+          <span className="text-xs text-[#666]">保有ポイント</span>
+          <span className="text-2xl font-black text-[#111]">{balance.toLocaleString()}pt</span>
         </div>
 
         {balance <= 0 ? (
-          <p className="text-sm text-white/60 mt-4">
+          <p className="text-sm text-[#555] mt-4">
             使えるポイントがまだありません。クレアショット定期購入中の方は、毎日ここを開くと1ptずつたまります。
           </p>
         ) : (
           <>
-            <label className="block text-xs text-white/50 mt-5 mb-2">使うポイント（1pt＝1円引き）</label>
+            <label className="block text-xs text-[#666] mt-5 mb-2">使うポイント（1pt＝1円引き）</label>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -91,26 +91,26 @@ export default function FitpeakRedeem() {
                 max={balance}
                 value={points}
                 onChange={(e) => { setPoints(e.target.value.replace(/[^\d]/g, '')); setError('') }}
-                className="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+                className="flex-1 px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none focus:border-[#111] transition"
               />
               <button
                 type="button"
                 onClick={() => setPoints(String(balance))}
-                className="px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white/70 text-sm hover:bg-white/10 transition"
+                className="px-4 py-3 rounded-lg bg-[#f6f6f6] border border-[#e6e6e6] text-[#444] text-sm hover:bg-[#ececec] transition"
               >
                 全部
               </button>
             </div>
-            {points !== '' && !valid && <p className="text-red-400 text-xs mt-2">1〜{balance.toLocaleString()}ptの範囲で入力してください</p>}
+            {points !== '' && !valid && <p className="text-[#c8102e] text-xs mt-2">1〜{balance.toLocaleString()}ptの範囲で入力してください</p>}
             <button
               onClick={redeem}
               disabled={!valid || busy}
-              className="w-full mt-4 py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-bold transition disabled:opacity-40"
+              className="w-full mt-4 py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition disabled:opacity-40"
             >
               {busy ? '準備中' : `${valid ? n.toLocaleString() : 0}円引きでお買い物に戻る`}
             </button>
-            {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
-            <ul className="text-[11px] text-white/40 mt-4 space-y-1 leading-relaxed">
+            {error && <p className="text-[#c8102e] text-xs mt-2">{error}</p>}
+            <ul className="text-[11px] text-[#6b6b6b] mt-4 space-y-1 leading-relaxed">
               <li>割引は1回のご注文に使えます。24時間以内にご注文ください。</li>
               <li>使わなかった場合、ポイントは24時間後に自動で戻ります。</li>
               <li>商品代金がポイントより少ないときは、使った分だけ減り、残りは戻ります。</li>
@@ -119,7 +119,7 @@ export default function FitpeakRedeem() {
           </>
         )}
       </section>
-      <Link to="/my-fitpeak" className="block text-center text-xs text-white/40 hover:text-white/70">ホームに戻る</Link>
+      <Link to="/my-fitpeak" className="block text-center text-xs text-[#6b6b6b] hover:text-[#111]">ホームに戻る</Link>
     </div>
   )
 }

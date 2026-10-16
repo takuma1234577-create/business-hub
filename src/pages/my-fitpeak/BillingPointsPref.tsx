@@ -72,12 +72,12 @@ export default function BillingPointsPref() {
   if (!prefs || prefs.length === 0) return null
 
   return (
-    <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
-      <p className="text-xs text-white/50">次回の定期請求でポイントを使う</p>
+    <div className="mt-4 pt-4 border-t border-[#e6e6e6] space-y-4">
+      <p className="text-xs text-[#666]">次回の定期請求でポイントを使う</p>
       {prefs.map((p) => (
         <div key={p.subscription_id}>
           {prefs.length > 1 && p.amount != null && (
-            <p className="text-[11px] text-white/40 mb-1">定期購入（{Number(p.amount).toLocaleString()}円）</p>
+            <p className="text-[11px] text-[#6b6b6b] mb-1">定期購入（{Number(p.amount).toLocaleString()}円）</p>
           )}
           <div className="grid grid-cols-3 gap-2">
             {MODES.map((m) => (
@@ -87,7 +87,7 @@ export default function BillingPointsPref() {
                 disabled={saving === p.subscription_id}
                 onClick={() => save(p, m.value)}
                 className={`py-2 rounded-lg text-xs font-semibold border transition ${
-                  p.mode === m.value ? 'bg-[#c8a960] text-black border-[#c8a960]' : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
+                  p.mode === m.value ? 'bg-[#111] text-white border-[#111]' : 'bg-[#f6f6f6] text-[#555] border-[#e6e6e6] hover:bg-[#ececec]'
                 }`}
               >
                 {m.label}
@@ -103,25 +103,25 @@ export default function BillingPointsPref() {
                 value={fixedInput[p.subscription_id] || ''}
                 onChange={(e) => setFixedInput((v) => ({ ...v, [p.subscription_id]: e.target.value.replace(/[^\d]/g, '') }))}
                 placeholder="使うポイント"
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+                className="flex-1 px-3 py-2 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] text-sm focus:outline-none focus:border-[#111] transition"
               />
               <button
                 type="button"
                 disabled={saving === p.subscription_id || !fixedInput[p.subscription_id]}
                 onClick={() => save(p, 'fixed')}
-                className="px-4 py-2 rounded-lg bg-[#c8a960] text-black text-xs font-semibold disabled:opacity-40"
+                className="px-4 py-2 rounded-full bg-[#111] text-white text-xs font-bold disabled:opacity-40"
               >
                 保存
               </button>
             </div>
           )}
-          {saved === p.subscription_id && <p className="text-[11px] text-[#c8a960] mt-1">保存しました</p>}
+          {saved === p.subscription_id && <p className="text-[11px] text-[#111] mt-1">保存しました</p>}
         </div>
       ))}
-      <p className="text-[11px] text-white/30 leading-relaxed">
+      <p className="text-[11px] text-[#808080] leading-relaxed">
         請求の直前に、保有ポイントと請求額の範囲で差し引きます。お支払いが最終的にできなかった場合は、ポイントは戻ります。
       </p>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && <p className="text-[#c8102e] text-xs">{error}</p>}
     </div>
   )
 }

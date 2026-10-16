@@ -81,7 +81,7 @@ export default function FitpeakPro() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="w-8 h-8 border-2 border-[#c8a960] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#111] border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -91,56 +91,56 @@ export default function FitpeakPro() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-base font-bold text-white">
-          <Crown size={18} className="text-[#c8a960]" /> FITPEAK PRO
+        <h1 className="flex items-center gap-2 text-[#111] text-[26px] sm:text-[30px] font-black tracking-[-0.01em] leading-tight">
+          <Crown size={18} className="text-[#111]" /> FITPEAK PRO
         </h1>
-        <p className="text-xs text-white/40 mt-1 leading-relaxed">有料会員プランの状態の確認と、解約ができます。</p>
+        <p className="text-xs text-[#6b6b6b] mt-1 leading-relaxed">有料会員プランの状態の確認と、解約ができます。</p>
       </div>
 
-      {error && <p className="flex items-center gap-1.5 text-sm text-red-400"><AlertTriangle size={16} />{error}</p>}
+      {error && <p className="flex items-center gap-1.5 text-sm text-[#c8102e]"><AlertTriangle size={16} />{error}</p>}
 
       {!sub && (
-        <section className="rounded-2xl bg-[#151515] border border-white/10 p-5 sm:p-6 space-y-3">
-          <p className="text-sm text-white">FITPEAK PRO には、まだ登録していません。</p>
-          <ul className="text-xs text-white/50 space-y-1 leading-relaxed">
+        <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5 sm:p-6 space-y-3">
+          <p className="text-sm text-[#111]">FITPEAK PRO には、まだ登録していません。</p>
+          <ul className="text-xs text-[#666] space-y-1 leading-relaxed">
             <li>・ギアはいつでも10%OFF・送料無料</li>
             <li>・ポイント2倍＋毎月100ポイント</li>
             <li>・毎月の会員限定クーポン</li>
           </ul>
-          <a href={LP_URL} className="block text-center w-full py-3.5 rounded-lg bg-[#c8a960] hover:bg-[#b89950] text-black text-sm font-bold transition">
+          <a href={LP_URL} className="block text-center w-full py-3.5 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition">
             くわしく見る（14日間無料）
           </a>
         </section>
       )}
 
       {sub && (
-        <section className="rounded-2xl bg-[#151515] border border-white/10 p-5 sm:p-6">
+        <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5 sm:p-6">
           <dl className="grid grid-cols-[7rem_1fr] gap-y-3 text-sm">
-            <dt className="text-white/40">プラン</dt>
-            <dd className="text-white">{sub.plan_name}</dd>
-            <dt className="text-white/40">状態</dt>
-            <dd className="text-white">
+            <dt className="text-[#6b6b6b]">プラン</dt>
+            <dd className="text-[#111]">{sub.plan_name}</dd>
+            <dt className="text-[#6b6b6b]">状態</dt>
+            <dd className="text-[#111]">
               {sub.cancelled ? '解約済み' : sub.in_trial ? '無料期間中' : sub.status === 'past_due' ? 'お支払い確認中' : 'ご利用中'}
             </dd>
             {!sub.cancelled && sub.next_billing_date && (
               <>
-                <dt className="text-white/40">{sub.in_trial ? '無料期間の終了' : '次回の決済日'}</dt>
-                <dd className="text-white">
+                <dt className="text-[#6b6b6b]">{sub.in_trial ? '無料期間の終了' : '次回の決済日'}</dt>
+                <dd className="text-[#111]">
                   {jpDate(sub.next_billing_date)}
-                  <span className="block text-xs text-white/40 mt-0.5">この日に ¥{sub.price.toLocaleString(getLocale())} を決済します</span>
+                  <span className="block text-xs text-[#6b6b6b] mt-0.5">この日に ¥{sub.price.toLocaleString(getLocale())} を決済します</span>
                 </dd>
               </>
             )}
             {sub.cancelled && data?.plan_expires_date && (
               <>
-                <dt className="text-white/40">特典を使える期限</dt>
-                <dd className="text-white">{jpDate(data.plan_expires_date)}まで</dd>
+                <dt className="text-[#6b6b6b]">特典を使える期限</dt>
+                <dd className="text-[#111]">{jpDate(data.plan_expires_date)}まで</dd>
               </>
             )}
           </dl>
 
           {done && (
-            <p className="mt-5 flex items-center gap-1.5 text-sm text-[#06C755]">
+            <p className="mt-5 flex items-center gap-1.5 text-sm text-[#047d3b]">
               <CheckCircle size={16} /> 解約しました。今後の決済はありません。
             </p>
           )}
@@ -148,16 +148,16 @@ export default function FitpeakPro() {
           {sub.can_cancel && !confirming && (
             <button
               onClick={() => setConfirming(true)}
-              className="mt-6 w-full py-3 rounded-lg border border-white/15 text-white/70 hover:text-white text-sm transition"
+              className="mt-6 w-full py-3 rounded-lg border border-[#d9d9d9] text-[#444] hover:text-[#111] text-sm transition"
             >
               解約する
             </button>
           )}
 
           {sub.can_cancel && confirming && (
-            <div className="mt-6 space-y-3 rounded-xl border border-white/10 p-4">
-              <p className="text-sm text-white">FITPEAK PRO を解約しますか？</p>
-              <p className="text-xs text-white/50 leading-relaxed">
+            <div className="mt-6 space-y-3 rounded-[14px] border border-[#e6e6e6] p-4">
+              <p className="text-sm text-[#111]">FITPEAK PRO を解約しますか？</p>
+              <p className="text-xs text-[#666] leading-relaxed">
                 {sub.in_trial
                   ? '無料期間中の解約なので、料金はかかりません。無料期間の終了日までは特典を使えます。'
                   : 'お支払い済みの期間が終わるまでは特典を使えます。日割りの返金はありません。'}
@@ -167,16 +167,16 @@ export default function FitpeakPro() {
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
                 placeholder="よければ、解約の理由を教えてください（任意）"
-                className="w-full rounded-lg bg-black/40 border border-white/10 focus:border-[#c8a960] px-3 py-2 text-sm text-white placeholder-white/25 outline-none"
+                className="w-full rounded-[12px] bg-white border border-[#d2d2d7] focus:border-[#111] px-3 py-2 text-sm text-[#111] placeholder-[#aaa] outline-none"
               />
               <div className="flex gap-2">
-                <button onClick={() => setConfirming(false)} className="flex-1 py-3 rounded-lg border border-white/15 text-white/70 text-sm">
+                <button onClick={() => setConfirming(false)} className="flex-1 py-3 rounded-lg border border-[#d9d9d9] text-[#444] text-sm">
                   やめる
                 </button>
                 <button
                   onClick={cancel}
                   disabled={cancelling}
-                  className="flex-1 py-3 rounded-lg bg-white text-black text-sm font-bold disabled:opacity-50"
+                  className="flex-1 py-3 rounded-full bg-[#111] text-white text-sm font-bold disabled:opacity-50"
                 >
                   {cancelling ? '手続き中…' : '解約する'}
                 </button>

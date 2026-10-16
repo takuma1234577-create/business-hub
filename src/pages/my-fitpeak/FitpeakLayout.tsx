@@ -14,44 +14,46 @@ export default function FitpeakLayout() {
     }
   }, [])
 
+  // マイページ内のタブ: Appleのセグメント風（選ばれているものだけ黒いピル）
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
+    `flex items-center gap-1.5 px-3 sm:px-4 h-9 rounded-full text-[13px] sm:text-sm font-bold whitespace-nowrap transition-colors duration-200 ${
       isActive
-        ? 'border-[#c8a960] text-white'
-        : 'border-transparent text-white/40 hover:text-white/70'
+        ? 'bg-[#111] text-white'
+        : 'text-[#555] hover:text-[#111] hover:bg-[#ececec]'
     }`
 
   return (
-    <div className="fp-root min-h-screen bg-[#0a0a0a] overflow-x-hidden">
-      <header className="border-b border-white/10 bg-[#0f0f0f]">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3 py-4">
-            <a href={SITE} className="flex items-center gap-3 min-w-0" aria-label="FITPEAK 公式サイトへ">
-              <img src="/fitpeak-logo.svg" alt="FITPEAK" className="h-6" />
-              <span className="text-xs text-white/30">マイページ</span>
+    <div className="fp-root min-h-screen bg-[#f5f5f7] overflow-x-hidden">
+      {/* 公式サイト（fitpeak.co）と同じ黒ヘッダー＋白ロゴ＋太字メニュー */}
+      <header className="bg-[#0b0b0b] text-white">
+        <div className="max-w-5xl mx-auto px-3 sm:px-6">
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 py-1 sm:py-0 sm:h-16">
+            <a href={SITE} className="flex items-center gap-2.5 min-w-0 min-h-[48px]" aria-label="FITPEAK 公式サイトへ">
+              <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[19px] sm:h-[22px] lg:h-7 w-auto" />
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.14em] text-white/70 border-l border-white/25 pl-2.5 whitespace-nowrap">MY PAGE</span>
             </a>
-            <nav className="flex items-center gap-0.5 sm:gap-2" aria-label="公式サイト">
+            <nav className="order-3 sm:order-none w-full sm:w-auto flex items-center justify-between sm:justify-end sm:gap-1" aria-label="公式サイト">
               {SITE_NAV.map((g) =>
                 g.items ? (
                   <div key={g.label} className="relative">
                     <button
                       type="button"
                       onClick={() => setOpenMenu(openMenu === g.label ? null : g.label)}
-                      className="flex items-center gap-0.5 px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs text-white/60 hover:text-white whitespace-nowrap"
+                      className="flex items-center gap-0.5 px-2 sm:px-3 min-h-[44px] rounded-[8px] text-[13px] sm:text-sm font-bold text-white hover:bg-white/10 whitespace-nowrap"
                       aria-expanded={openMenu === g.label}
                     >
                       {g.label}
-                      <ChevronDown size={11} />
+                      <ChevronDown size={12} />
                     </button>
                     {openMenu === g.label && (
-                      <div className="absolute right-0 top-full mt-1 z-30 min-w-[11rem] rounded-xl border border-white/10 bg-[#151515] py-1.5 shadow-xl">
+                      <div className="absolute right-0 top-full mt-1 z-30 min-w-[13rem] rounded-[14px] border border-[#e5e5e5] bg-white text-[#111] p-2 shadow-[0_12px_32px_rgba(0,0,0,0.14)]">
                         {g.items.map((it) =>
                           it.soon || !it.href ? (
-                            <span key={it.name} className="flex items-center justify-between gap-3 px-4 py-2 text-xs text-white/30">
-                              {it.name}<span className="text-[10px]">準備中</span>
+                            <span key={it.name} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm font-bold text-[#999]">
+                              {it.name}<span className="text-[11px] font-normal rounded-full bg-[#eee] text-[#666] px-2 py-0.5">準備中</span>
                             </span>
                           ) : (
-                            <a key={it.name} href={it.href} className="block px-4 py-2 text-xs text-white/70 hover:text-white hover:bg-white/5">
+                            <a key={it.name} href={it.href} className="block px-3 py-2.5 rounded-[8px] text-sm font-bold text-[#111] hover:bg-[#f3f3f3]">
                               {it.name}
                             </a>
                           )
@@ -60,48 +62,54 @@ export default function FitpeakLayout() {
                     )}
                   </div>
                 ) : (
-                  <a key={g.label} href={g.href} className="px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs text-white/60 hover:text-white whitespace-nowrap">
+                  <a key={g.label} href={g.href} className="flex items-center px-2 sm:px-3 min-h-[44px] rounded-[8px] text-[13px] sm:text-sm font-bold text-white hover:bg-white/10 whitespace-nowrap">
                     {g.label}
                   </a>
                 )
               )}
             </nav>
           </div>
-          <nav className="flex gap-1 -mb-px overflow-x-auto [-webkit-overflow-scrolling:touch]">
-            <NavLink to="/my-fitpeak" end className={linkClass}>
-              <Package size={16} /> ご注文
-            </NavLink>
-            <NavLink to="/my-fitpeak/gotore" className={linkClass}>
-              <Users size={16} /> 合トレ
-            </NavLink>
-            <NavLink to="/my-fitpeak/notifications" className={linkClass}>
-              <Bell size={16} /> 通知
-            </NavLink>
-            <NavLink to="/my-fitpeak/saved" className={linkClass}>
-              <Star size={16} /> 保存
-            </NavLink>
-            <NavLink to="/my-fitpeak/pro" className={linkClass}>
-              <Crown size={16} /> PRO
-            </NavLink>
-            <NavLink to="/my-fitpeak/account" className={linkClass}>
-              <UserRound size={16} /> アカウント
-            </NavLink>
-          </nav>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="sticky top-0 z-20 border-b border-black/[0.08] bg-[#f5f5f7]/85 backdrop-blur-xl">
+        <nav className="max-w-3xl mx-auto px-3 sm:px-6 py-2 flex gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none]" aria-label="マイページ">
+          <NavLink to="/my-fitpeak" end className={linkClass}>
+            <Package size={15} /> ご注文
+          </NavLink>
+          <NavLink to="/my-fitpeak/gotore" className={linkClass}>
+            <Users size={15} /> 合トレ
+          </NavLink>
+          <NavLink to="/my-fitpeak/notifications" className={linkClass}>
+            <Bell size={15} /> 通知
+          </NavLink>
+          <NavLink to="/my-fitpeak/saved" className={linkClass}>
+            <Star size={15} /> 保存
+          </NavLink>
+          <NavLink to="/my-fitpeak/pro" className={linkClass}>
+            <Crown size={15} /> PRO
+          </NavLink>
+          <NavLink to="/my-fitpeak/account" className={linkClass}>
+            <UserRound size={15} /> アカウント
+          </NavLink>
+        </nav>
+      </div>
+
+      <main className="fp-page max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-12 sm:pt-12">
         <Outlet />
       </main>
 
-      <footer className="border-t border-white/10 mt-8">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 text-xs text-white/40 space-y-3">
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <a href={SITE} className="hover:text-white">FITPEAK 公式サイトへ戻る</a>
-            <a href={`${SITE}/policies/legal-notice`} className="hover:text-white">特定商取引法に基づく表記</a>
-            <a href={`${SITE}/policies/privacy-policy`} className="hover:text-white">プライバシーポリシー</a>
+      <footer className="bg-[#0b0b0b] text-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-8">
+          <a href={SITE} aria-label="FITPEAK 公式サイトへ" className="inline-block">
+            <img src="/fitpeak-wordmark-white.png" alt="FITPEAK" className="h-[18px] w-auto" />
+          </a>
+          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <a href={SITE} className="py-1.5 text-white hover:opacity-70 transition-opacity">FITPEAK 公式サイトへ戻る</a>
+            <a href={`${SITE}/policies/legal-notice`} className="py-1.5 text-white hover:opacity-70 transition-opacity">特定商取引法に基づく表記</a>
+            <a href={`${SITE}/policies/privacy-policy`} className="py-1.5 text-white hover:opacity-70 transition-opacity">プライバシーポリシー</a>
           </div>
-          <p>合同会社SVPコーポレーション</p>
+          <p className="mt-6 pt-5 border-t border-white/20 text-[11px] text-white/70">合同会社SVPコーポレーション</p>
         </div>
       </footer>
     </div>

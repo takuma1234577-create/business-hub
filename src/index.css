@@ -32,3 +32,33 @@ body {
 .fp-root textarea {
   font-size: 16px !important;
 }
+
+/* My FITPEAK: 公式サイト(fitpeak.co)のモノトーン・Noto Sans JP・字間に揃え、Apple風の静かな画面にする。.fp-root 配下だけに効かせる */
+.fp-root {
+  color: #111;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  letter-spacing: 0.04em;
+  -webkit-font-smoothing: antialiased;
+}
+.fp-root ::selection {
+  background: #111;
+  color: #fff;
+}
+.fp-root nav::-webkit-scrollbar {
+  display: none;
+}
+/* 画面が切り替わったときに中身をふわっと出す（控えめに） */
+@keyframes fp-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.fp-root .fp-page > *,
+.fp-root .fp-rise {
+  animation: fp-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-root .fp-page > *,
+  .fp-root .fp-rise {
+    animation: none;
+  }
+}

@@ -27,7 +27,7 @@ interface Status {
 }
 interface Login { status: 'granted' | 'already' | 'paused' | 'not_eligible'; points: number; streak_reset: boolean }
 
-const GOLD = '#c8a960'
+const GOLD = '#111'
 
 function formatDate(s: string) {
   const d = new Date(s)
@@ -116,16 +116,16 @@ export default function LoyaltyCard() {
   // 定期購入と紐づいていない人：紐づけの入口だけ出す
   if (status.eligibility === 'none') {
     return (
-      <section className="rounded-2xl bg-[#151515] border border-white/10 p-5">
+      <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5">
         <div className="flex items-start gap-3">
           <Gift size={20} className="shrink-0 mt-0.5" style={{ color: GOLD }} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-white">毎日のログインポイント＋クレアショットチャレンジ</p>
-            <p className="text-xs text-white/50 mt-1 leading-relaxed">
+            <p className="text-sm font-bold text-[#111]">毎日のログインポイント＋クレアショットチャレンジ</p>
+            <p className="text-xs text-[#666] mt-1 leading-relaxed">
               クレアショット定期購入中の方は、毎日ここを開くと1pt（1pt＝1円）。28日続けると、クレアショット1袋が当たるチャレンジに参加できます。
             </p>
             {status.balance > 0 && (
-              <p className="text-xs text-white/50 mt-2">保有ポイント {status.balance.toLocaleString()}pt</p>
+              <p className="text-xs text-[#666] mt-2">保有ポイント {status.balance.toLocaleString()}pt</p>
             )}
             <button
               type="button"
@@ -140,14 +140,14 @@ export default function LoyaltyCard() {
         </div>
         {linkOpen && (
           <div className="mt-4 space-y-2">
-            <p className="text-xs text-white/40">定期購入を申し込んだときの注文番号と、そのときのメールアドレスを入力してください。</p>
+            <p className="text-xs text-[#6b6b6b]">定期購入を申し込んだときの注文番号と、そのときのメールアドレスを入力してください。</p>
             <input
               type="text"
               inputMode="numeric"
               value={orderNumber}
               onChange={(e) => { setOrderNumber(e.target.value); setLinkError('') }}
               placeholder="注文番号（例: #1234）"
-              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+              className="w-full px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] transition"
             />
             <input
               type="email"
@@ -155,16 +155,16 @@ export default function LoyaltyCard() {
               onChange={(e) => { setOrderEmail(e.target.value); setLinkError('') }}
               onKeyDown={(e) => e.key === 'Enter' && link()}
               placeholder="注文時のメールアドレス"
-              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/20 text-sm focus:outline-none focus:border-[#c8a960]/50 transition"
+              className="w-full px-4 py-3 rounded-[12px] bg-[#f6f6f6] border border-[#d2d2d7] text-[#111] placeholder-[#aaa] text-sm focus:outline-none focus:border-[#111] transition"
             />
             <button
               onClick={link}
               disabled={linkBusy || !orderNumber.trim() || !orderEmail.trim()}
-              className="w-full py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-semibold transition disabled:opacity-40"
+              className="w-full py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition disabled:opacity-40"
             >
               {linkBusy ? '確認中' : '紐づける'}
             </button>
-            {linkError && <p className="text-red-400 text-xs">{linkError}</p>}
+            {linkError && <p className="text-[#c8102e] text-xs">{linkError}</p>}
           </div>
         )}
       </section>
@@ -176,11 +176,11 @@ export default function LoyaltyCard() {
   const lastDraw = status.recent_draws[0]
 
   return (
-    <section className="rounded-2xl bg-[#151515] border border-white/10 p-5">
+    <section className="rounded-[20px] bg-white border border-[#e6e6e6] p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-white/50">毎日のログインポイント</p>
+        <p className="text-xs text-[#666]">毎日のログインポイント</p>
         {status.boosted && (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#c8a960]/15" style={{ color: GOLD }}>
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#f2f2f2]" style={{ color: GOLD }}>
             <Flame size={12} />
             毎日2pt中
           </span>
@@ -188,16 +188,16 @@ export default function LoyaltyCard() {
       </div>
 
       {status.eligibility === 'paused' ? (
-        <p className="text-sm text-white/70 mt-3">休会中はポイントもお休みです。連続日数はそのまま残っていて、再開したら続きから数えます。</p>
+        <p className="text-sm text-[#444] mt-3">休会中はポイントもお休みです。連続日数はそのまま残っていて、再開したら続きから数えます。</p>
       ) : (
         <>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-white text-sm">連続</span>
-            <span className="text-3xl font-bold text-white">{inCycle}</span>
-            <span className="text-white/40 text-sm">/ 28日目</span>
-            {status.streak > 28 && <span className="text-white/40 text-xs ml-auto">連続{status.streak}日</span>}
+            <span className="text-[#111] text-sm">連続</span>
+            <span className="text-3xl font-black text-[#111]">{inCycle}</span>
+            <span className="text-[#6b6b6b] text-sm">/ 28日目</span>
+            {status.streak > 28 && <span className="text-[#6b6b6b] text-xs ml-auto">連続{status.streak}日</span>}
           </div>
-          <div className="h-2 rounded-full bg-white/10 mt-3 overflow-hidden">
+          <div className="h-2 rounded-full bg-[#eeeeee] mt-3 overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{ width: `${(inCycle / 28) * 100}%`, background: GOLD }} />
           </div>
 
@@ -205,46 +205,46 @@ export default function LoyaltyCard() {
             <p className="text-sm mt-3" style={{ color: GOLD }}>今日 +{login.points}pt 獲得</p>
           )}
           {login?.status === 'granted' && login.streak_reset && (
-            <p className="text-xs text-white/50 mt-1">連続がリセットされました。今日から1日目です。</p>
+            <p className="text-xs text-[#666] mt-1">連続がリセットされました。今日から1日目です。</p>
           )}
           {status.streak === 28 && (
-            <p className="text-xs text-white/60 mt-1">28日達成。明日から毎日2ptになります。</p>
+            <p className="text-xs text-[#555] mt-1">28日達成。明日から毎日2ptになります。</p>
           )}
           {!challenge && inCycle < 28 && (
-            <p className="text-xs text-white/50 mt-1">クレアショットチャレンジまで、あと{status.days_to_challenge}日</p>
+            <p className="text-xs text-[#666] mt-1">クレアショットチャレンジまで、あと{status.days_to_challenge}日</p>
           )}
         </>
       )}
 
       {challenge && (
-        <div className="mt-4 rounded-xl border border-[#c8a960]/40 p-4">
-          <p className="text-sm font-bold text-white">クレアショットチャレンジ</p>
-          <p className="text-xs text-white/50 mt-1">
+        <div className="mt-4 rounded-[14px] border border-[#111]/30 p-4">
+          <p className="text-sm font-bold text-[#111]">クレアショットチャレンジ</p>
+          <p className="text-xs text-[#666] mt-1">
             当たるとクレアショット1袋をお届けします（当選率{challenge.tier === 'first' ? '1' : '2'}%）。
             {formatDate(challenge.expires_at)}まで
           </p>
           <button
             onClick={() => draw(challenge.id)}
             disabled={drawing}
-            className="w-full mt-3 py-3 rounded-lg bg-[#c8a960] hover:bg-[#b89a50] text-black text-sm font-bold transition disabled:opacity-40"
+            className="w-full mt-3 py-3 rounded-full bg-[#111] hover:bg-[#333] text-white text-sm font-bold transition disabled:opacity-40"
           >
             {drawing ? '抽選中' : 'チャレンジする'}
           </button>
-          {drawError && <p className="text-red-400 text-xs mt-2">{drawError}</p>}
+          {drawError && <p className="text-[#c8102e] text-xs mt-2">{drawError}</p>}
         </div>
       )}
 
       {drawResult && (
-        <div className="mt-4 rounded-xl bg-white/5 p-4 text-center">
+        <div className="mt-4 rounded-[14px] bg-[#f6f6f6] p-4 text-center">
           {drawResult === 'win' ? (
             <>
               <p className="text-lg font-bold" style={{ color: GOLD }}>当たり</p>
-              <p className="text-xs text-white/60 mt-1">クレアショット1袋を、来月1日に定期購入のお届け先へ無料でお送りします。</p>
+              <p className="text-xs text-[#555] mt-1">クレアショット1袋を、来月1日に定期購入のお届け先へ無料でお送りします。</p>
             </>
           ) : (
             <>
-              <p className="text-lg font-bold text-white">ハズレ</p>
-              <p className="text-xs text-white/60 mt-1">次の28日でまたチャレンジできます。続けるほど当選率は2%に上がります。</p>
+              <p className="text-lg font-bold text-[#111]">ハズレ</p>
+              <p className="text-xs text-[#555] mt-1">次の28日でまたチャレンジできます。続けるほど当選率は2%に上がります。</p>
             </>
           )}
         </div>
@@ -253,17 +253,17 @@ export default function LoyaltyCard() {
         <p className="text-xs mt-3" style={{ color: GOLD }}>当選したクレアショット1袋は、来月1日に発送します。</p>
       )}
 
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
-        <span className="text-xs text-white/50">保有ポイント</span>
-        <span className="text-base font-bold text-white">{status.balance.toLocaleString()}pt</span>
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#e6e6e6]">
+        <span className="text-xs text-[#666]">保有ポイント</span>
+        <span className="text-base font-bold text-[#111]">{status.balance.toLocaleString()}pt</span>
       </div>
       {status.points_expire_on && status.balance > 0 && (
-        <p className="text-[11px] text-white/30 mt-1 text-right">有効期限 {formatDate(status.points_expire_on)}（ポイントを獲得するたびに延長）</p>
+        <p className="text-[11px] text-[#808080] mt-1 text-right">有効期限 {formatDate(status.points_expire_on)}（ポイントを獲得するたびに延長）</p>
       )}
       {status.balance > 0 && (
         <Link
           to="/my-fitpeak/points/use?redirect=/cart"
-          className="block w-full mt-3 py-2.5 rounded-lg border border-[#c8a960]/40 text-center text-xs font-semibold hover:bg-[#c8a960]/10 transition"
+          className="block w-full mt-3 py-2.5 rounded-lg border border-[#111]/30 text-center text-xs font-semibold hover:bg-[#f2f2f2] transition"
           style={{ color: GOLD }}
         >
           ポイントを使ってお買い物
